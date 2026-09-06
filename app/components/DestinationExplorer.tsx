@@ -5,12 +5,21 @@ import CitySearch from "./CitySearch";
 import MapWrapper from "./MapWrapper";
 
 export default function DestinationExplorer() {
-  const [city, setCity] = useState("Barcelona");
+    const [city, setCity] = useState("Barcelona");
+    const [coordinates, setCoordinates] = useState<[number, number]>([
+  41.3874,
+  2.1686,
+]);
 
   return (
     <>
         <div className="flex justify-center">
-         <CitySearch onCitySelect={setCity} />
+         <CitySearch
+            onCitySelect={(selectedCity, selectedCoordinates) => {
+                setCity(selectedCity);
+                setCoordinates(selectedCoordinates);
+            }}
+            />
         </div>
 
       <div className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
@@ -28,7 +37,7 @@ export default function DestinationExplorer() {
         </div>
 
         <div className="relative h-[600px] w-full">
-            <MapWrapper city={city} />
+            <MapWrapper city={city} coordinates={coordinates} />
         </div>
       </div>
     </>

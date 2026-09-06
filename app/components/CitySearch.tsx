@@ -2,30 +2,77 @@
 
 import { useState } from "react";
 
-const cities = ["Barcelona", "Berlin"];
+type CitySearchProps = {
+  onCitySelect: (city: string, coordinates: [number, number]) => void;
+};
 
-export default function CitySearch({
-  onCitySelect,
-}: {
-  onCitySelect: (city: string) => void;
-}) {
+const popularCities = [
+  "Barcelona",
+  "Berlin",
+  "Paris",
+  "Milan",
+  "Rome",
+  "Delhi",
+];
+
+export default function CitySearch({ onCitySelect }: CitySearchProps) {
   const [query, setQuery] = useState("");
-  const [selectedCity, setSelectedCity] = useState("");
-    const [showSuggestions, setShowSuggestions] = useState(true);
-  const filteredCities = cities.filter((city) =>
-    city.toLowerCase().includes(query.toLowerCase()),
-  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleExplore() {
+    const search = query.trim();
+
+    if (!search) return;
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(search)}`,
+      );
+
+      if (!response.ok) {
+        throw new Error("Geocoding request failed");
+      }
+
+      const results = await response.json();
+
+      if (results.length === 0) {
+        setError("Location not found. Try another city.");
+        return;
+      }
+
+      const result = results[0];
+
+      const coordinates: [number, number] = [
+        Number(result.lat),
+        Number(result.lon),
+      ];
+
+      onCitySelect(result.display_name.split(",")[0], coordinates);
+    } catch {
+      setError("Could not find this location. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div className="relative mt-10 w-full max-w-2xl">
+    <div className="w-full max-w-2xl">
       <div className="flex w-full flex-col gap-3 sm:flex-row">
         <input
           type="text"
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
-            setSelectedCity("");
-            setShowSuggestions(true);
+            setError("");
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              handleExplore();
+            }
           }}
           placeholder="Where are you going? e.g. Barcelona"
           className="h-14 flex-1 rounded-xl border border-white/10 bg-white/5 px-5 text-white outline-none placeholder:text-slate-500 focus:border-amber-400"
@@ -33,42 +80,38 @@ export default function CitySearch({
 
         <button
           type="button"
-          onClick={() => {
-            if (query.trim()) {
-                setSelectedCity(query.trim());
-                setShowSuggestions(false);
-                onCitySelect(query.trim());
-            }
-            }}
-          className="h-14 rounded-xl bg-amber-400 px-7 font-semibold text-slate-950 hover:bg-amber-300"
+          onClick={handleExplore}
+          disabled={loading}
+          className="h-14 rounded-xl bg-amber-400 px-7 font-semibold text-slate-950 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Explore
+          {loading ? "Searching..." : "Explore"}
         </button>
       </div>
 
-      {query && showSuggestions && filteredCities.length > 0 && (
-        <div className="absolute left-0 right-0 top-[68px] z-50 overflow-hidden rounded-xl border border-white/10 bg-slate-900 text-left shadow-xl">
-          {filteredCities.map((city) => (
-            <button
-              key={city}
-              type="button"
-                onClick={() => {
-                    setQuery(city);
-                    setSelectedCity(city);
-                    setShowSuggestions(false);
-                    onCitySelect(city);
-                }}
-              className="block w-full px-5 py-3 text-left text-slate-200 hover:bg-white/10"
-            >
-              {city}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Popular destinations */}
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+        <span className="mr-1 text-sm text-slate-500">
+          Popular destinations:
+        </span>
 
-      {selectedCity && (
-        <p className="mt-3 text-sm text-amber-300">
-          Exploring {selectedCity}
+        {popularCities.map((city) => (
+          <button
+            key={city}
+            type="button"
+            onClick={() => {
+              setQuery(city);
+              setError("");
+            }}
+            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-slate-300 transition hover:border-amber-400/40 hover:bg-amber-400/10 hover:text-amber-300"
+          >
+            {city}
+          </button>
+        ))}
+      </div>
+
+      {error && (
+        <p className="mt-3 text-left text-sm text-red-400">
+          {error}
         </p>
       )}
     </div>

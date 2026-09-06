@@ -6,6 +6,12 @@ const Map = dynamic(() => import("./Map"), {
   ssr: false,
 });
 
-export default function MapWrapper({ city }: { city: string }) {
-  return <Map city={city} />;
+export default function MapWrapper({
+  city,
+  coordinates,
+}: {
+  city: string;
+  coordinates: [number, number];
+}) {
+  return <Map city={city} coordinates={coordinates} />;
 }

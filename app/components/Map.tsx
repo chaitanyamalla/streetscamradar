@@ -75,7 +75,6 @@ const reports = [
     location: "La Rambla",
     position: [41.3809, 2.1734] as [number, number],
     reported: "2 hours ago",
-    risk: "High",
     tactic: "Distraction while taking belongings",
     source: "Community report",
   },
@@ -87,7 +86,6 @@ const reports = [
     location: "Plaça de Catalunya",
     position: [41.387, 2.1701] as [number, number],
     reported: "5 hours ago",
-    risk: "Medium",
     tactic: "Unofficial charity or petition request",
     source: "Community report",
   },
@@ -99,7 +97,6 @@ const reports = [
     location: "Sagrada Família",
     position: [41.4036, 2.1744] as [number, number],
     reported: "Yesterday",
-    risk: "Medium",
     tactic: "Unlicensed taxi offering inflated fares",
     source: "Community report",
   },
@@ -111,7 +108,6 @@ const reports = [
     location: "Alexanderplatz",
     position: [52.5219, 13.4132] as [number, number],
     reported: "1 hour ago",
-    risk: "High",
     tactic: "Distraction in crowded areas",
     source: "Community report",
   },
@@ -123,27 +119,30 @@ const reports = [
     location: "Brandenburg Gate",
     position: [52.5163, 13.3777] as [number, number],
     reported: "3 hours ago",
-    risk: "Medium",
     tactic: "Aggressive solicitation targeting tourists",
     source: "Community report",
   },
 ];
 
-function MapController({ city }: { city: string }) {
+function MapController({
+  coordinates,
+}: {
+  coordinates: [number, number];
+}) {
   const map = useMap();
 
-  if (city === "Barcelona") {
-    map.setView([41.3874, 2.1686], 13);
-  }
-
-  if (city === "Berlin") {
-    map.setView([52.52, 13.405], 12);
-  }
+  map.setView(coordinates, 13);
 
   return null;
 }
 
-export default function Map({ city }: { city: string }) {
+export default function Map({
+  city,
+  coordinates,
+}: {
+  city: string;
+  coordinates: [number, number];
+}) {
   return (
     <div className="relative h-full w-full">
       <MapContainer
@@ -155,8 +154,8 @@ export default function Map({ city }: { city: string }) {
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        <MapController city={city} />       
+     />
+        <MapController coordinates={coordinates} />       
         {reports
             .filter((report) => report.city === city)
             .map((report) => (
@@ -176,9 +175,6 @@ export default function Map({ city }: { city: string }) {
                     </div>
 
                     <div className="space-y-2 text-sm">
-                    <div>
-                        <strong>Risk:</strong> {report.risk}
-                    </div>
 
                     <div>
                         <strong>Reported:</strong> {report.reported}

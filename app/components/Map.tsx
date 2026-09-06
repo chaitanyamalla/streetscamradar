@@ -1,6 +1,12 @@
 "use client";
 
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  useMap,
+} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -63,6 +69,7 @@ const markerIcons = {
 const reports = [
   {
     id: 1,
+    city: "Barcelona",
     type: "Pickpocketing",
     category: "pickpocketing" as const,
     location: "La Rambla",
@@ -74,6 +81,7 @@ const reports = [
   },
   {
     id: 2,
+    city: "Barcelona",
     type: "Tourist scam",
     category: "touristScam" as const,
     location: "Plaça de Catalunya",
@@ -85,6 +93,7 @@ const reports = [
   },
   {
     id: 3,
+    city: "Barcelona",
     type: "Fake taxi",
     category: "fakeTaxi" as const,
     location: "Sagrada Família",
@@ -94,9 +103,47 @@ const reports = [
     tactic: "Unlicensed taxi offering inflated fares",
     source: "Community report",
   },
+  {
+    id: 4,
+    city: "Berlin",
+    type: "Pickpocketing",
+    category: "pickpocketing" as const,
+    location: "Alexanderplatz",
+    position: [52.5219, 13.4132] as [number, number],
+    reported: "1 hour ago",
+    risk: "High",
+    tactic: "Distraction in crowded areas",
+    source: "Community report",
+  },
+  {
+    id: 5,
+    city: "Berlin",
+    type: "Tourist scam",
+    category: "touristScam" as const,
+    location: "Brandenburg Gate",
+    position: [52.5163, 13.3777] as [number, number],
+    reported: "3 hours ago",
+    risk: "Medium",
+    tactic: "Aggressive solicitation targeting tourists",
+    source: "Community report",
+  },
 ];
 
-export default function Map() {
+function MapController({ city }: { city: string }) {
+  const map = useMap();
+
+  if (city === "Barcelona") {
+    map.setView([41.3874, 2.1686], 13);
+  }
+
+  if (city === "Berlin") {
+    map.setView([52.52, 13.405], 12);
+  }
+
+  return null;
+}
+
+export default function Map({ city }: { city: string }) {
   return (
     <div className="relative h-full w-full">
       <MapContainer
@@ -109,8 +156,10 @@ export default function Map() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-
-        {reports.map((report) => (
+        <MapController city={city} />       
+        {reports
+            .filter((report) => report.city === city)
+            .map((report) => (
           <Marker
             key={report.id}
             position={report.position}

@@ -1,4 +1,6 @@
-import MapWrapper from "./components/MapWrapper";
+import DestinationExplorer from "./components/DestinationExplorer";
+import CitySearch from "./components/CitySearch";
+
 
 export default function Home() {
   return (
@@ -40,41 +42,13 @@ export default function Home() {
           information before and during your journey.
         </p>
 
-        {/* Search */}
-        <div className="mt-10 flex w-full max-w-2xl flex-col gap-3 sm:flex-row">
-          <input
-            type="text"
-            placeholder="Where are you going?  e.g. Barcelona"
-            className="h-14 flex-1 rounded-xl border border-white/10 bg-white/5 px-5 text-white outline-none placeholder:text-slate-500 focus:border-amber-400"
-          />
 
-          <button className="h-14 rounded-xl bg-amber-400 px-7 font-semibold text-slate-950 hover:bg-amber-300">
-            Explore
-          </button>
-        </div>
       </section>
-
-      {/* Preview */}
+      {/* Destination explorer */}
       <section className="mx-auto max-w-7xl px-6 pb-20">
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
-          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-            <div>
-              <p className="font-semibold">Barcelona</p>
-              <p className="text-sm text-slate-500">
-                Safety intelligence preview
-              </p>
-            </div>
-
-            <span className="rounded-full bg-amber-400/10 px-3 py-1 text-xs text-amber-300">
-              DEMO DATA
-            </span>
-          </div>
-
-          <div className="relative h-[420px] w-full">
-            <MapWrapper />
-          </div>
-        </div>
+        <DestinationExplorer />
       </section>
+
 
       {/* Information cards */}
       <section className="mx-auto grid max-w-7xl gap-5 px-6 pb-24 md:grid-cols-3">

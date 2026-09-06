@@ -67,6 +67,10 @@ const reports = [
     category: "pickpocketing" as const,
     location: "La Rambla",
     position: [41.3809, 2.1734] as [number, number],
+    reported: "2 hours ago",
+    risk: "High",
+    tactic: "Distraction while taking belongings",
+    source: "Community report",
   },
   {
     id: 2,
@@ -74,6 +78,10 @@ const reports = [
     category: "touristScam" as const,
     location: "Plaça de Catalunya",
     position: [41.387, 2.1701] as [number, number],
+    reported: "5 hours ago",
+    risk: "Medium",
+    tactic: "Unofficial charity or petition request",
+    source: "Community report",
   },
   {
     id: 3,
@@ -81,6 +89,10 @@ const reports = [
     category: "fakeTaxi" as const,
     location: "Sagrada Família",
     position: [41.4036, 2.1744] as [number, number],
+    reported: "Yesterday",
+    risk: "Medium",
+    tactic: "Unlicensed taxi offering inflated fares",
+    source: "Community report",
   },
 ];
 
@@ -105,11 +117,35 @@ export default function Map() {
             icon={markerIcons[report.category]}
           >
             <Popup>
-              <strong>{report.type}</strong>
-              <br />
-              {report.location}
-              <br />
-              <small>Demo report</small>
+                <div className="min-w-[220px]">
+                    <div className="mb-2 text-base font-bold text-slate-900">
+                    {report.type}
+                    </div>
+
+                    <div className="mb-3 text-sm text-slate-600">
+                    📍 {report.location}
+                    </div>
+
+                    <div className="space-y-2 text-sm">
+                    <div>
+                        <strong>Risk:</strong> {report.risk}
+                    </div>
+
+                    <div>
+                        <strong>Reported:</strong> {report.reported}
+                    </div>
+
+                    <div>
+                        <strong>Common tactic:</strong>
+                        <br />
+                        {report.tactic}
+                    </div>
+
+                    <div className="border-t border-slate-200 pt-2 text-xs text-slate-500">
+                        Source: {report.source}
+                    </div>
+                    </div>
+                </div>
             </Popup>
           </Marker>
         ))}

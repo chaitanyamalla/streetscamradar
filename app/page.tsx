@@ -30,7 +30,9 @@ export default function Home() {
         <h2 className="max-w-3xl text-5xl font-bold tracking-tight sm:text-6xl">
           Know the risks
           <br />
-          <span className="text-amber-400">before you arrive.</span>
+          <span className="text-amber-400">Avoid the traps</span>
+          <br />
+          <span className="text-amber-400">Travel smarter</span>
         </h2>
 
         <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-400">

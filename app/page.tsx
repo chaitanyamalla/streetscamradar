@@ -1,3 +1,5 @@
+import MapWrapper from "./components/MapWrapper";
+
 export default function Home() {
   return (
     <main className="min-h-screen bg-slate-950 text-white">
@@ -66,15 +68,8 @@ export default function Home() {
             </span>
           </div>
 
-          {/* Temporary map placeholder */}
-          <div className="relative flex h-[420px] items-center justify-center bg-slate-800">
-            <div className="text-center">
-              <div className="mx-auto mb-4 text-5xl">🗺️</div>
-              <p className="text-lg font-medium">Interactive map coming next</p>
-              <p className="mt-2 text-sm text-slate-500">
-                Scam reports and safety information will appear here.
-              </p>
-            </div>
+          <div className="relative h-[420px] w-full">
+            <MapWrapper />
           </div>
         </div>
       </section>

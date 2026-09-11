@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A community safety map for reporting and avoiding scams in Berlin." />
+    <title>Safer Streets Berlin — Scam & safety map</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="fix.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#map" aria-label="Safer Streets Berlin home"><span class="brand-mark">S</span><span>Safer<span class="accent">Streets</span></span></a>
+        <div class="city-control"><span class="status-dot"></span><span>Berlin, Germany</span><span class="chevron">⌄</span></div>
+        <nav aria-label="Main navigation"><a class="active" href="#map">Map</a><a href="#learn">Learn</a><a href="#about">About</a></nav>
+        <button class="report-button" id="open-report" type="button"><span>＋</span> Report a scam</button>
+      </header>
+
+      <section class="map-area" id="map" aria-label="Interactive Berlin safety map">
+        <div id="city-map" class="city-map" aria-label="Interactive map of Berlin. Pan and zoom directly on the map.">
+          <svg class="map-art" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <rect width="1200" height="700" fill="#dce4da" />
+            <path d="M0 110 C160 70 250 155 360 130 S570 35 710 105 S920 170 1200 85" fill="none" stroke="#eef2eb" stroke-width="68" />
+            <path d="M-40 515 C130 425 235 505 350 455 S580 350 720 430 S1000 490 1260 395" fill="none" stroke="#eef2eb" stroke-width="88" />
+            <path d="M130 0 C190 165 180 230 250 340 S440 445 510 700" fill="none" stroke="#c4d7d3" stroke-width="16" />
+            <path d="M870 -10 C835 140 910 230 840 340 S925 525 865 710" fill="none" stroke="#c4d7d3" stroke-width="13" />
+            <g fill="none" stroke="#f6f7f1" stroke-width="9" opacity=".94"><path d="M35 275 L285 185 L500 250 L730 172 L1125 290"/><path d="M40 590 L240 480 L450 555 L720 475 L1130 570"/><path d="M375 20 L462 205 L405 365 L620 510 L590 700"/><path d="M680 0 L600 165 L725 278 L660 400 L775 630"/></g>
+            <g fill="none" stroke="#b2c8c1" stroke-width="2"><path d="M0 350 C245 300 390 385 560 320 S890 280 1200 350"/><path d="M220 0 C340 160 250 275 390 430 S460 575 420 700"/><path d="M1000 0 C940 180 1050 280 960 430 S1030 590 1200 620"/></g>
+            <g fill="#b9cdbb" opacity=".72"><path d="M80 70h115v85H80z"/><path d="M905 105h135v62H905z"/><path d="M655 510h155v78H655z"/><path d="M255 560h120v72H255z"/></g>
+            <g fill="#6b837a" font-family="DM Mono, monospace" font-size="13" letter-spacing="2"><text x="514" y="324">MITTE</text><text x="343" y="405">KREUZBERG</text><text x="722" y="405">FRIEDRICHSHAIN</text><text x="498" y="520">NEUKÖLLN</text><text x="804" y="232">PRENZLAUER BERG</text></g>
+          </svg>
+          <div id="marker-layer" class="marker-layer" aria-live="polite"></div>
+          <div id="map-tooltip" class="map-tooltip" hidden></div>
+        </div>
+        <aside class="map-intro">
+          <p class="eyebrow">Community safety map</p>
+          <h1>Know the signal.<br /><em>Move with confidence.</em></h1>
+          <p class="intro-copy">A shared view of reported scams and trusted places to get help across Berlin.</p>
+          <div class="map-search"><span>⌕</span><input id="place-search" type="search" placeholder="Search a street, district or place" aria-label="Search a place" /><kbd>↵</kbd></div>
+        </aside>
+
+        <div class="floating-controls">
+          <button id="locate-button" class="icon-button" type="button" aria-label="Locate me">◎</button>
+          <div class="zoom-controls"><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="zoom-out" type="button" aria-label="Zoom out">−</button></div>
+        </div>
+
+        <section class="filter-panel" aria-label="Map layers">
+          <div class="panel-heading"><span>What’s on the map</span><button id="clear-filters" type="button">Clear all</button></div>
+          <div class="filter-section"><p>SCAM REPORTS <span class="live-label">LIVE</span></p>
+            <label class="filter-row"><input type="checkbox" data-layer="scam" data-type="pickpocket" checked /><span class="legend-dot orange"></span>Pickpocketing <b>14</b></label>
+            <label class="filter-row"><input type="checkbox" data-layer="scam" data-type="fake-rental" checked /><span class="legend-dot red"></span>Fake rentals <b>8</b></label>
+            <label class="filter-row"><input type="checkbox" data-layer="scam" data-type="ticket" checked /><span class="legend-dot purple"></span>Ticket scams <b>6</b></label>
+            <label class="filter-row"><input type="checkbox" data-layer="scam" data-type="other" checked /><span class="legend-dot blue"></span>Other reports <b>11</b></label>
+          </div>
+          <div class="filter-section safety-section"><p>SAFETY &amp; SUPPORT</p>
+            <label class="filter-row"><input type="checkbox" data-layer="place" data-type="police" checked /><span class="place-icon police">♜</span>Police stations</label>
+            <label class="filter-row"><input type="checkbox" data-layer="place" data-type="hospital" checked /><span class="place-icon hospital">+</span>Hospitals &amp; clinics</label>
+            <label class="filter-row"><input type="checkbox" data-layer="place" data-type="embassy" checked /><span class="place-icon embassy">▦</span>Embassies &amp; consulates</label>
+            <label class="filter-row"><input type="checkbox" data-layer="place" data-type="family" /><span class="place-icon family">★</span>Family-friendly places</label>
+          </div>
+        </section>
+
+        <aside class="reports-card">
+          <div class="reports-head"><div><p class="eyebrow">Berlin · last 30 days</p><h2>Recent reports</h2></div><button id="next-report" type="button" aria-label="Next report">→</button></div>
+          <div id="report-list"></div>
+          <a href="#learn" class="safe-link">How we verify reports <span>↗</span></a>
+        </aside>
+
+        <div class="map-attribution">Illustrative Berlin street context · support locations are labelled clearly</div>
+      </section>
+
+      <section class="trust-strip" id="learn">
+        <div><p class="eyebrow">Built for clarity</p><h2>Useful context, not fear.</h2></div>
+        <div class="trust-item"><span class="trust-icon">✓</span><div><b>Community reports</b><p>Reported by people on the ground and clearly labeled as such.</p></div></div>
+        <div class="trust-item"><span class="trust-icon">↗</span><div><b>Official data context</b><p>Links to Berlin Police and German federal crime reporting.</p></div></div>
+        <div class="trust-item"><span class="trust-icon">♡</span><div><b>Help close by</b><p>Find trusted services when you need support quickly.</p></div></div>
+      </section>
+
+      <section class="official-section" id="about">
+        <div><p class="eyebrow">Public-source context</p><h2>Crime data, <em>with the right framing.</em></h2></div>
+        <p>Official crime statistics describe reported offences, not an individual street’s risk. We surface them as context alongside local services and clearly marked community reports.</p>
+        <a class="official-link" href="https://www.berlin.de/polizei/verschiedenes/polizeiliche-kriminalstatistik/" target="_blank" rel="noreferrer">Explore Berlin Police crime statistics <span>↗</span></a>
+        <a class="official-link" href="https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/PKS2024/pks2024_node.html" target="_blank" rel="noreferrer">German Federal Crime Police Statistics (BKA) <span>↗</span></a>
+      </section>
+    </main>
+
+    <dialog id="report-dialog">
+      <form id="report-form" method="dialog">
+        <div class="dialog-header"><div><p class="eyebrow">Community report</p><h2>Help someone avoid a scam.</h2></div><button class="close-button" id="close-report" type="button" aria-label="Close">×</button></div>
+        <p class="form-note">Please share what happened without names, contact details, or identifying photos. Reports are kept on this device in this prototype.</p>
+        <label>What kind of scam?<select id="scam-type" required><option value="pickpocket">Pickpocketing</option><option value="fake-rental">Fake rental</option><option value="ticket">Ticket scam</option><option value="other">Other</option></select></label>
+        <label>Where did it happen?<input id="scam-location" required placeholder="e.g. near Alexanderplatz station" /></label>
+        <div class="pin-picker"><span class="pin-symbol">⌖</span><span id="pin-status">Map pin: central Berlin</span><button id="use-map-center" type="button">Use current map view</button></div>
+        <button class="pick-location" id="pick-on-map" type="button">Choose a precise location on the map <span>↗</span></button>
+        <label>When?<select id="scam-time"><option>Today</option><option>Yesterday</option><option>Within the last week</option><option>Earlier</option></select></label>
+        <label>What should others know?<textarea id="scam-details" required rows="4" maxlength="360" placeholder="Share the warning signs and what happened."></textarea><span class="char-count"><span id="count">0</span>/360</span></label>
+        <button class="submit-report" type="submit">Submit community report <span>→</span></button>
+      </form>
+    </dialog>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

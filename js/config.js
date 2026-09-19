@@ -10,7 +10,7 @@
 //
 // Find these at: Supabase dashboard -> Project Settings -> API
 // ---------------------------------------------------------------------------
-export const SUPABASE_URL = 'https://vlwpwrxhyjvbtpdyctsf.supabase.co';
+export const SUPABASE_URL = 'https://navjxkozsikggyxlebrd.supabase.co';
 
 // Dashboard -> Project Settings -> API -> "anon / public" (newer projects call
 // this the "publishable" key and it starts sb_publishable_). Either works.

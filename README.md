@@ -63,13 +63,13 @@ To check it worked: **Table Editor** should now list `reports`,
 
 ### 2. Point the site at your project
 
-The project is `vlwpwrxhyjvbtpdyctsf`, and its URL is already filled in.
+The project is `navjxkozsikggyxlebrd`, and its URL is already filled in.
 One value is still needed — **Project Settings → API**, copy the
 **anon / public** key (newer projects label it *publishable*, starting
 `sb_publishable_`) into `js/config.js`:
 
 ```js
-export const SUPABASE_URL = 'https://vlwpwrxhyjvbtpdyctsf.supabase.co';  // done
+export const SUPABASE_URL = 'https://navjxkozsikggyxlebrd.supabase.co';  // done
 export const SUPABASE_ANON_KEY = '';                                     // <- paste here
 ```
 

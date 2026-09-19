@@ -51,38 +51,68 @@ jobs:
           fi
           psql --version
 
-      # psql silently falls back to a local unix socket when the argument is not
-      # a URI, which produces a baffling "no such file or directory" error. Check
-      # the shape first and say what is actually wrong. The password is never
-      # printed — only the parts that are already public.
+      # psql silently falls back to a local unix socket when the argument is
+      # neither a URI nor keyword form, which produces a baffling "no such file
+      # or directory". Work out which form this is, and if it is neither, report
+      # the value's SHAPE — never its content — so the problem is obvious.
       - name: Check the connection string looks right
         env:
           PGURL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           python3 - <<'PY'
           import os, sys, urllib.parse
-          u = os.environ.get("PGURL", "").strip()
-          if not u.startswith(("postgresql://", "postgres://")):
-              print("::error::SUPABASE_DB_URL is not a connection URI. It must start with "
-                    "postgresql:// — copy the 'Session pooler' URI from Supabase's Connect "
-                    "dialog, not the psql command, not the host on its own.")
+          raw = os.environ.get("PGURL", "")
+          u = raw.strip().strip('"').strip("'")
+
+          host = port = user = db = None
+          pwd = False
+
+          if u.startswith(("postgresql://", "postgres://")):
+              p = urllib.parse.urlparse(u)
+              host, port, user, pwd = p.hostname, p.port, p.username, bool(p.password)
+              db = p.path.lstrip("/") or None
+              print("form = connection URI")
+          elif "host=" in u and "=" in u:
+              kv = dict(part.split("=", 1) for part in u.split() if "=" in part)
+              host, user, db = kv.get("host"), kv.get("user"), kv.get("dbname")
+              port = kv.get("port"); pwd = "password" in kv
+              print("form = keyword string (psql accepts this)")
+          else:
+              # Describe it without revealing it.
+              print("::error::SUPABASE_DB_URL is neither a postgresql:// URI nor a "
+                    "host=... keyword string, so psql treats it as a bare database name "
+                    "and tries to connect to localhost.")
+              print("--- what the value looks like (no content shown) ---")
+              print(f"  length              = {len(raw)} characters")
+              print(f"  starts with 'psql'  = {u.lower().startswith('psql')}")
+              print(f"  contains '://'      = {'://' in u}")
+              print(f"  contains '@'        = {'@' in u}")
+              print(f"  contains '='        = {'=' in u}")
+              print(f"  contains a newline  = {chr(10) in raw or chr(13) in raw}")
+              print(f"  has leading/trailing space = {raw != raw.strip()}")
+              scheme = u.split('://')[0] if '://' in u else None
+              if scheme and len(scheme) < 20:
+                  print(f"  scheme found        = {scheme!r}")
+              print("---")
+              print("Fix: Supabase -> Connect -> Session pooler -> copy the whole URI.")
+              print("It must begin with postgresql:// and end with /postgres")
               sys.exit(1)
-          p = urllib.parse.urlparse(u)
-          print(f"host = {p.hostname}")
-          print(f"port = {p.port}")
-          print(f"user = {p.username}")
-          print(f"database = {p.path.lstrip('/') or '(none)'}")
-          print(f"password supplied = {'yes' if p.password else 'NO'}")
+
+          print(f"host = {host}")
+          print(f"port = {port}")
+          print(f"user = {user}")
+          print(f"database = {db or '(none)'}")
+          print(f"password supplied = {'yes' if pwd else 'NO'}")
+
           ok = True
-          if not p.password:
-              print("::error::No password in the URI. Replace [YOUR-PASSWORD] with the real one."); ok = False
-          if p.password and p.password.startswith("[") :
-              print("::error::The password is still the [YOUR-PASSWORD] placeholder."); ok = False
-          if p.hostname and p.hostname.startswith("db."):
+          if not pwd:
+              print("::error::No password. Replace [YOUR-PASSWORD] with the real database password "
+                    "(Supabase -> Settings -> Database), not your Supabase login password."); ok = False
+          if host and host.startswith("db."):
               print("::error::That is the direct host, which is IPv6-only. GitHub runners are "
-                    "IPv4-only, so use the Session pooler host (aws-N-<region>.pooler.supabase.com)."); ok = False
-          if not p.port:
-              print("::warning::No port given; the pooler needs :5432 (session) or :6543 (transaction).")
+                    "IPv4-only. Use the Session pooler host: aws-N-<region>.pooler.supabase.com"); ok = False
+          if not port:
+              print("::warning::No port; the pooler needs :5432 (session) or :6543 (transaction).")
           sys.exit(0 if ok else 1)
           PY
 

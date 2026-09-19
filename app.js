@@ -9,7 +9,7 @@
 import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS, SEVERITY } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, supabase } from './js/data.js';
-import { initAuth, onAuthChange, sendMagicLink, signInWithGoogle, signOut } from './js/auth.js';
+import { initAuth, onAuthChange, sendMagicLink, signInWithGoogle, signOut, enabledProviders } from './js/auth.js';
 import { searchPlaces, describePoint, locateMe } from './js/geo.js';
 import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace, maplibregl } from './js/map.js';
 import { esc, toast, renderCategoryFilters, renderReportList, popupHTML, setGateNote } from './js/ui.js';
@@ -81,6 +81,14 @@ async function init() {
   }
 
   wireUI();
+  await paintProviders();
+}
+
+/** Only show the Google button if the provider is actually switched on. */
+async function paintProviders() {
+  const { google } = await enabledProviders();
+  $('#google-signin').hidden = !google;
+  $('#auth-or-rule').hidden = !google;
 }
 
 function paintAuthState() {

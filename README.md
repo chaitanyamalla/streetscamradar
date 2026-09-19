@@ -101,13 +101,20 @@ every database call.
   same page — it looks like
   `https://YOUR-PROJECT.supabase.co/auth/v1/callback`.
 
-**Authentication → URL Configuration**
+**Authentication → URL Configuration** — do this or sign-in links are dead.
 
 - *Site URL*: `https://streetscamradar.vercel.app`
 - *Redirect URLs*: add `https://streetscamradar.vercel.app/**` and, for local
-  work, `http://localhost:8080/**`.
+  work, `http://localhost:8080/**`
 
-Sign-in links will silently fail to come back if these are not set.
+Supabase defaults Site URL to `http://localhost:3000`. If you leave it, the
+magic-link email arrives and the link lands on `localhost refused to connect`.
+The page always asks to come back to its own origin, but Supabase ignores that
+unless the origin is in the Redirect URLs list, and falls back to Site URL.
+
+The Google button only appears when the Google provider is actually enabled —
+the page asks `/auth/v1/settings` on load. Nothing to configure; enable Google
+in the dashboard and the button shows up by itself.
 
 ### 4. Deploy
 

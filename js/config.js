@@ -1,30 +1,32 @@
 // ---------------------------------------------------------------------------
 // StreetScamRadar — configuration.
 //
-// Paste your Supabase project values below. Both are safe to commit: the anon
-// key is a *public* key and is meant to be visible in the page. What protects
-// your data is Row Level Security in supabase/schema.sql, not secrecy here.
+// Both values below are safe to commit: the publishable key is a *public* key,
+// meant to be visible in the page. What protects your data is Row Level
+// Security in supabase/schema.sql, not secrecy here.
 //
-// NEVER put the service_role key in this file. It bypasses every security
-// rule in the database, and anything in this repo is public.
+// NEVER put the secret key (sb_secret_... or service_role) or the database
+// password in this file. They bypass every security rule, and this repo is
+// public.
 //
 // Find these at: Supabase dashboard -> Project Settings -> API
 // ---------------------------------------------------------------------------
 export const SUPABASE_URL = 'https://navjxkozsikggyxlebrd.supabase.co';
 
-// Dashboard -> Project Settings -> API -> "anon / public" (newer projects call
-// this the "publishable" key and it starts sb_publishable_). Either works.
-export const SUPABASE_ANON_KEY = '';
+// Dashboard -> Project Settings -> API. This project uses Supabase's newer key
+// system, so it is the "publishable" key rather than the older anon JWT; both
+// sit in the same place and both map to the anon Postgres role.
+export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_jHEzRBn-7aLJvvstU45RVw_teiR7jKi';
 
 // Is the backend wired up yet? The app still loads without it, showing a
 // banner, rather than a blank page.
 export const isConfigured = () =>
-  Boolean(SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_URL.startsWith('https://'));
+  Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY && SUPABASE_URL.startsWith('https://'));
 
 /** Which piece is still missing, for the banner at the top of the page. */
 export const missingConfig = () => {
   if (!SUPABASE_URL) return 'url';
-  if (!SUPABASE_ANON_KEY) return 'key';
+  if (!SUPABASE_PUBLISHABLE_KEY) return 'key';
   return null;
 };
 

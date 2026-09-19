@@ -4,13 +4,14 @@
 // Note what is NOT here: any check of the form "if signed out, hide X". The
 // page asks a different *question* depending on who is asking, but the answer
 // is decided by the database. A visitor who edits this file in their browser
-// gets nothing extra.
+// gets nothing extra — the publishable key maps to the anon role, and the anon
+// role has no read access to the reports table at all.
 // ---------------------------------------------------------------------------
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { SUPABASE_URL, SUPABASE_ANON_KEY, isConfigured, PUBLIC_DETAIL_MAX_SPAN } from './config.js';
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, isConfigured, PUBLIC_DETAIL_MAX_SPAN } from './config.js';
 
 export const supabase = isConfigured()
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
     })
   : null;

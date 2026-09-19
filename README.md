@@ -52,10 +52,13 @@ filed a report.
 
 ## Setup
 
-### 1. Create the database
+### 1. Create the database  ← **the one step still outstanding**
 
 In your Supabase project: **SQL Editor → New query**, paste the whole of
 `supabase/schema.sql`, and run it. It is safe to run more than once.
+
+Until this is done the site loads and the map works, but every database call
+fails — there are no tables yet.
 
 To check it worked: **Table Editor** should now list `reports`,
 `scam_categories`, `profiles`, `report_supports`, `report_flags` and
@@ -63,15 +66,18 @@ To check it worked: **Table Editor** should now list `reports`,
 
 ### 2. Point the site at your project
 
-The project is `navjxkozsikggyxlebrd`, and its URL is already filled in.
-One value is still needed — **Project Settings → API**, copy the
-**anon / public** key (newer projects label it *publishable*, starting
-`sb_publishable_`) into `js/config.js`:
+Done — `js/config.js` already holds the project URL and the publishable key
+for project `navjxkozsikggyxlebrd`:
 
 ```js
-export const SUPABASE_URL = 'https://navjxkozsikggyxlebrd.supabase.co';  // done
-export const SUPABASE_ANON_KEY = '';                                     // <- paste here
+export const SUPABASE_URL = 'https://navjxkozsikggyxlebrd.supabase.co';
+export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_...';
 ```
+
+This project uses Supabase's newer key system, so it is a *publishable* key
+rather than the older anon JWT. Both sit in the same dashboard page and both map
+to the `anon` Postgres role, which is what every rule in `schema.sql` is written
+against.
 
 Both are safe to commit. **Never put the `service_role` key in this repo** — it
 bypasses every rule above, and this repository is public.

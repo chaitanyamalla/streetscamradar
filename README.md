@@ -157,6 +157,27 @@ environments block it, in which case use the SQL editor as above.
 
 ---
 
+## Running SQL from GitHub Actions
+
+`.github/workflows/database.yml` runs any `.sql` file under `supabase/` against
+the database on a GitHub runner, and prints the output in the job log. It exists
+because some environments (Claude Code's web sandbox among them) have no network
+route to Supabase at all, while a GitHub runner does.
+
+One-time setup — add a repository secret:
+
+1. **Settings → Secrets and variables → Actions → New repository secret**
+2. Name: `SUPABASE_DB_URL`
+3. Value: the **Session pooler** string from Supabase (the *Connect* button):
+   `postgresql://postgres.navjxkozsikggyxlebrd:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres`
+
+Use the pooler, not `db.<ref>.supabase.co` — that host is IPv6-only and GitHub
+runners are IPv4-only, so the direct string fails with *Network is unreachable*.
+
+Then **Actions → Database → Run workflow**, and give it a file, e.g.
+`supabase/verify.sql`. Only paths under `supabase/` are accepted, so the SQL
+being run is always something committed and reviewable in this repo.
+
 ## Checking the security rules yourself
 
 `supabase/tests.sql` asserts things like *"a signed-out visitor cannot read the

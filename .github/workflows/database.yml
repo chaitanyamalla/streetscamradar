@@ -1,0 +1,77 @@
+# ---------------------------------------------------------------------------
+# Run a SQL file from this repo against the Supabase database.
+#
+# Why this exists: Claude Code's web sandbox has no network route to Supabase
+# (no IPv6 for the direct host, pooler TCP blocked, HTTPS denied). A GitHub
+# runner has all three, so migrations and checks run here instead, and the
+# output comes back in the job log.
+#
+# Setup, once: add a repository secret named SUPABASE_DB_URL
+#   Settings -> Secrets and variables -> Actions -> New repository secret
+# Use the SESSION POOLER string from Supabase (Connect -> Session pooler):
+#   postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+# NOT db.<ref>.supabase.co — that host is IPv6-only and GitHub runners are
+# IPv4-only, so it fails with "Network is unreachable".
+# ---------------------------------------------------------------------------
+name: Database
+
+on:
+  workflow_dispatch:
+    inputs:
+      file:
+        description: "SQL file under supabase/ to run"
+        required: true
+        default: "supabase/verify.sql"
+        type: string
+
+concurrency:
+  group: database
+  cancel-in-progress: false
+
+jobs:
+  run-sql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the secret is set
+        run: |
+          if [ -z "${SUPABASE_DB_URL}" ]; then
+            echo "::error::SUPABASE_DB_URL is not set. Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          echo "Secret is present."
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      - name: Install psql
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          fi
+          psql --version
+
+      - name: Prove the connection
+        env:
+          PGURL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$PGURL" -v ON_ERROR_STOP=1 -c \
+            "select current_database() as database, current_user as connected_as, version();"
+
+      # The path comes in via env, never interpolated into the script, and must
+      # live under supabase/ — so only SQL committed to this repo can run.
+      - name: Run the SQL file
+        env:
+          PGURL: ${{ secrets.SUPABASE_DB_URL }}
+          SQL_FILE: ${{ inputs.file }}
+        run: |
+          case "$SQL_FILE" in
+            supabase/*.sql) ;;
+            *) echo "::error::Only .sql files under supabase/ may be run. Got: $SQL_FILE"; exit 1 ;;
+          esac
+          if [ ! -f "$SQL_FILE" ]; then
+            echo "::error::No such file in this repo: $SQL_FILE"; exit 1
+          fi
+          echo "----- running $SQL_FILE -----"
+          psql "$PGURL" -v ON_ERROR_STOP=1 -f "$SQL_FILE"
+          echo "----- done -----"

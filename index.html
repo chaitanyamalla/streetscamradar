@@ -163,19 +163,31 @@
           see counts, and a handful of reports once you zoom into a neighbourhood.
         </p>
 
-        <form id="magic-form">
-          <label for="auth-email">Your email</label>
+        <form id="password-form">
+          <label for="auth-email">Email</label>
           <input id="auth-email" type="email" required autocomplete="email" placeholder="you@example.com" />
-          <button class="primary-button wide" type="submit" id="magic-submit">Email me a sign-in link</button>
+
+          <label for="auth-password">Password</label>
+          <input id="auth-password" type="password" required minlength="6"
+                 autocomplete="current-password" placeholder="At least 6 characters" />
+
+          <div class="auth-buttons">
+            <button class="primary-button" type="submit" id="password-signin">Sign in</button>
+            <button class="ghost-button" type="button" id="password-signup">Create account</button>
+          </div>
         </form>
 
-        <p class="or-rule" id="auth-or-rule" hidden><span>or</span></p>
+        <p class="or-rule"><span>or</span></p>
+
+        <button class="ghost-button wide" id="magic-link" type="button">
+          Email me a sign-in link instead
+        </button>
         <button class="google-button" id="google-signin" type="button" hidden>
           <span class="g-mark" aria-hidden="true">G</span> Continue with Google
         </button>
         <p class="fine-print">
-          No password to remember. We store your email address and the reports you file —
-          your name is never attached to a report shown on the map.
+          We store your email address and the reports you file. Your name is never
+          attached to a report shown on the map.
         </p>
       </div>
     </dialog>

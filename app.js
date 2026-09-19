@@ -9,7 +9,8 @@
 import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS, SEVERITY } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, supabase } from './js/data.js';
-import { initAuth, onAuthChange, sendMagicLink, signInWithGoogle, signOut, enabledProviders } from './js/auth.js';
+import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
+         signInWithGoogle, signOut, enabledProviders } from './js/auth.js';
 import { searchPlaces, describePoint, locateMe } from './js/geo.js';
 import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace, maplibregl } from './js/map.js';
 import { esc, toast, renderCategoryFilters, renderReportList, popupHTML, setGateNote } from './js/ui.js';
@@ -88,7 +89,6 @@ async function init() {
 async function paintProviders() {
   const { google } = await enabledProviders();
   $('#google-signin').hidden = !google;
-  $('#auth-or-rule').hidden = !google;
 }
 
 function paintAuthState() {
@@ -349,18 +349,54 @@ function wireUI() {
     else $('#auth-dialog').showModal();
   });
 
-  $('#magic-form').addEventListener('submit', async e => {
+  // Password sign-in sends no email, so it works regardless of the project's
+  // email rate limit — which is what blocks magic links on a free project.
+  const credentials = () => ({
+    email: $('#auth-email').value.trim(),
+    password: $('#auth-password').value,
+  });
+
+  async function runAuth(button, label, fn) {
+    const { email, password } = credentials();
+    if (!email || !password) { toast('Enter an email and a password first.', { error: true }); return; }
+    const original = button.textContent;
+    button.disabled = true; button.textContent = label;
+    try {
+      const result = await fn(email, password);
+      if (result?.needsConfirmation) {
+        toast('Account created — check your email to confirm it before signing in.');
+      } else {
+        toast('Signed in.');
+      }
+      $('#auth-dialog').close();
+      $('#auth-password').value = '';
+    } catch (err) {
+      toast(err.message, { error: true });
+    } finally {
+      button.disabled = false; button.textContent = original;
+    }
+  }
+
+  $('#password-form').addEventListener('submit', e => {
     e.preventDefault();
-    const btn = $('#magic-submit');
+    runAuth($('#password-signin'), 'Signing in…', signInWithPassword);
+  });
+  $('#password-signup').addEventListener('click', () =>
+    runAuth($('#password-signup'), 'Creating…', signUpWithPassword));
+
+  $('#magic-link').addEventListener('click', async () => {
+    const email = $('#auth-email').value.trim();
+    if (!email) { toast('Enter your email address first.', { error: true }); return; }
+    const btn = $('#magic-link');
     btn.disabled = true; btn.textContent = 'Sending…';
     try {
-      await sendMagicLink($('#auth-email').value);
+      await sendMagicLink(email);
       toast('Check your email for the sign-in link.');
       $('#auth-dialog').close();
     } catch (err) {
       toast(err.message, { error: true });
     } finally {
-      btn.disabled = false; btn.textContent = 'Email me a sign-in link';
+      btn.disabled = false; btn.textContent = 'Email me a sign-in link instead';
     }
   });
 

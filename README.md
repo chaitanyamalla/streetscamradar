@@ -116,7 +116,28 @@ The Google button only appears when the Google provider is actually enabled —
 the page asks `/auth/v1/settings` on load. Nothing to configure; enable Google
 in the dashboard and the button shows up by itself.
 
-### 4. Email delivery — required before anyone else signs in
+### 4. Sign-in, and the email rate limit
+
+Three ways in, in order of how much they depend on email:
+
+| Method | Sends an email? | Works while rate-limited? |
+|---|---|---|
+| Password | no | **yes** |
+| Magic link | yes | no |
+| Google | no | yes, once configured |
+
+**Password sign-in needs no email at all**, which is why it exists — a free
+Supabase project allows only about 2 emails an hour, and that is the first thing
+that blocks testing.
+
+For sign-up to be instant, turn off **Authentication → Providers → Email →
+Confirm email**. Otherwise creating an account still sends a confirmation
+message and the rate limit applies again. The trade is real: with confirmation
+off, nobody proves they own the address they signed up with. For a community
+map that is an acceptable start, and the flag/auto-hide path in `app_settings`
+is the answer if abuse follows — but revisit it before the site gets popular.
+
+#### Custom SMTP — needed before real users arrive
 
 Supabase's built-in email sender is capped at roughly **2 emails per hour** and
 is meant for testing only. Hit it and sign-in fails with *"email rate limit

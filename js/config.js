@@ -10,13 +10,23 @@
 //
 // Find these at: Supabase dashboard -> Project Settings -> API
 // ---------------------------------------------------------------------------
-export const SUPABASE_URL = '';       // e.g. 'https://abcdefghijkl.supabase.co'
-export const SUPABASE_ANON_KEY = '';  // the "anon / public" key
+export const SUPABASE_URL = 'https://vlwpwrxhyjvbtpdyctsf.supabase.co';
 
-// Is the backend wired up yet? The app stays usable (in read-only demo mode)
-// until it is, rather than showing a blank page.
+// Dashboard -> Project Settings -> API -> "anon / public" (newer projects call
+// this the "publishable" key and it starts sb_publishable_). Either works.
+export const SUPABASE_ANON_KEY = '';
+
+// Is the backend wired up yet? The app still loads without it, showing a
+// banner, rather than a blank page.
 export const isConfigured = () =>
   Boolean(SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_URL.startsWith('https://'));
+
+/** Which piece is still missing, for the banner at the top of the page. */
+export const missingConfig = () => {
+  if (!SUPABASE_URL) return 'url';
+  if (!SUPABASE_ANON_KEY) return 'key';
+  return null;
+};
 
 // --- Map -------------------------------------------------------------------
 export const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';

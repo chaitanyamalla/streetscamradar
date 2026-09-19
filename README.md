@@ -63,11 +63,14 @@ To check it worked: **Table Editor** should now list `reports`,
 
 ### 2. Point the site at your project
 
-**Project Settings → API**, then copy two values into `js/config.js`:
+The project is `vlwpwrxhyjvbtpdyctsf`, and its URL is already filled in.
+One value is still needed — **Project Settings → API**, copy the
+**anon / public** key (newer projects label it *publishable*, starting
+`sb_publishable_`) into `js/config.js`:
 
 ```js
-export const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
-export const SUPABASE_ANON_KEY = 'eyJhbGciOi...';   // the "anon / public" key
+export const SUPABASE_URL = 'https://vlwpwrxhyjvbtpdyctsf.supabase.co';  // done
+export const SUPABASE_ANON_KEY = '';                                     // <- paste here
 ```
 
 Both are safe to commit. **Never put the `service_role` key in this repo** — it
@@ -107,6 +110,16 @@ Run it locally with any static server:
 npx http-server -p 8080 .
 # then open http://localhost:8080
 ```
+
+### 5. Supabase MCP (optional)
+
+`.mcp.json` registers Supabase's MCP server, so Claude Code can run migrations
+and inspect the database directly instead of you copying SQL by hand. It is
+scoped to this project and holds no secret — just the project ref. On first use
+Claude Code will ask you to approve the server and sign in to Supabase.
+
+It only works where the network allows `mcp.supabase.com`; some managed
+environments block it, in which case use the SQL editor as above.
 
 ---
 

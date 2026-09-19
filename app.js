@@ -6,7 +6,7 @@
 // back differs for members and visitors, but that decision is the database's,
 // not this file's.
 // ---------------------------------------------------------------------------
-import { isConfigured, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS, SEVERITY } from './js/config.js';
+import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS, SEVERITY } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithGoogle, signOut } from './js/auth.js';
@@ -46,6 +46,9 @@ map.on('moveend', () => scheduleRefresh());
 map.on('click', onMapClick);
 
 if (!isConfigured()) {
+  $('#setup-detail').innerHTML = missingConfig() === 'key'
+    ? 'Paste the <b>anon / public</b> key from Supabase → Project Settings → API into <code>js/config.js</code>, and run <code>supabase/schema.sql</code> in the SQL editor.'
+    : 'Add your Supabase URL and anon key to <code>js/config.js</code>. Steps are in <code>README.md</code>.';
   $('#setup-banner').hidden = false;
 }
 

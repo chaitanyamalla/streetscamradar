@@ -51,6 +51,41 @@ jobs:
           fi
           psql --version
 
+      # psql silently falls back to a local unix socket when the argument is not
+      # a URI, which produces a baffling "no such file or directory" error. Check
+      # the shape first and say what is actually wrong. The password is never
+      # printed — only the parts that are already public.
+      - name: Check the connection string looks right
+        env:
+          PGURL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python3 - <<'PY'
+          import os, sys, urllib.parse
+          u = os.environ.get("PGURL", "").strip()
+          if not u.startswith(("postgresql://", "postgres://")):
+              print("::error::SUPABASE_DB_URL is not a connection URI. It must start with "
+                    "postgresql:// — copy the 'Session pooler' URI from Supabase's Connect "
+                    "dialog, not the psql command, not the host on its own.")
+              sys.exit(1)
+          p = urllib.parse.urlparse(u)
+          print(f"host = {p.hostname}")
+          print(f"port = {p.port}")
+          print(f"user = {p.username}")
+          print(f"database = {p.path.lstrip('/') or '(none)'}")
+          print(f"password supplied = {'yes' if p.password else 'NO'}")
+          ok = True
+          if not p.password:
+              print("::error::No password in the URI. Replace [YOUR-PASSWORD] with the real one."); ok = False
+          if p.password and p.password.startswith("[") :
+              print("::error::The password is still the [YOUR-PASSWORD] placeholder."); ok = False
+          if p.hostname and p.hostname.startswith("db."):
+              print("::error::That is the direct host, which is IPv6-only. GitHub runners are "
+                    "IPv4-only, so use the Session pooler host (aws-N-<region>.pooler.supabase.com)."); ok = False
+          if not p.port:
+              print("::warning::No port given; the pooler needs :5432 (session) or :6543 (transaction).")
+          sys.exit(0 if ok else 1)
+          PY
+
       - name: Prove the connection
         env:
           PGURL: ${{ secrets.SUPABASE_DB_URL }}

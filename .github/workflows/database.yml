@@ -104,21 +104,76 @@ jobs:
           print(f"database = {db or '(none)'}")
           print(f"password supplied = {'yes' if pwd else 'NO'}")
 
-          ok = True
           if not pwd:
               print("::error::No password. Replace [YOUR-PASSWORD] with the real database password "
-                    "(Supabase -> Settings -> Database), not your Supabase login password."); ok = False
-          if host and host.startswith("db."):
-              print("::error::That is the direct host, which is IPv6-only. GitHub runners are "
-                    "IPv4-only. Use the Session pooler host: aws-N-<region>.pooler.supabase.com"); ok = False
+                    "(Supabase -> Settings -> Database), not your Supabase login password.")
+              sys.exit(1)
           if not port:
               print("::warning::No port; the pooler needs :5432 (session) or :6543 (transaction).")
-          sys.exit(0 if ok else 1)
+          sys.exit(0)
           PY
+
+      # The direct host (db.<ref>.supabase.co) is IPv6-only and GitHub runners
+      # are IPv4-only, so it can never work here. Rather than send the user back
+      # to the dashboard, derive the pooler equivalent: same project, same
+      # password, but user becomes postgres.<ref> and the host is a regional
+      # pooler. The region is not in the direct URI, so find it by trying —
+      # the wrong region refuses immediately with "Tenant or user not found".
+      - name: Resolve a reachable host
+        env:
+          PGURL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python3 - <<'PY' > resolved.env
+          import os, sys, urllib.parse, subprocess
+          u = os.environ["PGURL"].strip().strip('"').strip("'")
+          p = urllib.parse.urlparse(u)
+          host, pwd = p.hostname or "", p.password or ""
+
+          print(f"::add-mask::{pwd}", file=sys.stderr)
+
+          if "pooler.supabase.com" in host:
+              print(f"PGURL_FINAL={u}")
+              print(f"Already a pooler host: {host}", file=sys.stderr)
+              sys.exit(0)
+
+          if not host.startswith("db.") or not host.endswith(".supabase.co"):
+              print(f"PGURL_FINAL={u}")
+              print(f"Unrecognised host {host}; trying it as given.", file=sys.stderr)
+              sys.exit(0)
+
+          ref = host[len("db."):-len(".supabase.co")]
+          print(f"Direct host detected. Finding the pooler for project {ref}...", file=sys.stderr)
+
+          regions = ["eu-central-1","eu-west-1","eu-west-2","eu-west-3","eu-north-1","eu-central-2",
+                     "ap-south-1","ap-southeast-1","ap-southeast-2","ap-northeast-1","ap-northeast-2",
+                     "us-east-1","us-east-2","us-west-1","us-west-2","ca-central-1","sa-east-1"]
+          quoted = urllib.parse.quote(pwd, safe="")
+          env = {**os.environ, "PGCONNECT_TIMEOUT": "6"}
+
+          for prefix in ("aws-0", "aws-1"):
+              for r in regions:
+                  ph = f"{prefix}-{r}.pooler.supabase.com"
+                  cand = f"postgresql://postgres.{ref}:{quoted}@{ph}:5432/postgres"
+                  res = subprocess.run(["psql", cand, "-tAc", "select 1"],
+                                       capture_output=True, text=True, env=env)
+                  if res.returncode == 0:
+                      print(f"Connected via {ph}", file=sys.stderr)
+                      print(f"PGURL_FINAL={cand}")
+                      sys.exit(0)
+                  err = (res.stderr or "").strip().splitlines()
+                  if err and "Tenant or user not found" not in err[-1]:
+                      print(f"  {ph}: {err[-1][:110]}", file=sys.stderr)
+
+          print("::error::Could not reach any pooler host for this project. Copy the Session "
+                "pooler URI from Supabase -> Connect and set it as SUPABASE_DB_URL.", file=sys.stderr)
+          sys.exit(1)
+          PY
+          cat resolved.env >> "$GITHUB_ENV"
+          rm -f resolved.env
 
       - name: Prove the connection
         env:
-          PGURL: ${{ secrets.SUPABASE_DB_URL }}
+          PGURL: ${{ env.PGURL_FINAL }}
         run: |
           psql "$PGURL" -v ON_ERROR_STOP=1 -c \
             "select current_database() as database, current_user as connected_as, version();"
@@ -127,7 +182,7 @@ jobs:
       # live under supabase/ — so only SQL committed to this repo can run.
       - name: Run the SQL file
         env:
-          PGURL: ${{ secrets.SUPABASE_DB_URL }}
+          PGURL: ${{ env.PGURL_FINAL }}
           SQL_FILE: ${{ inputs.file }}
         run: |
           case "$SQL_FILE" in

@@ -52,13 +52,17 @@ filed a report.
 
 ## Setup
 
-### 1. Create the database  ← **the one step still outstanding**
+### 1. Create the database
 
 In your Supabase project: **SQL Editor → New query**, paste the whole of
 `supabase/schema.sql`, and run it. It is safe to run more than once.
+"Success. No rows returned" is what a good run looks like — the file ends in
+`GRANT` statements, which return nothing.
 
-Until this is done the site loads and the map works, but every database call
-fails — there are no tables yet.
+Then paste `supabase/verify.sql` into the same editor. It reads only, and every
+row should say PASS. It checks the things that matter: that the tables and
+policies exist, and that a signed-out visitor genuinely cannot read the reports
+table or the member feed.
 
 To check it worked: **Table Editor** should now list `reports`,
 `scam_categories`, `profiles`, `report_supports`, `report_flags` and

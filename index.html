@@ -3,93 +3,244 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#fbfaf5" />
-    <meta name="description" content="A community safety map for reporting and avoiding scams in Berlin." />
-    <title>Safer Streets Berlin — Scam & safety map</title>
+    <meta name="theme-color" content="#0d1b26" />
+    <meta name="description" content="StreetScamRadar — community scam reports on a worldwide map. Search any city, town or postcode and know the risks before you arrive." />
+    <title>StreetScamRadar — know the risks before you arrive</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <header class="topbar">
-        <a class="brand" href="#map" aria-label="Safer Streets Berlin home"><span class="brand-mark">S</span><span>Safer<span class="accent">Streets</span></span></a>
-        <div class="city-control"><span class="status-dot"></span><span>Berlin, Germany</span><span class="chevron">⌄</span></div>
-        <nav aria-label="Main navigation"><a class="active" href="#map">Map</a><a href="#learn">Learn</a><a href="#about">About</a></nav>
-        <button class="report-button" id="open-report" type="button"><span>＋</span> Report a scam</button>
-      </header>
+    <div id="setup-banner" class="setup-banner" hidden>
+      <b>Backend not connected yet.</b>
+      <span>Add your Supabase URL and anon key to <code>js/config.js</code>, then run <code>supabase/schema.sql</code>. Setup steps are in <code>README.md</code>.</span>
+    </div>
 
-      <section class="map-area" id="map" aria-label="Interactive Berlin safety map">
-        <div id="city-map" class="city-map" aria-label="Interactive map of Berlin. Pan and zoom directly on the map."></div>
+    <header class="topbar">
+      <a class="brand" href="#map" aria-label="StreetScamRadar home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-word">Street<span class="accent">Scam</span>Radar</span>
+      </a>
+
+      <button class="place-chip" id="place-chip" type="button" aria-label="Current area — click to change">
+        <span class="place-ping" aria-hidden="true"></span>
+        <span id="place-label">Anywhere in the world</span>
+      </button>
+
+      <nav aria-label="Main">
+        <a class="active" href="#map">Map</a>
+        <a href="#how">How it works</a>
+        <a href="#safety">Staying safe</a>
+      </nav>
+
+      <div class="top-actions">
+        <button class="ghost-button" id="auth-button" type="button">Sign in</button>
+        <button class="primary-button" id="open-report" type="button">
+          <span aria-hidden="true">＋</span> Report a scam
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="map-area" id="map" aria-label="Worldwide scam map">
         <aside class="map-intro">
-          <p class="eyebrow">Community safety map</p>
-          <h1>Know the signal.<br /><em>Move with confidence.</em></h1>
-          <p class="intro-copy">A shared view of reported scams and trusted places to get help across Berlin.</p>
-          <div class="map-search"><span>⌕</span><input id="place-search" type="search" placeholder="Search a street, district or place" aria-label="Search a place" /><kbd>↵</kbd></div>
+          <p class="eyebrow">Worldwide community safety map</p>
+          <h1>Know the risks<br /><em>before you arrive.</em></h1>
+          <p class="intro-copy">
+            Scam reports from travellers and locals, pinned to the streets, stations and
+            markets where they happened. Search any city, town or postcode.
+          </p>
+
+          <form class="place-search" id="place-form" role="search">
+            <label class="visually-hidden" for="place-search">Search a city, town, postcode or address</label>
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input id="place-search" name="q" type="search" autocomplete="off"
+                   placeholder="Try Lisbon, 10115 Berlin, or Khao San Road" />
+            <button type="submit" class="search-go">Search</button>
+          </form>
+          <div class="search-results" id="search-results" hidden role="listbox" aria-label="Places found"></div>
+
+          <button class="link-button" id="locate-me" type="button">
+            <span aria-hidden="true">◎</span> Use my current location
+          </button>
         </aside>
 
+        <div id="city-map" class="city-map" aria-label="Interactive world map of reported scams"></div>
+
         <div class="floating-controls">
-          <button id="locate-button" class="icon-button" type="button" aria-label="Recentre the map on Berlin" title="Recentre the map">◎</button>
-          <div class="zoom-controls"><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="zoom-out" type="button" aria-label="Zoom out">−</button></div>
+          <button id="zoom-in" class="icon-button" type="button" aria-label="Zoom in">+</button>
+          <button id="zoom-out" class="icon-button" type="button" aria-label="Zoom out">−</button>
         </div>
 
-        <section class="filter-panel" aria-label="Map layers">
-          <div class="panel-heading"><span>What’s on the map</span><button id="clear-filters" type="button">Clear all</button></div>
-          <div class="filter-section"><p>SCAM REPORTS <span class="live-label">LIVE</span></p>
-            <label class="filter-row"><input type="checkbox" data-layer="scam" data-type="pickpocket" checked /><span class="legend-dot orange"></span>Pickpocketing <b>14</b></label>
-            <label class="filter-row"><input type="checkbox" data-layer="scam" data-type="fake-rental" checked /><span class="legend-dot red"></span>Fake rentals <b>8</b></label>
-            <label class="filter-row"><input type="checkbox" data-layer="scam" data-type="ticket" checked /><span class="legend-dot purple"></span>Ticket scams <b>6</b></label>
-            <label class="filter-row"><input type="checkbox" data-layer="scam" data-type="other" checked /><span class="legend-dot blue"></span>Other reports <b>11</b></label>
+        <section class="filter-panel" aria-label="Filter the map">
+          <div class="panel-heading">
+            <span>On the map</span>
+            <button id="reset-filters" type="button">Reset</button>
           </div>
-          <div class="filter-section safety-section"><p>SAFETY &amp; SUPPORT</p>
-            <label class="filter-row"><input type="checkbox" data-layer="place" data-type="police" checked /><span class="place-icon police">♜</span>Police stations</label>
-            <label class="filter-row"><input type="checkbox" data-layer="place" data-type="hospital" checked /><span class="place-icon hospital">+</span>Hospitals &amp; clinics</label>
-            <label class="filter-row"><input type="checkbox" data-layer="place" data-type="embassy" checked /><span class="place-icon embassy">▦</span>Embassies &amp; consulates</label>
-            <label class="filter-row"><input type="checkbox" data-layer="place" data-type="family" /><span class="place-icon family">★</span>Family-friendly places</label>
+
+          <div class="filter-section">
+            <p class="filter-title">How serious</p>
+            <label class="filter-row"><input type="checkbox" data-filter="severity" value="high" checked /><span class="sev-dot" data-sev="high"></span>High <b id="count-high">0</b></label>
+            <label class="filter-row"><input type="checkbox" data-filter="severity" value="medium" checked /><span class="sev-dot" data-sev="medium"></span>Medium <b id="count-medium">0</b></label>
+            <label class="filter-row"><input type="checkbox" data-filter="severity" value="low" checked /><span class="sev-dot" data-sev="low"></span>Low <b id="count-low">0</b></label>
+          </div>
+
+          <div class="filter-section category-section">
+            <p class="filter-title">Kind of scam</p>
+            <div id="category-filters" class="category-filters"><p class="muted-note">Loading…</p></div>
           </div>
         </section>
 
-        <aside class="reports-card">
-          <div class="reports-head"><div><p class="eyebrow">Berlin · last 30 days</p><h2>Recent reports</h2></div><button id="next-report" type="button" aria-label="Next report">→</button></div>
-          <div id="report-list"></div>
-          <a href="#learn" class="safe-link">How we verify reports <span>↗</span></a>
+        <aside class="reports-card" aria-label="Reports in view">
+          <div class="reports-head">
+            <div>
+              <p class="eyebrow" id="reports-scope">Last 7 days · in view</p>
+              <h2 id="reports-title">Reports here</h2>
+            </div>
+            <span class="count-pill" id="reports-count">0</span>
+          </div>
+          <div id="report-list" class="report-list"></div>
+          <div id="gate-note" class="gate-note" hidden></div>
         </aside>
 
-        <p class="map-attribution">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors · tiles © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · community reports are unverified</p>
+        <p class="map-attribution">
+          Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>
+          contributors · tiles © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a>
+          · search by <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a>
+          · reports are unverified community accounts
+        </p>
       </section>
 
-      <section class="trust-strip" id="learn">
-        <div><p class="eyebrow">Built for clarity</p><h2>Useful context, not fear.</h2></div>
-        <div class="trust-item"><span class="trust-icon">✓</span><div><b>Community reports</b><p>Reported by people on the ground and clearly labeled as such.</p></div></div>
-        <div class="trust-item"><span class="trust-icon">↗</span><div><b>Official data context</b><p>Links to Berlin Police and German federal crime reporting.</p></div></div>
-        <div class="trust-item"><span class="trust-icon">♡</span><div><b>Help close by</b><p>Find trusted services when you need support quickly.</p></div></div>
+      <section class="how-strip" id="how">
+        <div class="how-lead">
+          <p class="eyebrow">How it works</p>
+          <h2>Local knowledge, shared before it is too late.</h2>
+        </div>
+        <ol class="how-steps">
+          <li><span class="step-num">1</span><div><b>Search where you are going</b><p>Any city, town, postcode or street on Earth. The map travels with you.</p></div></li>
+          <li><span class="step-num">2</span><div><b>See what happened this week</b><p>Only the last 7 days are shown, so what you read is current rather than history.</p></div></li>
+          <li><span class="step-num">3</span><div><b>Add what you saw</b><p>Members drop a pin or type an address, and the next traveller is warned.</p></div></li>
+        </ol>
       </section>
 
-      <section class="official-section" id="about">
-        <div><p class="eyebrow">Public-source context</p><h2>Crime data, <em>with the right framing.</em></h2></div>
-        <p>Official crime statistics describe reported offences, not an individual street’s risk. We surface them as context alongside local services and clearly marked community reports.</p>
-        <a class="official-link" href="https://www.berlin.de/polizei/verschiedenes/polizeiliche-kriminalstatistik/" target="_blank" rel="noreferrer">Explore Berlin Police crime statistics <span>↗</span></a>
-        <a class="official-link" href="https://www.bka.de/DE/AktuelleInformationen/StatistikenLagebilder/PolizeilicheKriminalstatistik/PKS2024/pks2024_node.html" target="_blank" rel="noreferrer">German Federal Crime Police Statistics (BKA) <span>↗</span></a>
+      <section class="safety-section" id="safety">
+        <div>
+          <p class="eyebrow">Reading this map well</p>
+          <h2>Useful context, <em>not fear.</em></h2>
+        </div>
+        <div class="safety-copy">
+          <p>
+            Every pin is one person's account of one moment. A busy square with many reports is
+            usually a busy square, not a dangerous one — crowds attract pickpockets everywhere on
+            Earth. Use this to know which move to watch for, not to avoid a city.
+          </p>
+          <p>
+            Reports older than 7 days drop off the map on purpose. A scam that worked last spring
+            tells you little; one that worked on Tuesday tells you a lot.
+          </p>
+          <p class="safety-callout">
+            In an emergency, always contact local police first. This is a community map, not an
+            emergency service, and nothing here is verified by authorities.
+          </p>
+        </div>
       </section>
     </main>
 
-    <dialog id="report-dialog">
-      <form id="report-form" method="dialog">
-        <div class="dialog-header"><div><p class="eyebrow">Community report</p><h2>Help someone avoid a scam.</h2></div><button class="close-button" id="close-report" type="button" aria-label="Close">×</button></div>
-        <p class="form-note">Please share what happened without names, contact details, or identifying photos. Reports are kept on this device in this prototype.</p>
-        <label>What kind of scam?<select id="scam-type" required><option value="pickpocket">Pickpocketing</option><option value="fake-rental">Fake rental</option><option value="ticket">Ticket scam</option><option value="other">Other</option></select></label>
-        <label>Where did it happen?<input id="scam-location" required placeholder="e.g. near Alexanderplatz station" /></label>
-        <div class="pin-picker"><span class="pin-symbol">⌖</span><span id="pin-status">Map pin: central Berlin</span><button id="use-map-center" type="button">Use current map view</button></div>
-        <button class="pick-location" id="pick-on-map" type="button">Choose a precise location on the map <span>↗</span></button>
-        <label>When?<select id="scam-time"><option>Today</option><option>Yesterday</option><option>Within the last week</option><option>Earlier</option></select></label>
-        <label>What should others know?<textarea id="scam-details" required rows="4" maxlength="360" placeholder="Share the warning signs and what happened."></textarea><span class="char-count"><span id="count">0</span>/360</span></label>
-        <button class="submit-report" type="submit">Submit community report <span>→</span></button>
+    <!-- ---------------------------------------------------------------- -->
+    <dialog id="auth-dialog" aria-labelledby="auth-title">
+      <div class="dialog-body">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">Community access</p>
+            <h2 id="auth-title">Join the radar.</h2>
+          </div>
+          <button class="close-button" data-close="auth-dialog" type="button" aria-label="Close">×</button>
+        </div>
+        <p class="form-note">
+          Members see every report in an area and can add their own. Without an account you
+          see counts, and a handful of reports once you zoom into a neighbourhood.
+        </p>
+
+        <form id="magic-form">
+          <label for="auth-email">Your email</label>
+          <input id="auth-email" type="email" required autocomplete="email" placeholder="you@example.com" />
+          <button class="primary-button wide" type="submit" id="magic-submit">Email me a sign-in link</button>
+        </form>
+
+        <p class="or-rule"><span>or</span></p>
+        <button class="google-button" id="google-signin" type="button">
+          <span class="g-mark" aria-hidden="true">G</span> Continue with Google
+        </button>
+        <p class="fine-print">
+          No password to remember. We store your email address and the reports you file —
+          your name is never attached to a report shown on the map.
+        </p>
+      </div>
+    </dialog>
+
+    <!-- ---------------------------------------------------------------- -->
+    <dialog id="report-dialog" aria-labelledby="report-title">
+      <form id="report-form" class="dialog-body" method="dialog">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">Community report</p>
+            <h2 id="report-title">Help someone avoid this.</h2>
+          </div>
+          <button class="close-button" data-close="report-dialog" type="button" aria-label="Close">×</button>
+        </div>
+
+        <p class="form-note">
+          Describe what happened without names, photos of people, or contact details.
+          Reports drop off the map after 7 days.
+        </p>
+
+        <label for="scam-category">What kind of scam?</label>
+        <select id="scam-category" required></select>
+
+        <fieldset class="severity-picker">
+          <legend>How serious was it?</legend>
+          <label><input type="radio" name="severity" value="low" /><span data-sev="low">Low</span><small>Attempted, nothing lost</small></label>
+          <label><input type="radio" name="severity" value="medium" checked /><span data-sev="medium">Medium</span><small>Pressure or some loss</small></label>
+          <label><input type="radio" name="severity" value="high" /><span data-sev="high">High</span><small>Money lost, force, fake officials</small></label>
+        </fieldset>
+
+        <label for="scam-headline">One line summary</label>
+        <input id="scam-headline" required minlength="8" maxlength="90"
+               placeholder="e.g. Fake ticket inspector at the north entrance" />
+
+        <div class="location-block">
+          <p class="block-title">Where did it happen?</p>
+          <div class="address-row">
+            <input id="scam-address" placeholder="Street, landmark or postcode" autocomplete="off" />
+            <button type="button" id="find-address" class="ghost-button small">Find</button>
+          </div>
+          <button type="button" id="pick-on-map" class="link-button">
+            <span aria-hidden="true">⌖</span> or pick the exact spot on the map
+          </button>
+          <p class="pin-status" id="pin-status">No location chosen yet.</p>
+        </div>
+
+        <label for="scam-when">When?</label>
+        <select id="scam-when">
+          <option value="1">Within the last hour</option>
+          <option value="6" selected>Earlier today</option>
+          <option value="30">Yesterday</option>
+          <option value="72">2–3 days ago</option>
+          <option value="144">Earlier this week</option>
+        </select>
+
+        <label for="scam-details">What should others know?</label>
+        <textarea id="scam-details" required rows="4" minlength="20" maxlength="1200"
+                  placeholder="The warning signs, how the approach started, and what you would do differently."></textarea>
+        <span class="char-count"><span id="char-now">0</span>/1200</span>
+
+        <button class="primary-button wide" type="submit" id="submit-report">Post to the map</button>
       </form>
     </dialog>
+
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
   </body>
 </html>

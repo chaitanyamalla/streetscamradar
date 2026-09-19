@@ -1,215 +1,373 @@
 /* ==========================================================================
    StreetScamRadar — single stylesheet.
-   Order matters: tokens -> base -> desktop layout -> responsive overrides.
-   Keep the responsive block LAST; it overrides the desktop rules above it.
+   Order: tokens -> base -> chrome -> map -> panels -> sections -> dialogs
+          -> responsive. The responsive block is LAST and overrides the rest.
+
+   Colour rule: colour on the map always means SEVERITY, never category.
+   Twelve categories cannot be told apart by hue; three severities can.
+   Category is carried by its glyph in lists and popups instead.
    ========================================================================== */
 
-/* --- Tokens & base ------------------------------------------------------ */
-:root { --ink:#102d2a; --paper:#f7f5ed; --line:#d7ddd2; --green:#125e50; --lime:#d7f16c; --orange:#e17840; --red:#d85555; --purple:#7a5ac8; --blue:#3183b6; --gutter:4.5vw; }
-* { box-sizing:border-box; }
-html { scroll-behavior:smooth; -webkit-text-size-adjust:100%; }
-body { margin:0; overflow-x:hidden; background:var(--paper); color:var(--ink); font-family:Manrope,Arial,sans-serif; }
-button,input,select,textarea { font:inherit; }
-button { cursor:pointer; }
-:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
+/* --- Tokens -------------------------------------------------------------- */
+:root {
+  --ink:#0d1b26; --ink-2:#26404f; --ink-soft:#5c7283; --muted:#83969f;
+  --paper:#f5f4ef; --surface:#ffffff; --sand:#eceae1;
+  --line:#e0dfd7; --line-strong:#cdccc2;
 
-/* --- Top bar ------------------------------------------------------------ */
-.topbar { height:76px; padding:0 var(--gutter); display:flex; align-items:center; gap:28px; background:#fbfaf5; border-bottom:1px solid var(--line); position:relative; z-index:10; }
-.brand { display:flex; align-items:center; gap:9px; color:var(--ink); text-decoration:none; font-size:19px; font-weight:800; letter-spacing:-.8px; }
-.brand-mark { display:grid; place-items:center; width:30px; height:30px; color:white; background:var(--green); border-radius:50% 50% 50% 6px; font-size:16px; transform:rotate(-20deg); }
-.accent { color:var(--green); }
-.city-control { margin-right:auto; color:#45615a; padding:9px 12px; font-size:13px; border-left:1px solid var(--line); display:flex; align-items:center; gap:8px; }
-.status-dot { width:8px; height:8px; background:#5ac16b; border-radius:50%; box-shadow:0 0 0 3px #ddf5df; }
-.chevron { font-size:16px; color:#7b9189; }
-nav { display:flex; gap:24px; }
-nav a { color:#6b817a; text-decoration:none; font-size:13px; font-weight:700; }
-nav a.active, nav a:hover { color:var(--green); }
-.report-button, .submit-report { border:0; background:var(--green); color:white; border-radius:4px; padding:12px 16px; font-size:13px; font-weight:800; }
-.report-button span { color:var(--lime); font-size:17px; vertical-align:-1px; }
+  --brand:#0e5f63; --brand-lift:#12857a; --brand-deep:#0a3f47; --glow:#7fe3d0;
 
-/* --- Map area (desktop: panels float over a full-bleed map) -------------- */
-.map-area { height:630px; position:relative; overflow:hidden; background:#dfe6dc; }
-.city-map { position:absolute; inset:0; overflow:hidden; background:#dce4da; cursor:grab; }
-.maplibregl-map { width:100%; height:100%; font-family:Manrope,Arial,sans-serif; }
-.map-intro { position:absolute; z-index:2; top:50px; left:var(--gutter); width:360px; }
-.eyebrow { margin:0 0 9px; font:500 10px/1.2 'DM Mono',monospace; color:#668078; letter-spacing:1.15px; text-transform:uppercase; }
-.map-intro h1 { margin:0; color:#103d36; font-size:32px; letter-spacing:-1.7px; line-height:1.16; }
-.map-intro h1 em, .official-section h2 em { color:var(--green); font-family:Georgia,serif; font-weight:400; }
-.intro-copy { max-width:315px; color:#4a6860; font-size:13px; line-height:1.6; }
-.map-search { width:330px; padding:10px 11px; display:flex; align-items:center; gap:8px; background:#fffefa; border:1px solid #d1d8cb; box-shadow:0 6px 18px #24453315; }
-.map-search span { font-size:22px; color:#526c64; transform:rotate(-20deg); }
-.map-search input { min-width:0; flex:1; border:0; outline:0; background:transparent; font-size:12px; color:var(--ink); }
-.map-search kbd { padding:2px 5px; border:1px solid var(--line); color:#84958f; font:10px DM Mono,monospace; }
+  --high:#c8322b; --medium:#dd8018; --low:#3a76c4; --safe:#1f9d63;
 
-/* --- Map controls ------------------------------------------------------- */
-.floating-controls { position:absolute; top:50px; right:var(--gutter); z-index:3; display:flex; gap:9px; }
-.icon-button, .zoom-controls { background:#fffefa; border:1px solid #d1d8cb; box-shadow:0 2px 8px #24453314; }
-.icon-button { width:38px; color:var(--green); font-size:22px; }
-.zoom-controls { display:flex; flex-direction:column; }
-.zoom-controls button { width:38px; height:29px; border:0; background:transparent; color:#35574d; font-size:20px; }
-.zoom-controls button + button { border-top:1px solid var(--line); }
-
-/* --- Filter panel ------------------------------------------------------- */
-.filter-panel { position:absolute; z-index:3; left:var(--gutter); bottom:28px; width:253px; background:#fffefa; border:1px solid #d1d8cb; box-shadow:0 8px 23px #25443316; }
-.panel-heading { display:flex; justify-content:space-between; align-items:center; padding:13px 14px 11px; border-bottom:1px solid #e0e4dc; color:#183d35; font-size:12px; font-weight:800; }
-.panel-heading button { border:0; padding:0; background:transparent; color:#6c8780; font-size:10px; text-decoration:underline; }
-.filter-section { padding:11px 14px; }
-.filter-section p { margin:0 0 8px; font:500 9px DM Mono,monospace; color:#7a9189; letter-spacing:.7px; }
-.live-label { margin-left:3px; color:var(--green); background:#e5f5db; padding:2px 4px; font-size:8px; }
-.filter-row { min-height:24px; display:flex; align-items:center; gap:7px; color:#405f56; font-size:11px; cursor:pointer; }
-.filter-row input { accent-color:var(--green); width:12px; height:12px; }
-.filter-row b { margin-left:auto; color:#7c918a; font:500 10px DM Mono,monospace; }
-.safety-section { border-top:1px solid #e0e4dc; }
-.legend-dot { flex:none; width:8px; height:8px; border-radius:50%; }
-.orange { background:var(--orange); }
-.red { background:var(--red); }
-.purple { background:var(--purple); }
-.blue { background:var(--blue); }
-.place-icon { flex:none; width:15px; height:15px; display:grid; place-items:center; border-radius:50%; color:white; font-size:10px; font-weight:800; }
-.police { background:#315783; }
-.hospital { background:#ce5252; }
-.embassy { background:#786a51; }
-.family { background:#d59f38; }
-
-/* --- Recent reports card ------------------------------------------------ */
-.reports-card { position:absolute; z-index:3; right:var(--gutter); bottom:28px; width:320px; background:#fffefa; border:1px solid #d1d8cb; box-shadow:0 8px 23px #25443316; }
-.reports-head { display:flex; align-items:center; justify-content:space-between; padding:16px 17px 10px; }
-.reports-head h2 { margin:0; font-size:17px; letter-spacing:-.6px; }
-.reports-head button { flex:none; width:29px; height:29px; border:1px solid #d4ddd2; background:#fffefa; color:var(--green); font-size:15px; }
-.report-entry { display:flex; gap:10px; padding:10px 17px; border-top:1px solid #e5e8e1; }
-.report-icon { flex:none; width:27px; height:27px; border-radius:50%; display:grid; place-items:center; color:white; font-size:12px; }
-.report-copy { min-width:0; }
-.report-copy b { display:block; font-size:11px; }
-.report-copy span { display:block; margin-top:2px; color:#698079; font-size:10px; line-height:1.4; }
-.safe-link { display:flex; justify-content:space-between; padding:11px 17px; color:var(--green); border-top:1px solid #e5e8e1; text-decoration:none; font-size:10px; font-weight:800; }
-.map-attribution { position:absolute; z-index:2; margin:0; bottom:5px; right:8px; padding:2px 5px; color:#53665f; background:#ffffffbb; font-size:9px; }
-.map-attribution a { color:inherit; }
-
-/* --- Map markers & popups ----------------------------------------------- */
-.geo-marker { width:27px; height:27px; display:grid; place-items:center; padding:0; border:3px solid #fff; border-radius:50%; color:#fff; box-shadow:0 2px 6px #113d3380; font-size:13px; font-weight:800; cursor:pointer; }
-.geo-marker.support { width:30px; height:30px; font-size:14px; }
-.maplibregl-popup-content { padding:11px 12px; border-radius:3px; box-shadow:0 6px 19px #153b301f; }
-.maplibregl-popup-tip { display:none; }
-.popup-type { margin:0 0 4px; color:#55736a; font:10px DM Mono,monospace; text-transform:uppercase; }
-.popup-title { margin:0; color:#173e36; font-size:13px; font-weight:800; }
-.popup-detail { margin:5px 0 0; color:#5b746c; font-size:11px; line-height:1.45; }
-
-/* --- Page sections ------------------------------------------------------ */
-.trust-strip { display:grid; grid-template-columns:1.5fr 1fr 1fr 1fr; gap:26px; padding:46px 8vw; background:#123f38; color:#f7f7ee; }
-.trust-strip h2, .official-section h2 { margin:0; font-size:23px; letter-spacing:-1px; }
-.trust-item { display:flex; gap:12px; padding-top:4px; }
-.trust-icon { flex:none; width:26px; height:26px; display:grid; place-items:center; border:1px solid #86a69c; border-radius:50%; color:var(--lime); }
-.trust-item b { font-size:12px; }
-.trust-item p { margin:4px 0 0; color:#b5cac2; font-size:11px; line-height:1.55; }
-.official-section { display:grid; grid-template-columns:1.25fr 1fr; column-gap:9vw; row-gap:16px; padding:65px 12vw; background:#edf0e6; }
-.official-section h2 { max-width:400px; font-size:30px; }
-.official-section > p { margin:0; color:#547069; font-size:13px; line-height:1.7; }
-.official-link { padding:14px 0; border-top:1px solid #cbd7cd; color:var(--green); text-decoration:none; font-size:12px; font-weight:800; }
-.official-link span { float:right; font-size:16px; }
-
-/* --- Report dialog ------------------------------------------------------ */
-dialog { width:min(510px,calc(100% - 28px)); max-height:88vh; max-height:88dvh; padding:0; border:0; overflow:auto; background:#fffefa; color:var(--ink); box-shadow:0 20px 70px #05221e77; }
-dialog::backdrop { background:#06271f88; backdrop-filter:blur(3px); }
-#report-form { padding:25px; }
-.dialog-header { display:flex; justify-content:space-between; gap:14px; }
-.dialog-header h2 { margin:0; font-size:23px; letter-spacing:-1px; }
-.close-button { flex:none; width:30px; height:30px; border:1px solid var(--line); background:transparent; font-size:20px; color:#506a61; }
-.form-note { color:#5c746c; font-size:12px; line-height:1.6; }
-.form-note + label { margin-top:18px; }
-#report-form label { display:block; position:relative; margin-top:13px; color:#31574e; font-size:11px; font-weight:800; }
-#report-form input, #report-form select, #report-form textarea { width:100%; margin-top:6px; padding:10px; border:1px solid #ccd7cd; border-radius:2px; outline-color:var(--green); color:var(--ink); background:white; font-size:12px; font-weight:500; }
-#report-form textarea { resize:vertical; }
-.char-count { position:absolute; right:8px; bottom:8px; color:#83958f; font:9px DM Mono,monospace; }
-.pin-picker { display:flex; align-items:center; gap:8px; margin-top:10px; padding:9px 10px; border:1px solid #d9e2d7; background:#f3f7ef; color:#527168; font-size:10px; }
-.pin-symbol { color:var(--green); font-size:17px; }
-.pin-picker button { margin-left:auto; border:0; padding:0; background:transparent; color:var(--green); font-size:10px; font-weight:800; text-decoration:underline; }
-.pick-location { width:100%; margin-top:9px; padding:9px 0; border:0; border-bottom:1px solid #d9e2d7; background:transparent; color:var(--green); text-align:left; font-size:11px; font-weight:800; }
-.pick-location span { float:right; font-size:15px; }
-.submit-report { width:100%; margin-top:20px; text-align:left; }
-.submit-report span { float:right; color:var(--lime); font-size:17px; }
-
-/* --- Toast -------------------------------------------------------------- */
-#toast { position:fixed; z-index:30; left:50%; bottom:24px; width:max-content; max-width:calc(100% - 32px); transform:translate(-50%,150px); padding:12px 17px; background:#153e37; color:white; box-shadow:0 6px 22px #122d2990; font-size:12px; transition:transform .3s ease; }
-#toast.show { transform:translate(-50%,0); }
-
-/* ==========================================================================
-   Responsive — everything below overrides the desktop rules above.
-   ========================================================================== */
-
-/* Small laptops / landscape tablets: keep the overlay layout, tighten it. */
-@media (max-width:1080px) {
-  :root { --gutter:24px; }
-  .topbar { gap:20px; }
-  .map-intro { width:320px; }
-  .map-search { width:100%; }
-  .filter-panel { width:232px; }
-  .reports-card { width:290px; }
-  .trust-strip { padding:42px 5vw; gap:20px; }
-  .official-section { padding:56px 7vw; column-gap:5vw; }
+  --gutter:4.5vw;
+  --radius:6px;
+  --shadow:0 10px 30px rgba(13,27,38,.10);
+  --shadow-sm:0 2px 8px rgba(13,27,38,.08);
 }
 
-/* Tablets & phones: stop floating panels over the map. Everything moves into
-   normal document flow and stacks, so panels can no longer overlap or hide
-   the map — which is what broke the layout on small screens. */
+/* --- Base ---------------------------------------------------------------- */
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; -webkit-text-size-adjust:100%; }
+body { margin:0; overflow-x:hidden; background:var(--paper); color:var(--ink);
+       font-family:Manrope,system-ui,Arial,sans-serif; line-height:1.5; }
+button,input,select,textarea { font:inherit; color:inherit; }
+button { cursor:pointer; }
+a { color:var(--brand); }
+h1,h2,h3 { line-height:1.14; letter-spacing:-.02em; }
+:focus-visible { outline:2px solid var(--brand-lift); outline-offset:2px; border-radius:2px; }
+.visually-hidden { position:absolute; width:1px; height:1px; overflow:hidden;
+                   clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; }
+.eyebrow { margin:0 0 8px; font:500 10px/1.2 'DM Mono',monospace;
+           letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+.muted-note { margin:0; color:var(--muted); font-size:12px; }
+
+/* --- Buttons ------------------------------------------------------------- */
+.primary-button { border:0; border-radius:var(--radius); background:var(--brand);
+  color:#fff; padding:11px 16px; font-size:13px; font-weight:800; letter-spacing:.01em; }
+.primary-button:hover { background:var(--brand-lift); }
+.primary-button.wide { width:100%; margin-top:18px; padding:14px; font-size:14px; }
+.ghost-button { border:1px solid var(--line-strong); border-radius:var(--radius);
+  background:transparent; color:inherit; padding:10px 14px; font-size:13px; font-weight:700; }
+.ghost-button:hover { border-color:var(--brand); color:var(--brand); }
+.ghost-button.small { padding:8px 12px; font-size:12px; }
+.link-button { border:0; background:none; padding:6px 0; color:var(--brand);
+  font-size:12px; font-weight:800; text-align:left; }
+.link-button:hover { color:var(--brand-lift); text-decoration:underline; }
+
+/* --- Setup banner -------------------------------------------------------- */
+.setup-banner[hidden] { display:none; }
+.setup-banner { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:baseline;
+  padding:10px var(--gutter); background:#3a2a10; color:#ffe9c2; font-size:12px; }
+.setup-banner code { background:#00000038; padding:1px 5px; border-radius:3px;
+  font:11px 'DM Mono',monospace; }
+
+/* --- Top bar ------------------------------------------------------------- */
+.topbar { display:flex; align-items:center; gap:22px; height:72px; padding:0 var(--gutter);
+  background:var(--ink); color:#eaf1f2; position:relative; z-index:20; }
+.brand { display:flex; align-items:center; gap:10px; color:inherit;
+  text-decoration:none; font-size:18px; font-weight:800; letter-spacing:-.03em; }
+.brand-mark { position:relative; width:26px; height:26px; border-radius:50%;
+  border:2px solid var(--glow); flex:none; }
+.brand-mark::after { content:""; position:absolute; inset:5px; border-radius:50%;
+  background:var(--glow); opacity:.85; }
+.brand .accent { color:var(--glow); }
+
+.place-chip { display:flex; align-items:center; gap:8px; margin-right:auto;
+  border:1px solid #2c4350; border-radius:100px; background:#14252f;
+  color:#bcd2d6; padding:7px 14px; font-size:12px; font-weight:600; max-width:280px; }
+.place-chip:hover { border-color:var(--brand-lift); color:#fff; }
+#place-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.place-ping { flex:none; width:7px; height:7px; border-radius:50%;
+  background:var(--glow); box-shadow:0 0 0 3px rgba(127,227,208,.22); }
+
+.topbar nav { display:flex; gap:22px; }
+.topbar nav a { color:#9fb6bd; text-decoration:none; font-size:13px; font-weight:700; }
+.topbar nav a:hover, .topbar nav a.active { color:#fff; }
+.top-actions { display:flex; align-items:center; gap:10px; }
+.topbar .ghost-button { border-color:#2f4855; color:#cfe0e3; }
+.topbar .ghost-button:hover { border-color:var(--glow); color:#fff; }
+
+/* --- Map area (desktop: panels float over a full-bleed map) --------------- */
+.map-area { position:relative; height:calc(100vh - 72px); min-height:600px; max-height:860px;
+  overflow:hidden; background:#dfe5e4; }
+.city-map { position:absolute; inset:0; background:#dfe5e4; cursor:grab; }
+.maplibregl-map { width:100%; height:100%; font-family:Manrope,Arial,sans-serif; }
+.city-map.is-picking, .city-map.is-picking .maplibregl-canvas { cursor:crosshair; }
+
+.map-intro { position:absolute; z-index:3; top:34px; left:var(--gutter); width:390px; }
+.map-intro h1 { margin:0; font-size:38px; color:var(--ink); }
+.map-intro h1 em { font-family:Georgia,'Times New Roman',serif; font-weight:400;
+  font-style:italic; color:var(--brand); }
+.intro-copy { max-width:340px; color:var(--ink-soft); font-size:13.5px; }
+
+.place-search { display:flex; align-items:center; gap:8px; margin-top:18px;
+  padding:6px 6px 6px 12px; background:var(--surface);
+  border:1px solid var(--line-strong); border-radius:var(--radius); box-shadow:var(--shadow); }
+.search-icon { font-size:20px; color:var(--ink-soft); transform:rotate(-20deg); }
+.place-search input { flex:1; min-width:0; border:0; outline:0; background:none; font-size:13px; }
+.search-go { border:0; border-radius:4px; background:var(--ink); color:#fff;
+  padding:9px 14px; font-size:12px; font-weight:800; }
+.search-go:hover { background:var(--brand); }
+
+.search-results { position:relative; z-index:6; margin-top:6px; background:var(--surface);
+  border:1px solid var(--line-strong); border-radius:var(--radius);
+  box-shadow:var(--shadow); max-height:270px; overflow:auto; }
+.search-results[hidden] { display:none; }
+.search-hit { display:block; width:100%; border:0; background:none; text-align:left;
+  padding:10px 13px; border-bottom:1px solid var(--line); }
+.search-hit:last-child { border-bottom:0; }
+.search-hit:hover, .search-hit:focus-visible { background:var(--sand); }
+.search-hit b { display:block; font-size:13px; }
+.search-hit span { display:block; margin-top:2px; color:var(--muted); font-size:11px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* --- Floating map controls ----------------------------------------------- */
+.floating-controls { position:absolute; z-index:3; top:34px; right:var(--gutter);
+  display:flex; flex-direction:column; }
+.icon-button { width:38px; height:34px; border:1px solid var(--line-strong);
+  background:var(--surface); color:var(--ink-2); font-size:19px; box-shadow:var(--shadow-sm); }
+.icon-button:first-child { border-radius:var(--radius) var(--radius) 0 0; }
+.icon-button:last-child { border-radius:0 0 var(--radius) var(--radius); border-top:0; }
+.icon-button:hover { color:var(--brand); }
+
+/* --- Filter panel -------------------------------------------------------- */
+.filter-panel { position:absolute; z-index:3; left:var(--gutter); bottom:26px; width:250px;
+  background:var(--surface); border:1px solid var(--line-strong);
+  border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+.panel-heading { display:flex; justify-content:space-between; align-items:center;
+  padding:12px 14px; border-bottom:1px solid var(--line);
+  font-size:12px; font-weight:800; }
+.panel-heading button { border:0; background:none; color:var(--muted);
+  font-size:11px; text-decoration:underline; padding:4px 0; }
+.filter-section { padding:11px 14px; }
+.filter-title { margin:0 0 8px; font:500 9px 'DM Mono',monospace;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
+.filter-row { display:flex; align-items:center; gap:8px; min-height:26px;
+  color:var(--ink-2); font-size:12px; cursor:pointer; }
+.filter-row input { accent-color:var(--brand); width:14px; height:14px; flex:none; }
+.filter-row b { margin-left:auto; color:var(--muted); font:500 10px 'DM Mono',monospace; }
+.sev-dot { flex:none; width:9px; height:9px; border-radius:50%; }
+.category-section { border-top:1px solid var(--line); max-height:190px; overflow:auto; }
+.category-filters { display:flex; flex-wrap:wrap; gap:5px; }
+.cat-chip { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line-strong);
+  border-radius:100px; background:var(--surface); padding:5px 10px 5px 7px;
+  font-size:11px; color:var(--ink-2); }
+.cat-chip:hover { border-color:var(--brand); }
+.cat-chip[aria-pressed="false"] { opacity:.42; }
+.cat-chip .glyph { font-size:12px; line-height:1; }
+
+/* --- Reports card -------------------------------------------------------- */
+.reports-card { position:absolute; z-index:3; right:var(--gutter); bottom:26px; width:340px;
+  display:flex; flex-direction:column; max-height:min(460px, calc(100% - 140px));
+  background:var(--surface); border:1px solid var(--line-strong);
+  border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+.reports-head { display:flex; align-items:center; justify-content:space-between;
+  gap:10px; padding:14px 16px 10px; }
+.reports-head h2 { margin:0; font-size:17px; }
+.count-pill { flex:none; min-width:30px; padding:4px 9px; border-radius:100px;
+  background:var(--ink); color:#fff; text-align:center;
+  font:600 12px 'DM Mono',monospace; }
+.report-list { overflow:auto; }
+.report-entry { display:flex; gap:11px; padding:11px 16px; border-top:1px solid var(--line); }
+.report-glyph { flex:none; width:30px; height:30px; border-radius:50%; display:grid;
+  place-items:center; font-size:14px; color:#fff; }
+.report-copy { min-width:0; flex:1; }
+.report-copy b { display:block; font-size:12.5px; }
+.report-meta { display:block; margin-top:3px; color:var(--muted); font-size:11px; }
+.report-actions { display:flex; align-items:center; gap:10px; margin-top:7px; }
+.chip-action { border:1px solid var(--line-strong); border-radius:100px; background:none;
+  padding:3px 9px; font-size:10.5px; font-weight:700; color:var(--ink-soft); }
+.chip-action:hover { border-color:var(--brand); color:var(--brand); }
+.chip-action[aria-pressed="true"] { background:var(--brand); border-color:var(--brand); color:#fff; }
+.empty-note { margin:0; padding:22px 16px; color:var(--muted); font-size:12.5px;
+  border-top:1px solid var(--line); }
+.gate-note { padding:13px 16px; border-top:1px solid var(--line); background:var(--sand);
+  color:var(--ink-2); font-size:11.5px; line-height:1.55; }
+.gate-note[hidden] { display:none; }
+.gate-note button { margin-top:7px; }
+
+.map-attribution { position:absolute; z-index:2; margin:0; right:8px; bottom:5px;
+  padding:3px 7px; border-radius:3px; background:rgba(255,255,255,.82);
+  color:var(--ink-soft); font-size:9.5px; }
+.map-attribution a { color:inherit; }
+
+/* --- How it works -------------------------------------------------------- */
+.how-strip { display:grid; grid-template-columns:1fr 2fr; gap:34px;
+  padding:58px 8vw; background:var(--brand-deep); color:#e7f2f1; }
+.how-strip .eyebrow { color:var(--glow); }
+.how-strip h2 { margin:0; font-size:26px; }
+.how-steps { display:grid; grid-template-columns:repeat(3,1fr); gap:24px;
+  margin:0; padding:0; list-style:none; }
+.how-steps li { display:flex; gap:12px; }
+.step-num { flex:none; width:27px; height:27px; display:grid; place-items:center;
+  border:1px solid rgba(127,227,208,.5); border-radius:50%; color:var(--glow);
+  font:600 12px 'DM Mono',monospace; }
+.how-steps b { font-size:13px; }
+.how-steps p { margin:4px 0 0; color:#a9c6c6; font-size:12px; line-height:1.6; }
+
+/* --- Staying safe -------------------------------------------------------- */
+.safety-section { display:grid; grid-template-columns:1fr 1.35fr; gap:30px 7vw;
+  padding:62px 8vw; background:var(--sand); }
+.safety-section h2 { margin:0; font-size:28px; max-width:320px; }
+.safety-section h2 em { font-family:Georgia,serif; font-style:italic;
+  font-weight:400; color:var(--brand); }
+.safety-copy p { margin:0 0 14px; color:var(--ink-2); font-size:13.5px; line-height:1.72; }
+.safety-callout { padding:14px 16px; border-left:3px solid var(--high);
+  background:var(--surface); color:var(--ink-2); font-weight:600; }
+
+/* --- Dialogs ------------------------------------------------------------- */
+dialog { width:min(520px, calc(100% - 28px)); max-height:88vh; max-height:88dvh;
+  padding:0; border:0; border-radius:var(--radius); overflow:auto;
+  background:var(--surface); color:var(--ink); box-shadow:0 24px 70px rgba(5,20,28,.45); }
+dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
+.dialog-body { padding:24px; }
+.dialog-header { display:flex; justify-content:space-between; gap:14px; }
+.dialog-header h2 { margin:0; font-size:23px; }
+.close-button { flex:none; width:34px; height:34px; border:1px solid var(--line-strong);
+  border-radius:var(--radius); background:none; font-size:19px; color:var(--ink-soft); }
+.close-button:hover { border-color:var(--high); color:var(--high); }
+.form-note { color:var(--ink-soft); font-size:12.5px; line-height:1.6; }
+
+.dialog-body label { display:block; margin-top:15px; font-size:11.5px; font-weight:800;
+  color:var(--ink-2); }
+.dialog-body input[type="email"], .dialog-body input[type="search"],
+.dialog-body input[type="text"], .dialog-body input:not([type]),
+.dialog-body select, .dialog-body textarea {
+  width:100%; margin-top:6px; padding:11px; border:1px solid var(--line-strong);
+  border-radius:4px; background:var(--surface); font-size:13px; }
+.dialog-body textarea { resize:vertical; }
+.dialog-body input:focus, .dialog-body select:focus, .dialog-body textarea:focus {
+  outline:2px solid var(--brand-lift); outline-offset:0; border-color:var(--brand); }
+.char-count { display:block; margin-top:4px; text-align:right;
+  color:var(--muted); font:10px 'DM Mono',monospace; }
+
+.severity-picker { margin:16px 0 0; padding:0; border:0; }
+.severity-picker legend { padding:0; font-size:11.5px; font-weight:800; color:var(--ink-2); }
+.severity-picker label { display:flex; align-items:baseline; gap:8px; margin-top:8px;
+  padding:9px 11px; border:1px solid var(--line-strong); border-radius:4px;
+  font-weight:600; cursor:pointer; }
+.severity-picker label:has(input:checked) { border-color:var(--brand); background:#f2f8f7; }
+.severity-picker input { accent-color:var(--brand); }
+.severity-picker span { font-size:12.5px; font-weight:800; }
+.severity-picker span[data-sev="high"]   { color:var(--high); }
+.severity-picker span[data-sev="medium"] { color:var(--medium); }
+.severity-picker span[data-sev="low"]    { color:var(--low); }
+.severity-picker small { color:var(--muted); font-size:11px; font-weight:500; }
+
+.location-block { margin-top:18px; padding:13px; border:1px solid var(--line);
+  border-radius:var(--radius); background:var(--paper); }
+.block-title { margin:0 0 9px; font-size:11.5px; font-weight:800; color:var(--ink-2); }
+.address-row { display:flex; gap:8px; }
+.address-row input { flex:1; min-width:0; margin-top:0; padding:10px;
+  border:1px solid var(--line-strong); border-radius:4px; font-size:13px; }
+.pin-status { margin:9px 0 0; color:var(--ink-soft); font-size:11.5px; }
+.pin-status.is-set { color:var(--brand); font-weight:700; }
+
+.or-rule { display:flex; align-items:center; gap:12px; margin:18px 0;
+  color:var(--muted); font-size:11px; }
+.or-rule::before, .or-rule::after { content:""; flex:1; height:1px; background:var(--line); }
+.google-button { display:flex; align-items:center; justify-content:center; gap:10px;
+  width:100%; padding:13px; border:1px solid var(--line-strong); border-radius:var(--radius);
+  background:var(--surface); font-size:13.5px; font-weight:700; }
+.google-button:hover { border-color:var(--ink-soft); background:var(--paper); }
+.g-mark { display:grid; place-items:center; width:20px; height:20px; border-radius:50%;
+  background:var(--ink); color:#fff; font:800 12px Manrope,sans-serif; }
+.fine-print { margin:16px 0 0; color:var(--muted); font-size:11px; line-height:1.6; }
+
+/* --- Map popups ---------------------------------------------------------- */
+.maplibregl-popup-content { padding:13px 14px; border-radius:var(--radius);
+  box-shadow:var(--shadow); font-family:Manrope,Arial,sans-serif; max-width:250px; }
+.maplibregl-popup-tip { display:none; }
+.popup-kicker { margin:0 0 5px; font:10px 'DM Mono',monospace;
+  letter-spacing:.09em; text-transform:uppercase; }
+.popup-title { margin:0; font-size:13.5px; font-weight:800; line-height:1.35; }
+.popup-body { margin:6px 0 0; color:var(--ink-soft); font-size:11.5px; line-height:1.5; }
+.popup-meta { margin:8px 0 0; color:var(--muted); font:10px 'DM Mono',monospace; }
+
+/* --- Toast --------------------------------------------------------------- */
+#toast { position:fixed; z-index:60; left:50%; bottom:24px; width:max-content;
+  max-width:calc(100% - 32px); transform:translate(-50%,160px);
+  padding:13px 18px; border-radius:var(--radius); background:var(--ink); color:#fff;
+  box-shadow:0 10px 30px rgba(8,22,30,.45); font-size:12.5px;
+  transition:transform .28s ease; }
+#toast.show { transform:translate(-50%,0); }
+#toast.is-error { background:var(--high); }
+
+/* ==========================================================================
+   Responsive — overrides everything above.
+   ========================================================================== */
+
+/* Small laptops: tighten the floating panels. */
+@media (max-width:1180px) {
+  :root { --gutter:26px; }
+  .map-intro { width:340px; }
+  .map-intro h1 { font-size:32px; }
+  .filter-panel { width:228px; }
+  .reports-card { width:300px; }
+  .how-strip, .safety-section { padding-left:5vw; padding-right:5vw; }
+}
+
+/* Tablets and phones: panels leave the map and stack in normal flow, so
+   nothing can overlap and nothing can hide the map. */
 @media (max-width:900px) {
   :root { --gutter:18px; }
-  .topbar { height:64px; }
-  .city-control { display:none; }
-  nav { gap:18px; }
-  .report-button { margin-left:auto; min-height:44px; }
+  .topbar { height:62px; gap:14px; }
+  .topbar nav, .place-chip { display:none; }
+  .top-actions { margin-left:auto; }
+  .primary-button, .ghost-button { min-height:44px; }
 
-  .map-area { height:auto; overflow:visible; display:flex; flex-direction:column; gap:14px; padding-bottom:22px; background:var(--paper); }
-  .city-map { position:relative; inset:auto; order:3; width:100%; height:clamp(300px,50vh,440px); }
-  .map-intro { position:static; order:1; width:auto; padding:24px var(--gutter) 0; }
+  .map-area { height:auto; min-height:0; max-height:none; overflow:visible;
+    display:flex; flex-direction:column; gap:14px; padding-bottom:22px; background:var(--paper); }
+  .map-intro { position:static; order:1; width:auto; padding:22px var(--gutter) 0; }
+  .map-intro h1 { font-size:29px; }
   .intro-copy { max-width:none; }
-  .map-search { width:auto; }
-  .floating-controls { position:static; order:2; justify-content:flex-end; margin:0 var(--gutter); }
-  .icon-button { min-height:38px; }
+  .floating-controls { position:static; order:2; flex-direction:row; justify-content:flex-end;
+    margin:0 var(--gutter); }
+  .icon-button { width:46px; height:42px; }
+  .icon-button:first-child { border-radius:var(--radius) 0 0 var(--radius); }
+  .icon-button:last-child { border-radius:0 var(--radius) var(--radius) 0;
+    border-top:1px solid var(--line-strong); border-left:0; }
+  .city-map { position:relative; inset:auto; order:3; width:100%;
+    height:clamp(300px,52vh,460px); }
   .filter-panel { position:static; order:4; width:auto; margin:0 var(--gutter); }
-  .reports-card { position:static; order:5; width:auto; margin:0 var(--gutter); }
-  .map-attribution { position:static; order:6; margin:0 var(--gutter); padding:0; background:transparent; font-size:10px; line-height:1.5; }
+  .category-section { max-height:none; }
+  .reports-card { position:static; order:5; width:auto; margin:0 var(--gutter);
+    max-height:none; }
+  .report-list { max-height:360px; }
+  .map-attribution { position:static; order:6; margin:0 var(--gutter);
+    padding:0; background:none; font-size:10.5px; line-height:1.55; }
 
-  /* Touch targets */
-  .filter-row { min-height:36px; font-size:12px; }
-  .filter-row input { width:16px; height:16px; }
-  .filter-row b { font-size:11px; }
-  .panel-heading button { padding:6px 0; font-size:11px; }
-  .reports-head button { width:40px; height:40px; }
-  .safe-link { padding:15px 17px; font-size:11px; }
-  .report-copy b { font-size:12px; }
-  .report-copy span { font-size:11px; }
+  .filter-row { min-height:36px; font-size:13px; }
+  .filter-row input { width:17px; height:17px; }
+  .cat-chip { padding:8px 12px 8px 9px; font-size:12px; }
+  .chip-action { padding:6px 12px; font-size:11.5px; }
   .close-button { width:44px; height:44px; }
-  .pin-picker { font-size:11px; }
-  .pin-picker button, .pick-location { padding:10px 0; font-size:12px; }
 
-  /* 16px stops iOS Safari from zooming the page in when a field is focused. */
-  .map-search input, #report-form input, #report-form select, #report-form textarea { font-size:16px; }
+  /* 16px keeps iOS Safari from zooming the page when a field is focused. */
+  .place-search input, .dialog-body input, .dialog-body select,
+  .dialog-body textarea, .address-row input { font-size:16px; }
 
-  .trust-strip { grid-template-columns:1fr; padding:38px var(--gutter); gap:19px; }
-  .official-section { grid-template-columns:1fr; padding:46px var(--gutter); }
-  .official-section h2 { font-size:26px; }
-  .official-link { padding:16px 0; }
+  .how-strip { grid-template-columns:1fr; gap:24px; padding:42px var(--gutter); }
+  .how-steps { grid-template-columns:1fr; gap:18px; }
+  .safety-section { grid-template-columns:1fr; padding:44px var(--gutter); }
+  .safety-section h2 { max-width:none; font-size:25px; }
 }
 
 /* Phones. */
 @media (max-width:560px) {
   :root { --gutter:16px; }
-  .topbar { height:auto; flex-wrap:wrap; padding:10px var(--gutter); row-gap:0; gap:12px; }
+  .topbar { height:auto; flex-wrap:wrap; padding:10px var(--gutter); gap:10px; }
   .brand { margin-right:auto; font-size:16px; }
-  .report-button { padding:11px 14px; font-size:12px; }
-  nav { order:3; width:100%; justify-content:space-between; gap:12px; padding-top:6px; border-top:1px solid var(--line); }
-  nav a { padding:8px 0; font-size:12px; }
+  .top-actions { width:100%; }
+  .top-actions .ghost-button { flex:1; }
+  .top-actions .primary-button { flex:2; }
+  .map-intro h1 { font-size:26px; }
+  .city-map { height:clamp(260px,44vh,380px); }
+  .setup-banner { font-size:11.5px; }
 
-  .map-intro h1 { font-size:26px; letter-spacing:-1.2px; }
-  .city-map { height:clamp(260px,42vh,360px); }
-
-  .filter-section { display:grid; grid-template-columns:1fr 1fr; column-gap:10px; }
-  .filter-section p { grid-column:1/-1; }
-  .safety-section { grid-template-columns:1fr; }
-
-  /* Full-width bottom sheet so the whole form is reachable on a small screen. */
-  dialog { width:100%; max-width:100%; margin:auto 0 0; max-height:92vh; max-height:92dvh; }
-  #report-form { padding:20px var(--gutter) calc(20px + env(safe-area-inset-bottom)); }
+  /* Full-width sheet, so the whole form is reachable on a small screen. */
+  dialog { width:100%; max-width:100%; margin:auto 0 0; max-height:92vh; max-height:92dvh;
+    border-radius:var(--radius) var(--radius) 0 0; }
+  .dialog-body { padding:20px var(--gutter) calc(20px + env(safe-area-inset-bottom)); }
   .dialog-header h2 { font-size:20px; }
   #toast { bottom:16px; }
 }

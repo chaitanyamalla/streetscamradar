@@ -1,0 +1,377 @@
+-- ============================================================================
+-- StreetScamRadar — database schema
+-- Run once in the Supabase SQL editor (Dashboard -> SQL -> New query).
+-- Idempotent: re-running it is safe.
+--
+-- SECURITY MODEL — read this before changing anything below.
+--
+-- The browser talks to Postgres directly with the *anon* key, which is public
+-- by design and visible in the page source. Every access rule therefore lives
+-- in this file, never in JavaScript. Three separate doors:
+--
+--   signed-out visitor -> public_area_summary() / public_sample_reports()
+--                         only. No direct table access at all. The row cap
+--                         lives in SQL, so it cannot be lifted from a browser
+--                         console.
+--   signed-in member   -> the reports_feed view. It omits reporter_id, so
+--                         members cannot deanonymise whoever filed a report.
+--   report author      -> insert via the table; withdraw via delete_my_report().
+--
+-- Direct SELECT/UPDATE/DELETE on public.reports is revoked from both roles.
+-- ============================================================================
+
+create extension if not exists "pgcrypto";
+
+-- ---------------------------------------------------------------------------
+-- Settings. Lets you change behaviour from the dashboard without a migration.
+-- RLS on with no policies: nothing reads this table directly. The two helpers
+-- below are SECURITY DEFINER so they still work from inside policies.
+-- ---------------------------------------------------------------------------
+create table if not exists public.app_settings (
+  key   text primary key,
+  value jsonb not null,
+  note  text
+);
+
+insert into public.app_settings (key, value, note) values
+  ('report_window_days',       '7',      'How many days back a report stays visible.'),
+  ('auto_hide_flag_threshold', '999999', 'Flags before a report auto-hides. Set to 2 to switch community moderation on.'),
+  ('public_sample_limit',      '5',      'Max reports a signed-out visitor sees when zoomed in.'),
+  ('public_detail_max_span',   '0.35',   'Signed-out visitors see individual reports only when the map spans fewer degrees than this.')
+on conflict (key) do nothing;
+
+alter table public.app_settings enable row level security;
+revoke all on table public.app_settings from anon, authenticated;
+
+create or replace function public.setting_int(p_key text, p_default int)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce((select (value #>> '{}')::int from public.app_settings where key = p_key), p_default);
+$$;
+
+create or replace function public.setting_num(p_key text, p_default numeric)
+returns numeric language sql stable security definer set search_path = public as $$
+  select coalesce((select (value #>> '{}')::numeric from public.app_settings where key = p_key), p_default);
+$$;
+
+create or replace function public.report_window()
+returns interval language sql stable as $$
+  select make_interval(days => public.setting_int('report_window_days', 7));
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Scam categories. A table, not an enum, so you can add one from the Supabase
+-- dashboard with no code change and no migration.
+-- ---------------------------------------------------------------------------
+create table if not exists public.scam_categories (
+  slug       text primary key,
+  label      text not null,
+  glyph      text not null default '!',
+  blurb      text,
+  sort_order int  not null default 100,
+  is_active  boolean not null default true
+);
+
+insert into public.scam_categories (slug, label, glyph, blurb, sort_order) values
+  ('pickpocket',    'Pickpocketing & bag theft',   '👜', 'Crowds, transport, distraction teams.',          10),
+  ('distraction',   'Distraction & street games',  '🎲', 'Shell games, petitions, bracelets, spills.',     20),
+  ('taxi',          'Taxi & ride overcharging',    '🚕', 'Broken meters, long routes, card refused.',      30),
+  ('tickets',       'Fake tickets & tours',        '🎫', 'Counterfeit entry, tours that never happen.',    40),
+  ('rental',        'Rental & accommodation',      '🏠', 'Deposits for places that do not exist.',         50),
+  ('atm',           'ATM & card skimming',         '💳', 'Tampered machines, helpful strangers.',          60),
+  ('money',         'Currency & fake change',      '💵', 'Bad rates, short change, withdrawn notes.',      70),
+  ('fake_official', 'Fake police or officials',    '🛂', 'Fake ID, fake fines, fake document checks.',     80),
+  ('overcharge',    'Bar, menu & shop overcharge', '🧾', 'Hidden prices, swapped bills, clip joints.',     90),
+  ('counterfeit',   'Counterfeit goods',           '🛍️', 'Fakes sold as genuine, bait and switch.',       100),
+  ('online',        'Online & booking fraud',      '🌐', 'Fake listings and booking sites for this area.', 110),
+  ('other',         'Something else',              '⚠️', 'Anything that does not fit the list.',          900)
+on conflict (slug) do nothing;
+
+alter table public.scam_categories enable row level security;
+drop policy if exists "categories are public" on public.scam_categories;
+create policy "categories are public" on public.scam_categories
+  for select to anon, authenticated using (is_active);
+
+-- ---------------------------------------------------------------------------
+-- Profiles. One row per member, created automatically on sign-up.
+-- ---------------------------------------------------------------------------
+create table if not exists public.profiles (
+  id           uuid primary key references auth.users on delete cascade,
+  display_name text,
+  home_label   text,
+  home_lat     double precision,
+  home_lng     double precision,
+  created_at   timestamptz not null default now(),
+  constraint home_lat_range check (home_lat is null or home_lat between -90 and 90),
+  constraint home_lng_range check (home_lng is null or home_lng between -180 and 180)
+);
+
+alter table public.profiles enable row level security;
+drop policy if exists "read own profile"   on public.profiles;
+drop policy if exists "update own profile" on public.profiles;
+drop policy if exists "insert own profile" on public.profiles;
+create policy "read own profile"   on public.profiles for select to authenticated using (id = auth.uid());
+create policy "update own profile" on public.profiles for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
+create policy "insert own profile" on public.profiles for insert to authenticated with check (id = auth.uid());
+
+-- Defence in depth: RLS already returns no rows to a signed-out visitor, but
+-- revoking the grant turns a silent empty result into a hard refusal.
+revoke all on table public.profiles from anon;
+
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.profiles (id, display_name)
+  values (new.id, split_part(coalesce(new.email, 'member'), '@', 1))
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- ---------------------------------------------------------------------------
+-- Reports.
+-- ---------------------------------------------------------------------------
+create table if not exists public.reports (
+  id            uuid primary key default gen_random_uuid(),
+  reporter_id   uuid references auth.users on delete set null,
+  category      text not null references public.scam_categories(slug),
+  severity      text not null default 'medium' check (severity in ('low','medium','high')),
+  headline      text not null check (char_length(btrim(headline)) between 8 and 90),
+  description   text not null check (char_length(btrim(description)) between 20 and 1200),
+
+  lat           double precision not null check (lat between -90 and 90),
+  lng           double precision not null check (lng between -180 and 180),
+  address       text,
+  city          text,
+  country_code  char(2),
+
+  happened_at   timestamptz not null,
+  created_at    timestamptz not null default now(),
+
+  status        text not null default 'published' check (status in ('published','under_review','removed')),
+  support_count int not null default 0,
+  flag_count    int not null default 0,
+
+  constraint happened_not_future check (happened_at <= now() + interval '1 hour')
+);
+
+create index if not exists reports_happened_idx on public.reports (happened_at desc);
+create index if not exists reports_lat_idx      on public.reports (lat);
+create index if not exists reports_lng_idx      on public.reports (lng);
+create index if not exists reports_status_idx   on public.reports (status);
+create index if not exists reports_reporter_idx on public.reports (reporter_id);
+
+alter table public.reports enable row level security;
+
+-- Nobody reads, edits or deletes this table directly. Reads go through
+-- reports_feed; withdrawal goes through delete_my_report(). Only INSERT
+-- stays, so a member can file a report.
+revoke select, update, delete on table public.reports from anon, authenticated;
+grant insert on table public.reports to authenticated;
+
+drop policy if exists "members read recent reports" on public.reports;
+drop policy if exists "members edit own reports"    on public.reports;
+drop policy if exists "members delete own reports"  on public.reports;
+
+drop policy if exists "members create reports" on public.reports;
+create policy "members create reports" on public.reports
+  for insert to authenticated
+  with check (
+    reporter_id  = auth.uid()
+    and status   = 'published'
+    and support_count = 0
+    and flag_count    = 0
+    and happened_at > now() - public.report_window()
+  );
+
+-- What a signed-in member may read. A view rather than a policy, because it
+-- must drop reporter_id: whoever reported a scam stays anonymous to everyone
+-- except themselves (via is_mine) and you, in the dashboard.
+-- security_invoker = false on purpose — the WHERE clause here IS the rule.
+drop view if exists public.reports_feed;
+create view public.reports_feed
+with (security_invoker = false) as
+  select r.id, r.category, r.severity, r.headline, r.description,
+         r.lat, r.lng, r.address, r.city, r.country_code,
+         r.happened_at, r.created_at,
+         r.support_count, r.flag_count,
+         (r.reporter_id = auth.uid()) as is_mine
+    from public.reports r
+   where (r.status = 'published' and r.happened_at > now() - public.report_window())
+      or r.reporter_id = auth.uid();
+
+revoke all on public.reports_feed from anon;
+grant select on public.reports_feed to authenticated;
+
+-- Withdraw your own report. SECURITY DEFINER so it needs no table grants.
+create or replace function public.delete_my_report(p_report_id uuid)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare removed int;
+begin
+  if auth.uid() is null then
+    raise exception 'sign in required';
+  end if;
+  delete from public.reports where id = p_report_id and reporter_id = auth.uid();
+  get diagnostics removed = row_count;
+  return removed > 0;
+end;
+$$;
+
+revoke all on function public.delete_my_report(uuid) from public, anon;
+grant execute on function public.delete_my_report(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Support ("I saw this too") and flags. One of each per member per report.
+-- Support is what earns a report visibility; flags are what take it away.
+-- ---------------------------------------------------------------------------
+create table if not exists public.report_supports (
+  report_id  uuid not null references public.reports on delete cascade,
+  user_id    uuid not null references auth.users on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (report_id, user_id)
+);
+
+create table if not exists public.report_flags (
+  report_id  uuid not null references public.reports on delete cascade,
+  user_id    uuid not null references auth.users on delete cascade,
+  reason     text not null default 'other' check (reason in ('wrong','abusive','personal_data','duplicate','other')),
+  created_at timestamptz not null default now(),
+  primary key (report_id, user_id)
+);
+
+alter table public.report_supports enable row level security;
+alter table public.report_flags    enable row level security;
+
+-- Own rows only: who supported what is nobody else's business. The public
+-- number lives in reports.support_count.
+drop policy if exists "read own supports"  on public.report_supports;
+drop policy if exists "add own support"    on public.report_supports;
+drop policy if exists "drop own support"   on public.report_supports;
+create policy "read own supports" on public.report_supports for select to authenticated using (user_id = auth.uid());
+create policy "add own support"   on public.report_supports for insert to authenticated with check (user_id = auth.uid());
+create policy "drop own support"  on public.report_supports for delete to authenticated using (user_id = auth.uid());
+
+drop policy if exists "read own flags" on public.report_flags;
+drop policy if exists "add own flag"   on public.report_flags;
+create policy "read own flags" on public.report_flags for select to authenticated using (user_id = auth.uid());
+create policy "add own flag"   on public.report_flags for insert to authenticated with check (user_id = auth.uid());
+
+revoke all on table public.report_supports from anon;
+revoke all on table public.report_flags    from anon;
+
+-- Counters are maintained here, never by the client — a member must not be
+-- able to inflate the support count on their own report.
+create or replace function public.recount_supports()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare target uuid := coalesce(new.report_id, old.report_id);
+begin
+  update public.reports r
+     set support_count = (select count(*) from public.report_supports s where s.report_id = target)
+   where r.id = target;
+  return null;
+end;
+$$;
+
+create or replace function public.recount_flags()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  target uuid := coalesce(new.report_id, old.report_id);
+  total  int;
+  limit_ int := public.setting_int('auto_hide_flag_threshold', 999999);
+begin
+  select count(*) into total from public.report_flags f where f.report_id = target;
+  update public.reports r
+     set flag_count = total,
+         status = case when total >= limit_ and r.status = 'published' then 'under_review' else r.status end
+   where r.id = target;
+  return null;
+end;
+$$;
+
+drop trigger if exists supports_recount on public.report_supports;
+create trigger supports_recount
+  after insert or delete on public.report_supports
+  for each row execute function public.recount_supports();
+
+drop trigger if exists flags_recount on public.report_flags;
+create trigger flags_recount
+  after insert or delete on public.report_flags
+  for each row execute function public.recount_flags();
+
+-- ---------------------------------------------------------------------------
+-- The signed-out view of the world.
+--
+-- Zoomed out -> counts only, bucketed into a coarse grid. No text, no pin.
+-- Zoomed in  -> a capped handful of individual reports, best-supported first.
+-- Both SECURITY DEFINER, because the anon role cannot read reports at all.
+-- ---------------------------------------------------------------------------
+create or replace function public.public_area_summary(
+  min_lat double precision, min_lng double precision,
+  max_lat double precision, max_lng double precision,
+  cells   int default 12
+)
+returns table (lat double precision, lng double precision, total bigint, high bigint)
+language sql stable security definer set search_path = public as $$
+  with bounds as (
+    select least(min_lat, max_lat) as y0, greatest(min_lat, max_lat) as y1,
+           least(min_lng, max_lng) as x0, greatest(min_lng, max_lng) as x1
+  ),
+  grid as (
+    select y0, y1, x0, x1,
+           greatest((y1 - y0) / greatest(cells, 1), 0.0005) as dy,
+           greatest((x1 - x0) / greatest(cells, 1), 0.0005) as dx
+      from bounds
+  )
+  select g.y0 + (floor(least((r.lat - g.y0) / g.dy, greatest(cells, 1) - 1)) + 0.5) * g.dy,
+         g.x0 + (floor(least((r.lng - g.x0) / g.dx, greatest(cells, 1) - 1)) + 0.5) * g.dx,
+         count(*),
+         count(*) filter (where r.severity = 'high')
+    from public.reports r, grid g
+   where r.status = 'published'
+     and r.happened_at > now() - public.report_window()
+     and r.lat between g.y0 and g.y1
+     and r.lng between g.x0 and g.x1
+   group by 1, 2;
+$$;
+
+create or replace function public.public_sample_reports(
+  min_lat double precision, min_lng double precision,
+  max_lat double precision, max_lng double precision
+)
+returns table (
+  id uuid, category text, severity text, headline text,
+  lat double precision, lng double precision,
+  city text, happened_at timestamptz, support_count int, total_in_view bigint
+)
+language sql stable security definer set search_path = public as $$
+  with bounds as (
+    select least(min_lat, max_lat) as y0, greatest(min_lat, max_lat) as y1,
+           least(min_lng, max_lng) as x0, greatest(min_lng, max_lng) as x1
+  ),
+  visible as (
+    select r.id, r.category, r.severity, r.headline, r.lat, r.lng, r.city,
+           r.happened_at, r.support_count
+      from public.reports r, bounds b
+     where r.status = 'published'
+       and r.happened_at > now() - public.report_window()
+       and r.lat between b.y0 and b.y1
+       and r.lng between b.x0 and b.x1
+       -- Individual reports only once the viewer has zoomed in far enough that
+       -- this is a neighbourhood question, not a country-wide scrape.
+       and (b.y1 - b.y0) <= public.setting_num('public_detail_max_span', 0.35)
+       and (b.x1 - b.x0) <= public.setting_num('public_detail_max_span', 0.35)
+  )
+  select v.*, (select count(*) from visible) as total_in_view
+    from visible v
+   order by (v.severity = 'high') desc, v.support_count desc, v.happened_at desc
+   limit public.setting_int('public_sample_limit', 5);
+$$;
+
+revoke all on function public.public_area_summary(double precision, double precision, double precision, double precision, int) from public;
+revoke all on function public.public_sample_reports(double precision, double precision, double precision, double precision) from public;
+grant execute on function public.public_area_summary(double precision, double precision, double precision, double precision, int) to anon, authenticated;
+grant execute on function public.public_sample_reports(double precision, double precision, double precision, double precision) to anon, authenticated;

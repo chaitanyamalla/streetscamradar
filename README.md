@@ -116,7 +116,24 @@ The Google button only appears when the Google provider is actually enabled —
 the page asks `/auth/v1/settings` on load. Nothing to configure; enable Google
 in the dashboard and the button shows up by itself.
 
-### 4. Deploy
+### 4. Email delivery — required before anyone else signs in
+
+Supabase's built-in email sender is capped at roughly **2 emails per hour** and
+is meant for testing only. Hit it and sign-in fails with *"email rate limit
+exceeded"*. The exact cap is under **Authentication → Rate Limits**.
+
+A community site cannot run on that, so set up your own sender before inviting
+anyone: **Project Settings → Authentication → SMTP Settings**. Resend, Brevo,
+Postmark and SendGrid all have free tiers well above this; Resend's is ~3,000
+emails a month and takes about ten minutes including domain verification.
+
+Once custom SMTP is on, raise the limit under Authentication → Rate Limits —
+the low default exists only because the shared sender is shared.
+
+While rate-limited, you cannot test sign-in at all. Either wait an hour, or
+configure SMTP and the limit lifts immediately.
+
+### 5. Deploy
 
 Vercel already builds this repo on push. There is no build command and no
 environment variable to set — it is static files.
@@ -128,7 +145,7 @@ npx http-server -p 8080 .
 # then open http://localhost:8080
 ```
 
-### 5. Supabase MCP (optional)
+### 6. Supabase MCP (optional)
 
 `.mcp.json` registers Supabase's MCP server, so Claude Code can run migrations
 and inspect the database directly instead of you copying SQL by hand. It is
@@ -173,6 +190,13 @@ filters and the report form all pick it up with no code change.
 ---
 
 ## Known limits
+
+- **Email is the bottleneck, not the database.** The built-in sender allows ~2
+  messages an hour. Configure SMTP (step 4) before any real user tries to join.
+- **Magic links on phones** can open in a different browser from the one the
+  person started in, landing them signed out even when the URL is right. If
+  that becomes a common complaint, switch to a 6-digit code: it removes the
+  redirect entirely and behaves the same on every device.
 
 - **Geocoding** uses Nominatim, which is free and asks for roughly one request
   per second. Fine for now; if the site gets busy, swap the endpoint in

@@ -7,7 +7,7 @@
 // the pin — map label fonts have no emoji coverage.
 // ---------------------------------------------------------------------------
 import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
-import { MAP_STYLE, WORLD_VIEW, SEVERITY } from './config.js';
+import { MAP_STYLE, WORLD_VIEW, PIN_COLOR, CLUSTER_COLOR } from './config.js';
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
 const compact = () => window.matchMedia('(max-width: 900px)').matches;
@@ -45,25 +45,25 @@ export function addLayers(map) {
   map.addLayer({
     id: 'density-blob', type: 'circle', source: 'density',
     paint: {
-      'circle-color': ['case', ['>', ['get', 'high'], 0], SEVERITY.high.color, SEVERITY.medium.color],
-      'circle-opacity': 0.22,
+      'circle-color': PIN_COLOR,
+      'circle-opacity': 0.20,
       'circle-radius': ['interpolate', ['linear'], ['get', 'total'], 1, 14, 5, 24, 20, 38, 100, 54],
       'circle-stroke-width': 1,
-      'circle-stroke-color': ['case', ['>', ['get', 'high'], 0], SEVERITY.high.color, SEVERITY.medium.color],
+      'circle-stroke-color': PIN_COLOR,
       'circle-stroke-opacity': 0.45,
     },
   });
   map.addLayer({
     id: 'density-count', type: 'symbol', source: 'density',
     layout: { 'text-field': ['to-string', ['get', 'total']], 'text-size': 12, 'text-allow-overlap': true },
-    paint: { 'text-color': '#5c2018', 'text-halo-color': '#ffffff', 'text-halo-width': 1.4 },
+    paint: { 'text-color': '#8a3a17', 'text-halo-color': '#ffffff', 'text-halo-width': 1.4 },
   });
 
   // --- Clusters -----------------------------------------------------------
   map.addLayer({
     id: 'clusters', type: 'circle', source: 'reports', filter: ['has', 'point_count'],
     paint: {
-      'circle-color': '#12494f',
+      'circle-color': CLUSTER_COLOR,
       'circle-opacity': 0.9,
       'circle-radius': ['step', ['get', 'point_count'], 17, 10, 23, 30, 30],
       'circle-stroke-width': 3,
@@ -80,25 +80,20 @@ export function addLayers(map) {
   map.addLayer({
     id: 'report-point', type: 'circle', source: 'reports', filter: ['!', ['has', 'point_count']],
     paint: {
-      'circle-color': [
-        'match', ['get', 'severity'],
-        'high', SEVERITY.high.color,
-        'medium', SEVERITY.medium.color,
-        SEVERITY.low.color,
-      ],
+      'circle-color': PIN_COLOR,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 6, 14, 10, 18, 14],
       'circle-stroke-width': 2.5,
       'circle-stroke-color': '#ffffff',
     },
   });
 
-  // A pulse ring on high-severity reports, so the eye lands there first.
+  // A soft ring under every pin, so single reports still read at low zoom.
   map.addLayer({
     id: 'report-halo', type: 'circle', source: 'reports',
-    filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'severity'], 'high']],
+    filter: ['!', ['has', 'point_count']],
     paint: {
-      'circle-color': SEVERITY.high.color, 'circle-opacity': 0.16,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 13, 14, 22, 18, 30],
+      'circle-color': PIN_COLOR, 'circle-opacity': 0.14,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 12, 14, 20, 18, 28],
     },
   }, 'report-point');
 }

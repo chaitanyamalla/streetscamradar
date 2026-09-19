@@ -2,7 +2,7 @@
 // Rendering helpers. Everything a member typed passes through esc() before it
 // reaches innerHTML — report text is untrusted input from strangers.
 // ---------------------------------------------------------------------------
-import { SEVERITY } from './config.js';
+import { PIN_COLOR } from './config.js';
 
 export const esc = (value) => String(value ?? '').replace(/[&<>"']/g,
   c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -54,7 +54,6 @@ export function renderReportList(host, reports, { categories, mode, supported, s
 
   host.innerHTML = reports.map(r => {
     const cat = byslug.get(r.category);
-    const sev = SEVERITY[r.severity] ?? SEVERITY.low;
     const isOn = supported.has(r.id);
     const place = r.city ? `${esc(r.city)} · ` : '';
     const actions = signedIn ? `
@@ -69,10 +68,10 @@ export function renderReportList(host, reports, { categories, mode, supported, s
 
     return `
       <article class="report-entry" data-report="${esc(r.id)}">
-        <span class="report-glyph" style="background:${sev.color}" aria-hidden="true">${esc(cat?.glyph ?? '⚠')}</span>
+        <span class="report-glyph" aria-hidden="true">${esc(cat?.glyph ?? '⚠')}</span>
         <div class="report-copy">
           <b>${esc(r.headline)}</b>
-          <span class="report-meta">${place}${esc(cat?.label ?? r.category)} · ${sev.label} · ${timeAgo(r.happened_at)}</span>
+          <span class="report-meta">${place}${esc(cat?.label ?? r.category)} · ${timeAgo(r.happened_at)}</span>
           ${actions}
         </div>
       </article>`;
@@ -81,12 +80,11 @@ export function renderReportList(host, reports, { categories, mode, supported, s
 
 export function popupHTML(props, categories) {
   const cat = categories.find(c => c.slug === props.category);
-  const sev = SEVERITY[props.severity] ?? SEVERITY.low;
   const body = props.description
     ? `<p class="popup-body">${esc(String(props.description).slice(0, 220))}</p>`
     : '<p class="popup-body">Sign in to read the full account.</p>';
   return `
-    <p class="popup-kicker" style="color:${sev.color}">${esc(sev.label)} · ${esc(cat?.label ?? props.category)}</p>
+    <p class="popup-kicker">${esc(cat?.glyph ?? '')} ${esc(cat?.label ?? props.category)}</p>
     <p class="popup-title">${esc(props.headline)}</p>
     ${body}
     <p class="popup-meta">${esc(props.city ?? '')} ${esc(timeAgo(props.happened_at))}</p>`;
@@ -104,7 +102,7 @@ export function setGateNote(host, { mode, shown = 0, hiddenCount = 0, signedIn }
       <b>${hiddenCount} more ${hiddenCount === 1 ? 'is' : 'are'} members-only.</b>
       <button class="chip-action" data-open-auth>Join free to see them</button>`;
   } else {
-    host.innerHTML = `You are seeing the public view.
-      <button class="chip-action" data-open-auth>Join free</button> for every report and to add your own.`;
+    host.innerHTML = `Seen something here yourself?
+      <button class="chip-action" data-open-auth>Join free</button> to put it on the map.`;
   }
 }

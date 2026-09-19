@@ -48,6 +48,13 @@ export const PUBLIC_SAMPLE_LIMIT = 5;
 // --- Reports ---------------------------------------------------------------
 export const REPORT_WINDOW_DAYS = 7;
 
+// Every report pin is the same colour. Severity is still collected on the form
+// and stored, but it is self-declared, so showing it as a risk grading would
+// imply an assessment nobody has made. Bring it back when there is a real
+// signal to grade with — the data will be waiting.
+export const PIN_COLOR = '#e0713c';
+export const CLUSTER_COLOR = '#0f5f5a';
+
 export const SEVERITY = {
   high:   { label: 'High',   color: '#c8322b', blurb: 'Money lost, force, or impersonated officials' },
   medium: { label: 'Medium', color: '#dd8018', blurb: 'Clear attempt, some loss or pressure' },

@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0d1b26" />
-    <meta name="description" content="StreetScamRadar — community scam reports on a worldwide map. Search any city, town or postcode and know the risks before you arrive." />
-    <title>StreetScamRadar — know the risks before you arrive</title>
+    <meta name="description" content="Plan your trip, travel informed. StreetScamRadar maps scams reported by travellers and locals worldwide — search any city, town or postcode and see what happened there this week." />
+    <title>StreetScamRadar — plan your trip, travel informed</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -21,7 +21,10 @@
     <header class="topbar">
       <a class="brand" href="#map" aria-label="StreetScamRadar home">
         <span class="brand-mark" aria-hidden="true"></span>
-        <span class="brand-word">Street<span class="accent">Scam</span>Radar</span>
+        <span class="brand-text">
+          <span class="brand-word">Street<span class="accent">Scam</span>Radar</span>
+          <span class="brand-tagline">Plan your trip. Travel informed.</span>
+        </span>
       </a>
 
       <button class="place-chip" id="place-chip" type="button" aria-label="Current area — click to change">
@@ -46,11 +49,12 @@
     <main>
       <section class="map-area" id="map" aria-label="Worldwide scam map">
         <aside class="map-intro">
-          <p class="eyebrow">Worldwide community safety map</p>
-          <h1>Know the risks<br /><em>before you arrive.</em></h1>
+          <p class="eyebrow">Worldwide · updated every week</p>
+          <h1>Know the streets<br /><em>before you walk them.</em></h1>
           <p class="intro-copy">
-            Scam reports from travellers and locals, pinned to the streets, stations and
-            markets where they happened. Search any city, town or postcode.
+            Scams reported by travellers and locals, pinned to the exact corners, stations
+            and markets where they happened. Search anywhere on Earth and see what people
+            ran into there this week.
           </p>
 
           <form class="place-search" id="place-form" role="search">
@@ -76,15 +80,8 @@
 
         <section class="filter-panel" aria-label="Filter the map">
           <div class="panel-heading">
-            <span>On the map</span>
+            <span>Filter by type</span>
             <button id="reset-filters" type="button">Reset</button>
-          </div>
-
-          <div class="filter-section">
-            <p class="filter-title">How serious</p>
-            <label class="filter-row"><input type="checkbox" data-filter="severity" value="high" checked /><span class="sev-dot" data-sev="high"></span>High <b id="count-high">0</b></label>
-            <label class="filter-row"><input type="checkbox" data-filter="severity" value="medium" checked /><span class="sev-dot" data-sev="medium"></span>Medium <b id="count-medium">0</b></label>
-            <label class="filter-row"><input type="checkbox" data-filter="severity" value="low" checked /><span class="sev-dot" data-sev="low"></span>Low <b id="count-low">0</b></label>
           </div>
 
           <div class="filter-section category-section">
@@ -116,29 +113,29 @@
       <section class="how-strip" id="how">
         <div class="how-lead">
           <p class="eyebrow">How it works</p>
-          <h2>Local knowledge, shared before it is too late.</h2>
+          <h2>Local knowledge, a week fresh.</h2>
         </div>
         <ol class="how-steps">
-          <li><span class="step-num">1</span><div><b>Search where you are going</b><p>Any city, town, postcode or street on Earth. The map travels with you.</p></div></li>
-          <li><span class="step-num">2</span><div><b>See what happened this week</b><p>Only the last 7 days are shown, so what you read is current rather than history.</p></div></li>
-          <li><span class="step-num">3</span><div><b>Add what you saw</b><p>Members drop a pin or type an address, and the next traveller is warned.</p></div></li>
+          <li><span class="step-num">1</span><div><b>Search where you are going</b><p>Any city, town, postcode or street on Earth. Drop in before you book, or while you are standing there.</p></div></li>
+          <li><span class="step-num">2</span><div><b>Read what happened this week</b><p>Reports older than seven days come off the map, so what you read is current rather than a decade of folklore.</p></div></li>
+          <li><span class="step-num">3</span><div><b>Add what you ran into</b><p>Drop a pin or type an address. The next person to search that street sees it.</p></div></li>
         </ol>
       </section>
 
       <section class="safety-section" id="safety">
         <div>
           <p class="eyebrow">Reading this map well</p>
-          <h2>Useful context, <em>not fear.</em></h2>
+          <h2>Informed, <em>not afraid.</em></h2>
         </div>
         <div class="safety-copy">
           <p>
-            Every pin is one person's account of one moment. A busy square with many reports is
-            usually a busy square, not a dangerous one — crowds attract pickpockets everywhere on
-            Earth. Use this to know which move to watch for, not to avoid a city.
+            Every pin is one person's account of one moment. A square with many reports is
+            usually a busy square, not a dangerous one — crowds draw pickpockets everywhere on
+            Earth. Read this to learn which move to watch for, not to cross a city off your list.
           </p>
           <p>
-            Reports older than 7 days drop off the map on purpose. A scam that worked last spring
-            tells you little; one that worked on Tuesday tells you a lot.
+            Reports drop off after seven days on purpose. A trick that worked last spring tells
+            you little. One that worked on Tuesday, two streets away, tells you a great deal.
           </p>
           <p class="safety-callout">
             In an emergency, always contact local police first. This is a community map, not an

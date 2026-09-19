@@ -6,7 +6,7 @@
 // back differs for members and visitors, but that decision is the database's,
 // not this file's.
 // ---------------------------------------------------------------------------
-import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS, SEVERITY } from './js/config.js';
+import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
@@ -21,7 +21,6 @@ const state = {
   user: null,
   categories: [],
   activeCategories: new Set(),
-  activeSeverities: new Set(['high', 'medium', 'low']),
   lastFetch: { mode: 'summary', reports: [], cells: [], hiddenCount: 0 },
   supported: new Set(),
   picking: false,
@@ -127,8 +126,7 @@ async function refresh() {
 }
 
 const passesFilter = (r) =>
-  state.activeSeverities.has(r.severity) &&
-  (state.activeCategories.size === 0 || state.activeCategories.has(r.category));
+  state.activeCategories.size === 0 || state.activeCategories.has(r.category);
 
 function draw() {
   const { mode, reports, cells, hiddenCount } = state.lastFetch;
@@ -136,14 +134,6 @@ function draw() {
 
   setReports(map, visible);
   setDensity(map, mode === 'summary' ? cells : []);
-
-  // Severity tallies reflect what is in view before category filtering, so the
-  // numbers do not jump around as you toggle categories.
-  for (const key of Object.keys(SEVERITY)) {
-    const n = reports.filter(r => r.severity === key).length;
-    const el = $(`#count-${key}`);
-    if (el) el.textContent = mode === 'summary' ? '–' : String(n);
-  }
 
   const totalCells = cells.reduce((sum, c) => sum + Number(c.total), 0);
   $('#reports-count').textContent = mode === 'summary' ? totalCells : visible.length;
@@ -289,12 +279,6 @@ function wireUI() {
   $('#zoom-out').addEventListener('click', () => map.zoomOut());
 
   // --- filters
-  document.querySelectorAll('[data-filter="severity"]').forEach(input => {
-    input.addEventListener('change', () => {
-      input.checked ? state.activeSeverities.add(input.value) : state.activeSeverities.delete(input.value);
-      draw();
-    });
-  });
   $('#category-filters').addEventListener('click', e => {
     const chip = e.target.closest('[data-category]');
     if (!chip) return;
@@ -305,9 +289,7 @@ function wireUI() {
     draw();
   });
   $('#reset-filters').addEventListener('click', () => {
-    state.activeSeverities = new Set(['high', 'medium', 'low']);
     state.activeCategories = new Set(state.categories.map(c => c.slug));
-    document.querySelectorAll('[data-filter="severity"]').forEach(i => { i.checked = true; });
     renderCategoryFilters($('#category-filters'), state.categories, state.activeCategories);
     draw();
   });

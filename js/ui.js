@@ -160,6 +160,36 @@ export function popupHTML(props, categories) {
 /** A police station or hospital, clicked on the map. Not user content, but
  * routed through esc() anyway — an OSM name field is still text from a
  * source we do not control. */
+/**
+ * Getting there, and calling ahead.
+ *
+ * Knowing a police station is 400m away is only half of it — the other half is
+ * which way to walk. The link hands the coordinates to Google Maps, which on a
+ * phone opens the app itself and starts navigation; on a desktop it opens the
+ * website. Coordinates rather than the name, because a name can resolve to the
+ * wrong branch and this is not a moment to be approximately right.
+ *
+ * No travel mode is set. Google keeps whatever the viewer last used, which is
+ * a better guess than ours: walking to a station round the corner and driving
+ * to a hospital are both the common case, depending on which you tapped.
+ */
+function directionsHTML(props) {
+  const lat = Number(props.lat);
+  const lng = Number(props.lng);
+  const tel = String(props.phone ?? '').replace(/[^+0-9]/g, '');
+  const parts = [];
+
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+    parts.push(`<a class="popup-action is-primary" href="${esc(url)}"
+                   target="_blank" rel="noopener noreferrer">Directions</a>`);
+  }
+  if (tel) {
+    parts.push(`<a class="popup-action" href="tel:${esc(tel)}">Call ${esc(props.phone)}</a>`);
+  }
+  return parts.length ? `<div class="popup-actions">${parts.join('')}</div>` : '';
+}
+
 export function safetyPopupHTML(props) {
   const isHospital = props.kind === 'hospital';
   // MapLibre serialises feature properties, so a boolean arrives as a string.
@@ -181,7 +211,7 @@ export function safetyPopupHTML(props) {
       </div>
     </div>
     ${lines.length ? `<p class="popup-body">${lines.join('<br />')}</p>` : ''}
-    ${props.phone ? `<p class="popup-body"><a class="popup-phone" href="tel:${esc(String(props.phone).replace(/[^+0-9]/g, ''))}">${esc(props.phone)}</a></p>` : ''}
+    ${directionsHTML(props)}
     <p class="popup-meta">via OpenStreetMap</p>`;
 }
 

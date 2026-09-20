@@ -6,7 +6,8 @@
 // back differs for members and visitors, but that decision is the database's,
 // not this file's.
 // ---------------------------------------------------------------------------
-import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS, SAFETY_MIN_ZOOM } from './js/config.js';
+import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS,
+         SAFETY_MIN_ZOOM, EMERGENCY_MIN_ZOOM } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, getProfile, saveDisplayName,
@@ -14,6 +15,7 @@ import { getCategories, fetchForBounds, submitReport, withdrawReport,
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
          signInWithGoogle, signOut, enabledProviders, changePassword } from './js/auth.js';
 import { searchPlaces, describePoint, locateMe } from './js/geo.js';
+import { emergencyFor } from './js/emergency.js';
 import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
          maplibregl } from './js/map.js';
@@ -30,6 +32,7 @@ const state = {
   supported: new Set(),
   picking: false,
   safetyOn: true,
+  safetyPlaces: [],   // what the safety layer last loaded, for the country lookup
   pin: null,          // { lat, lng, address, city, countryCode }
   pinPending: null,   // in-flight reverse geocode for that pin
   placeLabel: 'Anywhere in the world',
@@ -201,6 +204,11 @@ async function refreshSafety() {
   if (!layersReady || !isConfigured()) return;
   const status = $('#safety-status');
 
+  // Forget the last view's places before fetching this one's. They also name
+  // the country for the emergency numbers, and a stale set will happily name
+  // the country you just panned away from.
+  state.safetyPlaces = [];
+
   if (!state.safetyOn) { status.textContent = 'Turned off'; return; }
   if (map.getZoom() < SAFETY_MIN_ZOOM) {
     status.textContent = 'Zoom in to see police and hospitals';
@@ -212,6 +220,7 @@ async function refreshSafety() {
   try {
     const places = await fetchSafetyPlaces(boundsOf(map));
     if (ticket !== safetyInFlight) return;       // a newer request already won
+    state.safetyPlaces = places;
     setSafetyPlaces(map, places);
     status.classList.remove('is-warning');
     status.textContent = places.length
@@ -223,6 +232,68 @@ async function refreshSafety() {
     status.textContent = 'Could not load these right now';
     status.classList.add('is-warning');
   }
+}
+
+// ---------------------------------------------------------------------------
+// Emergency numbers for the country on screen
+//
+// Not the country the phone is in: somebody planning a trip should see the
+// numbers for where they are going, and somebody who has just been robbed
+// should not have to work out what to dial.
+//
+// Which country that is comes free most of the time — the reports and safety
+// places already in view carry a country code. Only an empty patch of map
+// needs Nominatim, and that answer is cached by half-degree cell so panning
+// around one city asks once.
+// ---------------------------------------------------------------------------
+const countryCache = new Map();
+
+function countryFromView() {
+  const codes = [
+    ...state.lastFetch.reports.map(r => r.country_code),
+    ...state.safetyPlaces.map(p => p.country_code),
+  ].filter(Boolean);
+  if (!codes.length) return null;
+  // The commonest, so a report just over a border does not flip the numbers.
+  const tally = new globalThis.Map();
+  codes.forEach(c => tally.set(c, (tally.get(c) ?? 0) + 1));
+  return [...tally].sort((a, b) => b[1] - a[1])[0][0];
+}
+
+async function countryAtCentre() {
+  const { lat, lng } = map.getCenter();
+  const key = `${Math.round(lat * 2)}|${Math.round(lng * 2)}`;
+  if (countryCache.has(key)) return countryCache.get(key);
+  try {
+    const { countryCode } = await describePoint(lat, lng);
+    countryCache.set(key, countryCode ?? null);
+    return countryCode ?? null;
+  } catch {
+    return null;                       // no numbers is fine; a wrong one is not
+  }
+}
+
+let emergencyTicket = 0;
+async function refreshEmergency() {
+  const bar = $('#emergency-bar');
+
+  // Zoomed out across several countries, one country's numbers would be a lie.
+  if (map.getZoom() < EMERGENCY_MIN_ZOOM) { bar.hidden = true; return; }
+
+  const ticket = ++emergencyTicket;
+  const code = countryFromView() ?? await countryAtCentre();
+  if (ticket !== emergencyTicket) return;
+
+  const info = emergencyFor(code);
+  // Nothing rather than a guess: an emergency number that does not work is
+  // worse than none at all.
+  if (!info) { bar.hidden = true; return; }
+
+  $('#eb-country').textContent = info.name;
+  $('#eb-numbers').innerHTML = info.numbers.map(n => `
+    <span class="eb-num"><span>${esc(n.label)}</span><a href="tel:${esc(n.number.replace(/\s/g, ''))}">${esc(n.number)}</a></span>
+  `).join('');
+  bar.hidden = false;
 }
 
 function draw() {
@@ -243,6 +314,11 @@ function draw() {
     categories: state.categories, mode, supported: state.supported, signedIn: signedIn(),
   });
   setGateNote($('#gate-note'), { mode, shown: visible.length, hiddenCount, signedIn: signedIn() });
+
+  // After the fetch, not alongside it: run in parallel and this reads the
+  // previous view's reports, finds no country in them, and asks the geocoder
+  // for something the answer already contained.
+  refreshEmergency();
 }
 
 // ---------------------------------------------------------------------------

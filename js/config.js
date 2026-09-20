@@ -91,6 +91,13 @@ export const GEOCODER = {
 // (1.243 deg on a 2560px screen at zoom 11.5) or the layer silently shows
 // nothing on wide monitors. safety-zoom-test.js asserts exactly that, and has
 // now caught this pairing going wrong twice.
+// Emergency numbers appear once the view is inside one country. Lower than
+// the safety pins on purpose: knowing what to dial is useful as soon as you
+// are looking at a country, not only once you are down to a neighbourhood.
+// Below this a single view spans several countries and one country's numbers
+// would be a lie.
+export const EMERGENCY_MIN_ZOOM = 5;
+
 export const SAFETY_MIN_ZOOM = 11.5;
 export const SAFETY_MAX_SPAN = 1.5;
 

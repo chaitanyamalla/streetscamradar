@@ -78,6 +78,13 @@
             <button id="zoom-in" class="icon-button" type="button" aria-label="Zoom in">+</button>
             <button id="zoom-out" class="icon-button" type="button" aria-label="Zoom out">−</button>
           </div>
+          <!-- Emergency numbers for whatever country is on screen. Inside the
+               map frame on purpose: it belongs with the police and hospital
+               pins, not in the prose below. -->
+          <aside class="emergency-bar" id="emergency-bar" hidden aria-live="polite">
+            <span class="eb-label">Emergency in <b id="eb-country"></b></span>
+            <span class="eb-numbers" id="eb-numbers"></span>
+          </aside>
         </div>
 
         <!-- A details element so it collapses to a single row on a phone,

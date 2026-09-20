@@ -303,6 +303,26 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 .when-row { display:flex; gap:8px; }
 .when-row input { flex:1; min-width:0; }
 
+/* --- Emergency numbers ----------------------------------------------------
+   Sits in the corner of the map, for the country on screen rather than the
+   country the phone is in. Numbers are tel: links: on a phone that opens the
+   dialer with the number already in it. */
+.emergency-bar { position:absolute; left:10px; bottom:10px; z-index:2;
+  display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px;
+  max-width:calc(100% - 20px); padding:7px 11px;
+  border:1px solid var(--line-strong); border-radius:var(--radius);
+  background:rgba(255,255,255,0.94); backdrop-filter:blur(3px);
+  box-shadow:0 2px 10px rgba(20,30,28,0.10); font-size:11.5px; }
+.emergency-bar[hidden] { display:none; }
+.eb-label { color:var(--ink-2); font-weight:600; }
+.eb-label b { font-weight:800; }
+.eb-numbers { display:flex; flex-wrap:wrap; gap:4px 9px; }
+.eb-num { display:inline-flex; align-items:baseline; gap:4px; }
+.eb-num span { color:var(--muted); font-size:10.5px; }
+.eb-num a { color:var(--danger); font-weight:800; font-size:13px;
+  text-decoration:none; letter-spacing:0.01em; }
+.eb-num a:hover, .eb-num a:focus { text-decoration:underline; }
+
 /* --- Profile dashboard ---------------------------------------------------
    Your own corner of the site: what you filed, what it collected, and the two
    settings that are actually yours to change. */
@@ -440,6 +460,12 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   .cat-chip { padding:8px 12px 8px 9px; font-size:12px; }
   .chip-action { padding:6px 12px; font-size:11.5px; }
   .close-button { width:44px; height:44px; }
+
+  /* On a phone the bar spans the width and drops the lead-in, so the numbers
+     themselves get the room. */
+  .emergency-bar { left:8px; right:8px; bottom:8px; max-width:none;
+    padding:6px 9px; gap:3px 8px; }
+  .eb-label { font-size:10.5px; }
 
   /* Four stat tiles will not fit a phone; two rows of two read fine. */
   .stat-row { grid-template-columns:repeat(2, 1fr); }

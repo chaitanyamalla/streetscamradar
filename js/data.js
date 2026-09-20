@@ -216,7 +216,7 @@ export async function fetchSafetyPlaces(bounds) {
   const { minLat, minLng, maxLat, maxLng } = bounds;
   const { data, error } = await supabase
     .from('safety_places')
-    .select('id,kind,name,address,lat,lng')
+    .select('id,kind,name,address,lat,lng,country_code')
     .gte('lat', minLat).lte('lat', maxLat)
     .gte('lng', minLng).lte('lng', maxLng)
     .limit(SAFETY_MAX_PLACES);

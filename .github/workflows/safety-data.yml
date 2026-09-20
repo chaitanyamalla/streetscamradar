@@ -38,12 +38,16 @@ on:
         default: false
         type: boolean
   schedule:
-    # Monthly, on the 1st. Police stations and hospitals do not move, and a
-    # nightly run spent almost all of its time re-confirming what it confirmed
-    # the night before — while leaning on Overpass, a free volunteer service,
-    # for no gain. The reason it was ever daily was to cover a newly reported
-    # city quickly; Europe's tourist cities are now covered up front by
-    # cities_europe.txt instead, which is the better answer to that problem.
+    # Monthly, on the 1st: the 66 cities in cities_europe.txt plus wherever
+    # reports have appeared since, pruning as it goes. Hospitals do not move,
+    # and the nightly run this replaced spent almost all of its time
+    # re-confirming what it confirmed the night before — while leaning on
+    # Overpass, a free volunteer service, for no gain. Daily existed to cover a
+    # newly reported city quickly; covering the tourist cities up front is the
+    # better answer to that.
+    #
+    # Expect an hour or so. Nothing waits on it: the map serves whatever the
+    # table already holds until the run commits.
     - cron: '17 4 1 * *'
 
 concurrency:
@@ -118,7 +122,12 @@ jobs:
           PGURL: ${{ env.PGURL_FINAL }}
           EXTRA: ${{ inputs.extra_areas }}
           COUNTRIES: ${{ inputs.countries }}
-          CITY_LIST: ${{ inputs.city_list }}
+          # A scheduled run has no inputs, so without this the monthly job
+          # would cover only cities that happen to have reports — and the 66
+          # tourist cities it exists to keep fresh would never be refreshed at
+          # all. A dispatch still gets exactly what was typed, including
+          # nothing.
+          CITY_LIST: ${{ inputs.city_list || (github.event_name == 'schedule' && 'cities_europe.txt' || '') }}
         run: |
           : > areas.csv
           # A curated list of cities, covered whether or not anybody has
@@ -162,7 +171,10 @@ jobs:
           # map. It deletes whatever this run did not touch, so it belongs
           # only on a run that covers every area, and the generator refuses it
           # outright if any area was unreachable.
-          FLAGS: ${{ inputs.prune && '--prune' || '' }}
+          # The monthly run prunes too: pruning is per area now, so it only
+          # ever removes places inside ground the run actually re-fetched, and
+          # without it a place that stops qualifying stays on the map forever.
+          FLAGS: ${{ (inputs.prune || github.event_name == 'schedule') && '--prune' || '' }}
         run: |
           python3 supabase/ops/fetch_safety_places.py $FLAGS < areas.csv > safety.sql
           # The script's first line is its own summary: how many places, from

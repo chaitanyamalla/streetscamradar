@@ -128,20 +128,51 @@ function paintAuthState() {
 // you out of it. Without this, back leaves the site entirely — which on a
 // phone is the single easiest way to lose what you were typing.
 // ---------------------------------------------------------------------------
+// What is open is a function of where you are in history, and popstate's job
+// is to make the page match. Anything that closes a dialog as part of going
+// somewhere else closes it quietly — without that flag, the close handler
+// below would treat it as the user going back and pop an entry we are relying
+// on.
+let historySyncing = false;
+
+function closeQuietly(dialog) {
+  if (!dialog?.open) return;
+  historySyncing = true;
+  try { dialog.close(); } finally { historySyncing = false; }
+}
+
 function openDialog(selector) {
   const dialog = $(selector);
   if (!dialog || dialog.open) return;
+  document.querySelectorAll('dialog[open]').forEach(closeQuietly);
   dialog.showModal();
   history.pushState({ dialog: selector }, '');
-  // Closing any other way (the X, Escape, a button) has to unwind the history
-  // entry too, or back would then need two presses to do anything.
+}
+
+/** Leave the dialog for the page behind it, keeping the dialog in history so
+ *  back returns to it rather than to whatever you were browsing before. */
+function leaveDialogForPage(selector) {
+  history.pushState({ dialog: null }, '');
+  closeQuietly($(selector));
+}
+
+// The X, Escape, or a button that closes: all of them mean "back".
+for (const dialog of document.querySelectorAll('dialog')) {
   dialog.addEventListener('close', () => {
-    if (history.state?.dialog === selector) history.back();
-  }, { once: true });
+    if (historySyncing) return;
+    if (history.state?.dialog === `#${dialog.id}`) history.back();
+  });
 }
 
 window.addEventListener('popstate', () => {
-  document.querySelectorAll('dialog[open]').forEach(d => d.close());
+  const wanted = history.state?.dialog ?? null;
+  for (const open of document.querySelectorAll('dialog[open]')) {
+    if (`#${open.id}` !== wanted) closeQuietly(open);
+  }
+  const dialog = wanted && $(wanted);
+  // Reopened, not rebuilt: whichever set of reports you were looking at is
+  // still on screen, which is what coming back should mean.
+  if (dialog && !dialog.open) dialog.showModal();
 });
 
 // ---------------------------------------------------------------------------
@@ -234,7 +265,7 @@ function showReportOnMap(id) {
   const report = [...profile.reports, ...(profile.confirmed ?? [])]
     .find(r => String(r.id) === String(id));
   if (!report) return;
-  $('#profile-dialog').close();
+  leaveDialogForPage('#profile-dialog');
   map.flyTo({ center: [report.lng, report.lat], zoom: Math.max(map.getZoom(), 15), duration: 700 });
   openPopup?.remove();
   openPopup = new maplibregl.Popup({ offset: 16, closeButton: true, maxWidth: '300px', className: 'report-popup' })

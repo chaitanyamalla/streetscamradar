@@ -10,7 +10,8 @@
 // so a failure here returns an empty list rather than throwing — it should
 // never be the reason a page breaks.
 // ---------------------------------------------------------------------------
-import { OVERPASS_MIRRORS, SAFETY_MAX_SPAN, SAFETY_MIN_INTERVAL_MS } from './config.js';
+import { OVERPASS_MIRRORS, SAFETY_MAX_SPAN, SAFETY_MIN_INTERVAL_MS,
+         SAFETY_REQUEST_TIMEOUT_MS } from './config.js';
 
 let lastCallAt = 0;
 let lastError = null;
@@ -28,12 +29,14 @@ const cacheKey = (b) => [b.minLat, b.minLng, b.maxLat, b.maxLng].map(n => n.toFi
 
 function overpassQuery({ minLat, minLng, maxLat, maxLng }) {
   const bbox = `${minLat},${minLng},${maxLat},${maxLng}`;
-  return `[out:json][timeout:15];(
-    node["amenity"="hospital"](${bbox});
-    way["amenity"="hospital"](${bbox});
-    node["amenity"="police"](${bbox});
-    way["amenity"="police"](${bbox});
-  );out center 200;`;
+  // One nwr statement with an alternation beats four separate node/way
+  // statements: Overpass walks the index once instead of four times, which is
+  // most of the wait on a busy public instance. `out center` still gives ways
+  // and relations a single point, so a hospital mapped as a building outline
+  // lands on the map like any other.
+  return `[out:json][timeout:10];`
+    + `nwr["amenity"~"^(hospital|police)$"](${bbox});`
+    + `out center 200;`;
 }
 
 function toPlace(el) {
@@ -73,18 +76,29 @@ export async function fetchSafetyPlaces(bounds) {
     let failure = null;
 
     for (const endpoint of OVERPASS_MIRRORS) {
+      // Without this, a busy Overpass simply queues the request and never
+      // answers: no error is thrown, the promise never settles, the status
+      // sits on "Looking…" forever, and the mirror below is never reached.
+      // A hang has to be turned into a failure for failover to mean anything.
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), SAFETY_REQUEST_TIMEOUT_MS);
       try {
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body,
+          signal: abort.signal,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         lastError = null;
         return (json.elements ?? []).map(toPlace).filter(Boolean);
       } catch (err) {
-        failure = err;   // try the next mirror before giving up
+        failure = err.name === 'AbortError'
+          ? new Error(`timed out after ${SAFETY_REQUEST_TIMEOUT_MS / 1000}s`)
+          : err;
+      } finally {
+        clearTimeout(timer);
       }
     }
     throw failure ?? new Error('No Overpass mirror answered');

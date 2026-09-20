@@ -83,7 +83,10 @@ export const OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter';
 // The layer only switches on once zoomed into a place. A country-wide query
 // would be huge and slow, and "hospitals near here" only means something at
 // city scale anyway — this matches the zoom where report icons take over.
-export const SAFETY_MIN_ZOOM = 12;
+// Raised from 12 to 13: at zoom 12 a wide screen asks Overpass for a box
+// ~100km across, which is most of the wait. Zoom 13 quarters that area, and
+// "police and hospitals nearby" is a neighbourhood question anyway.
+export const SAFETY_MIN_ZOOM = 13;
 
 // Backstop only — NOT a second gate. Zoom and visible span are coupled in Web
 // Mercator (span = 360 / (256 * 2^zoom) * mapWidthPx), so at SAFETY_MIN_ZOOM a
@@ -91,8 +94,13 @@ export const SAFETY_MIN_ZOOM = 12;
 // zone: the layer switched on at zoom 12 but the fetch was refused on every
 // screen wider than ~1300px. This value must stay above the widest span that
 // SAFETY_MIN_ZOOM can produce, or the layer silently shows nothing.
-export const SAFETY_MAX_SPAN = 1.0;
+export const SAFETY_MAX_SPAN = 0.5;
 export const SAFETY_MIN_INTERVAL_MS = 1500; // be polite to the shared public instance
+
+// A busy Overpass queues rather than refusing, so a request can hang
+// indefinitely. Each mirror gets this long before we give up on it and try
+// the next — worst case is roughly this times the number of mirrors.
+export const SAFETY_REQUEST_TIMEOUT_MS = 7000;
 
 // The public Overpass instance is free and frequently busy. If the first does
 // not answer, try the next rather than leaving the layer blank.

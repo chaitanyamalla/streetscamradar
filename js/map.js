@@ -21,6 +21,24 @@ const CONFIRM_BOOST = ['interpolate', ['linear'],
   ['coalesce', ['get', 'support_count'], 0],
   0, 1, 1, 1.15, 3, 1.35, 10, 1.6];
 
+/**
+ * Size by zoom, multiplied by the confirmation boost at every stop.
+ *
+ * The obvious spelling — ['*', <zoom interpolate>, CONFIRM_BOOST] — is invalid:
+ * a "zoom" expression may only be the input to the OUTERMOST step or
+ * interpolate. MapLibre does not throw on that, it fires an error event and
+ * silently declines to add the layer, so writing it that way left the map with
+ * no report pins at all while everything else carried on working. The zoom
+ * interpolate therefore stays outermost and the boost multiplies each stop.
+ */
+const byZoomAndConfirmations = (...pairs) => {
+  const expr = ['interpolate', ['linear'], ['zoom']];
+  for (let i = 0; i < pairs.length; i += 2) {
+    expr.push(pairs[i], ['*', pairs[i + 1], CONFIRM_BOOST]);
+  }
+  return expr;
+};
+
 // Below this the map shows dots; at and above it, category icons.
 export const ICON_ZOOM = 11.5;
 const FALLBACK_ICON = 'scam-icon-fallback';
@@ -97,7 +115,7 @@ export function addLayers(map) {
     filter: ['!', ['has', 'point_count']], maxzoom: ICON_ZOOM,
     paint: {
       'circle-color': PIN_COLOR,
-      'circle-radius': ['*', ['interpolate', ['linear'], ['zoom'], 8, 6, 14, 10, 18, 14], CONFIRM_BOOST],
+      'circle-radius': byZoomAndConfirmations(8, 6, 14, 10, 18, 14),
       'circle-stroke-width': 2.5,
       'circle-stroke-color': '#ffffff',
     },
@@ -109,7 +127,7 @@ export function addLayers(map) {
     filter: ['!', ['has', 'point_count']], maxzoom: ICON_ZOOM,
     paint: {
       'circle-color': PIN_COLOR, 'circle-opacity': 0.14,
-      'circle-radius': ['*', ['interpolate', ['linear'], ['zoom'], 8, 12, 14, 20, 18, 28], CONFIRM_BOOST],
+      'circle-radius': byZoomAndConfirmations(8, 12, 14, 20, 18, 28),
     },
   }, 'report-point');
 
@@ -120,7 +138,7 @@ export function addLayers(map) {
     filter: ['!', ['has', 'point_count']], minzoom: ICON_ZOOM,
     layout: {
       'icon-image': FALLBACK_ICON,
-      'icon-size': ['*', ['interpolate', ['linear'], ['zoom'], ICON_ZOOM, 0.62, 16, 0.85, 19, 1], CONFIRM_BOOST],
+      'icon-size': byZoomAndConfirmations(ICON_ZOOM, 0.62, 16, 0.85, 19, 1),
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },

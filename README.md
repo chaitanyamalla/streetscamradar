@@ -178,6 +178,27 @@ environments block it, in which case use the SQL editor as above.
 
 ---
 
+## Police stations and hospitals
+
+They live in `public.safety_places` and are refreshed from OpenStreetMap by
+`.github/workflows/safety-data.yml` — **Actions → Refresh safety places → Run
+workflow**, and weekly on a schedule.
+
+They were originally read live from OpenStreetMap's Overpass API on every pan.
+That tied a feature of the site to a free, shared, frequently congested
+service: it queued requests rather than refusing them, so the layer hung rather
+than failing, and often showed nothing at all. Reading from our own table is one
+indexed query, and police stations and hospitals barely move.
+
+The refresh job derives its areas from where reports actually are — one centre
+per ~11km cell with a published report — so coverage follows the map instead of
+a hardcoded city list. Add somewhere extra with the `extra_areas` input
+(`lat,lng` pairs separated by semicolons).
+
+Overpass 504s are routine. A failed area is skipped and logged, the rest still
+load, and the next run picks it up; the job only fails if nothing at all came
+back.
+
 ## Running SQL from GitHub Actions
 
 `.github/workflows/database.yml` runs any `.sql` file under `supabase/` against

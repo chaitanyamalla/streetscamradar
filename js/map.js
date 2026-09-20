@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
 import { MAP_STYLE, WORLD_VIEW, PIN_COLOR, CLUSTER_COLOR,
-         SAFETY_MIN_ZOOM, POLICE_COLOR, HOSPITAL_COLOR } from './config.js';
+         SAFETY_MIN_ZOOM } from './config.js';
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
 
@@ -17,7 +17,6 @@ export const ICON_ZOOM = 11.5;
 const FALLBACK_ICON = 'scam-icon-fallback';
 const POLICE_ICON = 'safety-icon-police';
 const HOSPITAL_ICON = 'safety-icon-hospital';
-const compact = () => window.matchMedia('(max-width: 900px)').matches;
 
 export function createMap(container) {
   const map = new maplibregl.Map({
@@ -26,15 +25,12 @@ export function createMap(container) {
     center: WORLD_VIEW.center,
     zoom: WORLD_VIEW.zoom,
     attributionControl: false,
-    // One finger scrolls the page, two fingers pan. Without this a map this
-    // tall swallows every vertical swipe on a phone.
-    cooperativeGestures: compact(),
-  });
-
-  const breakpoint = window.matchMedia('(max-width: 900px)');
-  breakpoint.addEventListener('change', () => {
-    const h = map.cooperativeGestures;
-    if (h) breakpoint.matches ? h.enable() : h.disable();
+    // One finger pans the map. The alternative — requiring two fingers so a
+    // swipe scrolls the page — makes the map feel broken to anyone who does
+    // not know the convention, and the map now takes most of the phone screen
+    // with little left to scroll past. Page scrolling still works from the
+    // header, the panels and everything below the map.
+    cooperativeGestures: false,
   });
 
   if (window.ResizeObserver) {
@@ -208,7 +204,7 @@ export { maplibregl };
  * Same white disc and glyph for all of them; only the ring colour differs,
  * which is what tells a report pin from a safety pin at a glance.
  */
-function drawBadge(glyph, borderColor) {
+function drawBadge(glyph, borderColor, { disc = true } = {}) {
   const size = 46, ratio = 2;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size * ratio;
@@ -217,19 +213,30 @@ function drawBadge(glyph, borderColor) {
   ctx.scale(ratio, ratio);
 
   const r = size / 2;
-  ctx.beginPath();
-  ctx.arc(r, r, r - 4, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-  ctx.lineWidth = 2.5;
-  ctx.strokeStyle = borderColor;
-  ctx.stroke();
+  if (disc) {
+    ctx.beginPath();
+    ctx.arc(r, r, r - 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = borderColor;
+    ctx.stroke();
+  }
 
-  ctx.font = `${Math.round(size * 0.46)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+  ctx.font = `${Math.round(size * (disc ? 0.46 : 0.62))}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(glyph || '\u26A0', r, r + 1);
 
+  // Without the disc behind it, a glyph needs its own edge to stay legible
+  // over streets and parks.
+  if (!disc) {
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineJoin = 'round';
+    ctx.strokeText(glyph || '\u26A0', r, r + 1);
+  }
+
+  ctx.fillText(glyph || '\u26A0', r, r + 1);
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
 }
 
@@ -257,13 +264,18 @@ export function registerCategoryIcons(map, categories) {
   }
 }
 
-/** Police and hospital badges — same drawing technique, their own colours. */
+/**
+ * Police and hospital pins: the glyph on its own, no disc. A ringed circle
+ * read as a heavy marker competing with the scam pins, when these are meant
+ * to sit quietly in the background as context. Scam pins keep their ring, so
+ * the two kinds still read apart at a glance.
+ */
 export function registerSafetyIcons(map) {
-  const add = (id, glyph, color) => {
+  const add = (id, glyph) => {
     if (map.hasImage?.(id)) return;
-    const image = drawBadge(glyph, color);
+    const image = drawBadge(glyph, null, { disc: false });
     if (image) map.addImage(id, image, { pixelRatio: 2 });
   };
-  add(POLICE_ICON, '\uD83D\uDE93', POLICE_COLOR);     // 🚓
-  add(HOSPITAL_ICON, '\uD83C\uDFE5', HOSPITAL_COLOR); // 🏥
+  add(POLICE_ICON, '\uD83D\uDE93');     // 🚓
+  add(HOSPITAL_ICON, '\uD83C\uDFE5');   // 🏥
 }

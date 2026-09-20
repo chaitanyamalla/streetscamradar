@@ -90,5 +90,7 @@ export const GEOCODER = {
 export const SAFETY_MIN_ZOOM = 11.5;
 export const SAFETY_MAX_SPAN = 1.5;
 
+// Used by the popup glyph tints in styles.css, which mirror these values.
+// The map pins themselves are the bare emoji, with no coloured ring.
 export const POLICE_COLOR = '#2f5fa8';
 export const HOSPITAL_COLOR = '#c5382c';

@@ -90,6 +90,14 @@ export const GEOCODER = {
 export const SAFETY_MIN_ZOOM = 11.5;
 export const SAFETY_MAX_SPAN = 1.5;
 
+// How many places one viewport may return. This was 400, which was invisible
+// while coverage was a handful of cities and would start cutting places off
+// now that whole countries are loaded: a dense city fills a zoom-11.5 viewport
+// with a few hundred, and a truncated answer looks exactly like the missing
+// hospitals we just finished fixing. The query has no meaningful ordering, so
+// whatever it drops, it drops arbitrarily — the headroom is the point.
+export const SAFETY_MAX_PLACES = 1000;
+
 // Used by the popup glyph tints in styles.css, which mirror these values.
 // The map pins themselves are the bare emoji, with no coloured ring.
 export const POLICE_COLOR = '#2f5fa8';

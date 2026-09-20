@@ -8,7 +8,7 @@
 // role has no read access to the reports table at all.
 // ---------------------------------------------------------------------------
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, isConfigured, PUBLIC_DETAIL_MAX_SPAN } from './config.js';
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, isConfigured, PUBLIC_DETAIL_MAX_SPAN, SAFETY_MAX_PLACES } from './config.js';
 
 export const supabase = isConfigured()
   ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -182,7 +182,7 @@ export async function fetchSafetyPlaces(bounds) {
     .select('id,kind,name,address,lat,lng')
     .gte('lat', minLat).lte('lat', maxLat)
     .gte('lng', minLng).lte('lng', maxLng)
-    .limit(400);
+    .limit(SAFETY_MAX_PLACES);
   if (error) throw error;
   return data ?? [];
 }

@@ -22,10 +22,20 @@ on:
         required: false
         default: ''
         type: string
+      countries:
+        description: 'Optional whole countries by ISO code, e.g. "DE" or "DE,AT,CH"'
+        required: false
+        default: ''
+        type: string
   schedule:
     # Daily, not weekly: a city only gets covered once it has a report, so a
     # new city would otherwise sit blank for up to a week. Cities already
     # fetched cost one Overpass call each to re-check, which is acceptable.
+    #
+    # The schedule covers cities only. A whole country is a dispatch-only job:
+    # it is sixteen or so heavy Overpass queries, and police stations and
+    # hospitals do not move often enough to earn that every night. Loaded
+    # countries stay loaded — nothing here ever deletes.
     - cron: '17 4 * * *'
 
 concurrency:
@@ -99,14 +109,22 @@ jobs:
         env:
           PGURL: ${{ env.PGURL_FINAL }}
           EXTRA: ${{ inputs.extra_areas }}
+          COUNTRIES: ${{ inputs.countries }}
         run: |
+          : > areas.csv
+          # Whole countries first: they are the big, slow queries, and every
+          # city inside one is covered by them anyway.
+          if [ -n "$COUNTRIES" ]; then
+            echo "$COUNTRIES" | tr ',;' '\n\n' | tr -d ' ' \
+              | while read -r cc; do [ -n "$cc" ] && echo "country:$cc"; done >> areas.csv
+          fi
           psql "$PGURL" -tAF',' -v ON_ERROR_STOP=1 -c "
             select coalesce(city, ''), coalesce(country_code, ''),
                    round(avg(lat)::numeric, 4), round(avg(lng)::numeric, 4)
               from public.reports
              where status = 'published'
              group by city, country_code
-             order by 1;" > areas.csv
+             order by 1;" >> areas.csv
           if [ -n "$EXTRA" ]; then
             echo "$EXTRA" | tr ';' '\n' >> areas.csv
           fi
@@ -114,11 +132,19 @@ jobs:
           cat areas.csv
           echo "count: $(grep -c . areas.csv)"
 
+      # This script is the only thing that writes to safety_places, and it runs
+      # unattended every night. Checking it against stubs first costs a second
+      # and stops a broken generator from reaching the database.
+      - name: Check the generator
+        run: python3 supabase/ops/fetch_safety_places_test.py
+
       - name: Fetch from OpenStreetMap
         run: |
           python3 supabase/ops/fetch_safety_places.py < areas.csv > safety.sql
-          echo "Generated $(grep -c 'insert into' safety.sql || echo 0) upserts"
-          head -3 safety.sql
+          # The script's first line is its own summary: how many places, from
+          # how many areas, and which areas it had to skip.
+          head -1 safety.sql
+          echo "in $(grep -c 'insert into' safety.sql || echo 0) batched statements"
 
       - name: Load into Supabase
         env:

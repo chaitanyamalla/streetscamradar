@@ -6,15 +6,17 @@
 // back differs for members and visitors, but that decision is the database's,
 // not this file's.
 // ---------------------------------------------------------------------------
-import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS } from './js/config.js';
+import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS, SAFETY_MIN_ZOOM } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
          signInWithGoogle, signOut, enabledProviders } from './js/auth.js';
 import { searchPlaces, describePoint, locateMe } from './js/geo.js';
+import { fetchSafetyPlaces } from './js/safety.js';
 import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
-         registerCategoryIcons, maplibregl } from './js/map.js';
-import { esc, toast, renderCategoryFilters, renderReportList, popupHTML, setGateNote } from './js/ui.js';
+         registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
+         maplibregl } from './js/map.js';
+import { esc, toast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML, setGateNote } from './js/ui.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -25,6 +27,7 @@ const state = {
   lastFetch: { mode: 'summary', reports: [], cells: [], hiddenCount: 0 },
   supported: new Set(),
   picking: false,
+  safetyOn: true,
   pin: null,          // { lat, lng, address, city, countryCode }
   pinPending: null,   // in-flight reverse geocode for that pin
   placeLabel: 'Anywhere in the world',
@@ -43,9 +46,11 @@ map.on('load', () => {
   addLayers(map);
   layersReady = true;
   if (state.categories.length) registerCategoryIcons(map, state.categories);
+  registerSafetyIcons(map);
+  setSafetyVisible(map, state.safetyOn);
 
   // A pin that opens something should look like it.
-  for (const layer of ['report-point', 'report-icon', 'clusters']) {
+  for (const layer of ['report-point', 'report-icon', 'clusters', 'safety-icon']) {
     map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', layer, () => {
       map.getCanvas().style.cursor = state.picking ? 'crosshair' : '';
@@ -53,6 +58,7 @@ map.on('load', () => {
   }
 
   refresh();
+  refreshSafety();
 });
 map.on('moveend', () => scheduleRefresh());
 map.on('click', onMapClick);
@@ -115,7 +121,7 @@ function paintAuthState() {
 let refreshTimer;
 function scheduleRefresh() {
   clearTimeout(refreshTimer);
-  refreshTimer = setTimeout(refresh, 350);   // wait for the pan to settle
+  refreshTimer = setTimeout(() => { refresh(); refreshSafety(); }, 350);   // wait for the pan to settle
 }
 
 let inFlight = 0;
@@ -140,6 +146,19 @@ async function refresh() {
 
 const passesFilter = (r) =>
   state.activeCategories.size === 0 || state.activeCategories.has(r.category);
+
+// Police and hospitals are not gated by sign-in or the report window — they
+// are public OSM data, the same for everyone, refreshed independently of the
+// report fetch above.
+let safetyInFlight = 0;
+async function refreshSafety() {
+  if (!layersReady || !state.safetyOn) return;
+  if (map.getZoom() < SAFETY_MIN_ZOOM) return;   // the layer's own minzoom hides it anyway
+  const ticket = ++safetyInFlight;
+  const places = await fetchSafetyPlaces(boundsOf(map));
+  if (ticket !== safetyInFlight) return;         // a newer request already won
+  setSafetyPlaces(map, places);
+}
 
 function draw() {
   const { mode, reports, cells, hiddenCount } = state.lastFetch;
@@ -176,7 +195,7 @@ function onMapClick(e) {
   // pin it was aimed at.
   const pad = 8;
   const box = [[e.point.x - pad, e.point.y - pad], [e.point.x + pad, e.point.y + pad]];
-  const layers = ['report-icon', 'report-point', 'clusters']
+  const layers = ['report-icon', 'report-point', 'clusters', 'safety-icon']
     .filter(id => map.getLayer(id));
   const hits = layersReady ? map.queryRenderedFeatures(box, { layers }) : [];
   if (!hits.length) return;
@@ -187,10 +206,14 @@ function onMapClick(e) {
     return;
   }
 
+  const html = hit.layer?.id === 'safety-icon'
+    ? safetyPopupHTML(hit.properties)
+    : popupHTML(hit.properties, state.categories);
+
   openPopup?.remove();
   openPopup = new maplibregl.Popup({ offset: 16, closeButton: true, maxWidth: '300px', className: 'report-popup' })
     .setLngLat(hit.geometry.coordinates)
-    .setHTML(popupHTML(hit.properties, state.categories))
+    .setHTML(html)
     .addTo(map);
 }
 
@@ -307,6 +330,12 @@ function wireUI() {
     chip.setAttribute('aria-pressed', String(!on));
     draw();
   });
+  $('#safety-toggle').addEventListener('change', e => {
+    state.safetyOn = e.target.checked;
+    setSafetyVisible(map, state.safetyOn);
+    if (state.safetyOn) refreshSafety();
+  });
+
   $('#reset-filters').addEventListener('click', () => {
     state.activeCategories = new Set(state.categories.map(c => c.slug));
     renderCategoryFilters($('#category-filters'), state.categories, state.activeCategories);

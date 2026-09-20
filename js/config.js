@@ -72,3 +72,20 @@ export const GEOCODER = {
   reverse: 'https://nominatim.openstreetmap.org/reverse',
   minIntervalMs: 1100,
 };
+
+// --- Safety & support --------------------------------------------------------
+// Police stations and hospitals are not our data — they are fetched live from
+// OpenStreetMap's Overpass API for whatever the map is currently showing,
+// never stored. No table, no sync job: an edit on OSM shows up on the next
+// pan, and there is nothing here to keep current.
+export const OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter';
+
+// The layer only switches on once zoomed into a place. A country-wide query
+// would be huge and slow, and "hospitals near here" only means something at
+// city scale anyway — this matches the zoom where report icons take over.
+export const SAFETY_MIN_ZOOM = 12;
+export const SAFETY_MAX_SPAN = 0.45;        // degrees; skip the query above this
+export const SAFETY_MIN_INTERVAL_MS = 1500; // be polite to the shared public instance
+
+export const POLICE_COLOR = '#2f5fa8';
+export const HOSPITAL_COLOR = '#c5382c';

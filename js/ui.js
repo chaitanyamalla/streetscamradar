@@ -104,6 +104,23 @@ export function popupHTML(props, categories) {
     </p>`;
 }
 
+/** A police station or hospital, clicked on the map. Not user content, but
+ * routed through esc() anyway — an OSM name field is still text from a
+ * source we do not control. */
+export function safetyPopupHTML(props) {
+  const isHospital = props.kind === 'hospital';
+  return `
+    <div class="popup-head">
+      <span class="popup-glyph ${isHospital ? 'is-hospital' : 'is-police'}" aria-hidden="true">${isHospital ? '\u{1F3E5}' : '\u{1F693}'}</span>
+      <div>
+        <p class="popup-kicker">${isHospital ? 'Hospital' : 'Police station'}</p>
+        <p class="popup-title">${esc(props.name)}</p>
+      </div>
+    </div>
+    ${props.address ? `<p class="popup-body">${esc(props.address)}</p>` : ''}
+    <p class="popup-meta">via OpenStreetMap</p>`;
+}
+
 export function setGateNote(host, { mode, shown = 0, hiddenCount = 0, signedIn }) {
   if (signedIn) { host.hidden = true; return; }
   host.hidden = false;

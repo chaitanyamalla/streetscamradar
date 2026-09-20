@@ -7,13 +7,16 @@
 // the pin — map label fonts have no emoji coverage.
 // ---------------------------------------------------------------------------
 import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
-import { MAP_STYLE, WORLD_VIEW, PIN_COLOR, CLUSTER_COLOR } from './config.js';
+import { MAP_STYLE, WORLD_VIEW, PIN_COLOR, CLUSTER_COLOR,
+         SAFETY_MIN_ZOOM, POLICE_COLOR, HOSPITAL_COLOR } from './config.js';
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
 
 // Below this the map shows dots; at and above it, category icons.
 export const ICON_ZOOM = 11.5;
 const FALLBACK_ICON = 'scam-icon-fallback';
+const POLICE_ICON = 'safety-icon-police';
+const HOSPITAL_ICON = 'safety-icon-hospital';
 const compact = () => window.matchMedia('(max-width: 900px)').matches;
 
 export function createMap(container) {
@@ -44,6 +47,7 @@ export function createMap(container) {
 export function addLayers(map) {
   map.addSource('reports', { type: 'geojson', data: EMPTY, cluster: true, clusterRadius: 46, clusterMaxZoom: 15 });
   map.addSource('density', { type: 'geojson', data: EMPTY });
+  map.addSource('safety', { type: 'geojson', data: EMPTY });
 
   // --- Signed-out density view: one soft circle per grid cell --------------
   map.addLayer({
@@ -116,6 +120,20 @@ export function addLayers(map) {
       'icon-ignore-placement': true,
     },
   });
+
+  // --- Police & hospitals --------------------------------------------------
+  // Only appears once zoomed into a place; registerSafetyIcons fills in the
+  // real badges once the map is ready, same placeholder trick as reports.
+  map.addLayer({
+    id: 'safety-icon', type: 'symbol', source: 'safety', minzoom: SAFETY_MIN_ZOOM,
+    layout: {
+      'icon-image': ['match', ['get', 'kind'], 'hospital', HOSPITAL_ICON, POLICE_ICON],
+      'icon-size': 0.8,
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      visibility: 'visible',
+    },
+  });
 }
 
 export const toFeatures = (reports) => ({
@@ -144,6 +162,25 @@ export function setDensity(map, cells) {
   map.getSource('density')?.setData(toDensity(cells));
 }
 
+export const toSafetyFeatures = (places) => ({
+  type: 'FeatureCollection',
+  features: places.map(p => ({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+    properties: { ...p },
+  })),
+});
+
+export function setSafetyPlaces(map, places) {
+  map.getSource('safety')?.setData(toSafetyFeatures(places));
+}
+
+export function setSafetyVisible(map, visible) {
+  if (map.getLayer?.('safety-icon')) {
+    map.setLayoutProperty('safety-icon', 'visibility', visible ? 'visible' : 'none');
+  }
+}
+
 export function boundsOf(map) {
   const b = map.getBounds();
   return {
@@ -166,41 +203,44 @@ export { maplibregl };
 
 /**
  * MapLibre can only place an icon it already holds, and the glyph fonts in a
- * vector style carry no emoji, so each category badge is drawn once to a
- * canvas and handed to the map as an image.
- *
+ * vector style carry no emoji, so every badge — scam category, police,
+ * hospital — is drawn once to a canvas and handed to the map as an image.
+ * Same white disc and glyph for all of them; only the ring colour differs,
+ * which is what tells a report pin from a safety pin at a glance.
+ */
+function drawBadge(glyph, borderColor) {
+  const size = 46, ratio = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size * ratio;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.scale(ratio, ratio);
+
+  const r = size / 2;
+  ctx.beginPath();
+  ctx.arc(r, r, r - 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = borderColor;
+  ctx.stroke();
+
+  ctx.font = `${Math.round(size * 0.46)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(glyph || '\u26A0', r, r + 1);
+
+  return ctx.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+/**
  * Called after the categories load. A match expression maps each slug to its
  * image with a fallback, so a category added later cannot leave a blank pin.
  */
 export function registerCategoryIcons(map, categories) {
-  const badge = (glyph) => {
-    const size = 46, ratio = 2;
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size * ratio;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    ctx.scale(ratio, ratio);
-
-    const r = size / 2;
-    ctx.beginPath();
-    ctx.arc(r, r, r - 4, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = PIN_COLOR;
-    ctx.stroke();
-
-    ctx.font = `${Math.round(size * 0.46)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(glyph || '\u26A0', r, r + 1);
-
-    return ctx.getImageData(0, 0, canvas.width, canvas.height);
-  };
-
-  const add = (id, glyph) => {
+  const add = (id, glyph, color = PIN_COLOR) => {
     if (map.hasImage?.(id)) return;
-    const image = badge(glyph);
+    const image = drawBadge(glyph, color);
     if (image) map.addImage(id, image, { pixelRatio: 2 });
   };
 
@@ -215,4 +255,15 @@ export function registerCategoryIcons(map, categories) {
   if (map.getLayer?.('report-icon')) {
     map.setLayoutProperty('report-icon', 'icon-image', expression);
   }
+}
+
+/** Police and hospital badges — same drawing technique, their own colours. */
+export function registerSafetyIcons(map) {
+  const add = (id, glyph, color) => {
+    if (map.hasImage?.(id)) return;
+    const image = drawBadge(glyph, color);
+    if (image) map.addImage(id, image, { pixelRatio: 2 });
+  };
+  add(POLICE_ICON, '\uD83D\uDE93', POLICE_COLOR);     // 🚓
+  add(HOSPITAL_ICON, '\uD83C\uDFE5', HOSPITAL_COLOR); // 🏥
 }

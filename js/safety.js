@@ -10,10 +10,18 @@
 // so a failure here returns an empty list rather than throwing — it should
 // never be the reason a page breaks.
 // ---------------------------------------------------------------------------
-import { OVERPASS_ENDPOINT, SAFETY_MAX_SPAN, SAFETY_MIN_INTERVAL_MS } from './config.js';
+import { OVERPASS_MIRRORS, SAFETY_MAX_SPAN, SAFETY_MIN_INTERVAL_MS } from './config.js';
 
 let lastCallAt = 0;
+let lastError = null;
 const cache = new Map(); // coarse bbox key -> Promise<place[]>
+
+/**
+ * Why the last fetch came back empty, or null if it was fine. The layer
+ * failing quietly is indistinguishable from "nothing nearby", which makes it
+ * impossible to tell a broken layer from an empty one — so the page asks.
+ */
+export const lastSafetyError = () => lastError;
 
 // Round to ~1km so panning a few streets over reuses the same query.
 const cacheKey = (b) => [b.minLat, b.minLng, b.maxLat, b.maxLng].map(n => n.toFixed(2)).join(',');
@@ -61,14 +69,25 @@ export async function fetchSafetyPlaces(bounds) {
     if (wait) await new Promise(r => setTimeout(r, wait));
     lastCallAt = Date.now();
 
-    const res = await fetch(OVERPASS_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'data=' + encodeURIComponent(overpassQuery(bounds)),
-    });
-    if (!res.ok) throw new Error(`Overpass ${res.status}`);
-    const json = await res.json();
-    return (json.elements ?? []).map(toPlace).filter(Boolean);
+    const body = 'data=' + encodeURIComponent(overpassQuery(bounds));
+    let failure = null;
+
+    for (const endpoint of OVERPASS_MIRRORS) {
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        lastError = null;
+        return (json.elements ?? []).map(toPlace).filter(Boolean);
+      } catch (err) {
+        failure = err;   // try the next mirror before giving up
+      }
+    }
+    throw failure ?? new Error('No Overpass mirror answered');
   })();
 
   cache.set(key, promise);
@@ -76,6 +95,7 @@ export async function fetchSafetyPlaces(bounds) {
   // request is not — clear it so the next pan into the same area retries.
   promise.catch(() => cache.delete(key));
   return promise.catch(err => {
+    lastError = err.message;
     console.warn('Safety layer unavailable:', err.message);
     return [];
   });

@@ -84,8 +84,22 @@ export const OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter';
 // would be huge and slow, and "hospitals near here" only means something at
 // city scale anyway — this matches the zoom where report icons take over.
 export const SAFETY_MIN_ZOOM = 12;
-export const SAFETY_MAX_SPAN = 0.45;        // degrees; skip the query above this
+
+// Backstop only — NOT a second gate. Zoom and visible span are coupled in Web
+// Mercator (span = 360 / (256 * 2^zoom) * mapWidthPx), so at SAFETY_MIN_ZOOM a
+// 2560px map already spans 0.88°. An earlier 0.45° cap therefore created a dead
+// zone: the layer switched on at zoom 12 but the fetch was refused on every
+// screen wider than ~1300px. This value must stay above the widest span that
+// SAFETY_MIN_ZOOM can produce, or the layer silently shows nothing.
+export const SAFETY_MAX_SPAN = 1.0;
 export const SAFETY_MIN_INTERVAL_MS = 1500; // be polite to the shared public instance
+
+// The public Overpass instance is free and frequently busy. If the first does
+// not answer, try the next rather than leaving the layer blank.
+export const OVERPASS_MIRRORS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+];
 
 export const POLICE_COLOR = '#2f5fa8';
 export const HOSPITAL_COLOR = '#c5382c';

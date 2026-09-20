@@ -12,7 +12,7 @@ import { getCategories, fetchForBounds, submitReport, withdrawReport,
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
          signInWithGoogle, signOut, enabledProviders } from './js/auth.js';
 import { searchPlaces, describePoint, locateMe } from './js/geo.js';
-import { fetchSafetyPlaces } from './js/safety.js';
+import { fetchSafetyPlaces, lastSafetyError } from './js/safety.js';
 import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
          maplibregl } from './js/map.js';
@@ -152,12 +152,31 @@ const passesFilter = (r) =>
 // report fetch above.
 let safetyInFlight = 0;
 async function refreshSafety() {
-  if (!layersReady || !state.safetyOn) return;
-  if (map.getZoom() < SAFETY_MIN_ZOOM) return;   // the layer's own minzoom hides it anyway
+  if (!layersReady) return;
+  const status = $('#safety-status');
+
+  if (!state.safetyOn) { status.textContent = 'Turned off'; return; }
+  if (map.getZoom() < SAFETY_MIN_ZOOM) {
+    status.textContent = 'Zoom into a city to see these';
+    return;
+  }
+
   const ticket = ++safetyInFlight;
+  status.textContent = 'Looking for nearby help…';
   const places = await fetchSafetyPlaces(boundsOf(map));
   if (ticket !== safetyInFlight) return;         // a newer request already won
+
   setSafetyPlaces(map, places);
+
+  // Distinguish "nothing here" from "could not ask" — silently showing
+  // nothing for both is what made this impossible to diagnose.
+  const failure = lastSafetyError();
+  status.textContent = failure
+    ? 'OpenStreetMap did not answer — try again shortly'
+    : places.length
+      ? `${places.length} nearby, from OpenStreetMap`
+      : 'None mapped in this area';
+  status.classList.toggle('is-warning', Boolean(failure));
 }
 
 function draw() {
@@ -333,7 +352,7 @@ function wireUI() {
   $('#safety-toggle').addEventListener('change', e => {
     state.safetyOn = e.target.checked;
     setSafetyVisible(map, state.safetyOn);
-    if (state.safetyOn) refreshSafety();
+    refreshSafety();
   });
 
   $('#reset-filters').addEventListener('click', () => {

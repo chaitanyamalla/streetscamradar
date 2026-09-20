@@ -7,6 +7,39 @@ import { PIN_COLOR } from './config.js';
 export const esc = (value) => String(value ?? '').replace(/[&<>"']/g,
   c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 
+// What happened, as the form asks it. This replaced a low/medium/high
+// severity rating: a reporter cannot grade their own risk, but they do know
+// whether money went, whether anyone was hurt, and whether they were
+// threatened.
+export const IMPACTS = {
+  money:   { glyph: '\u{1F4B5}', label: 'Money lost' },
+  harm:    { glyph: '\u{1FA79}', label: 'Hurt or forced' },
+  threats: { glyph: '\u{1F628}', label: 'Threatened' },
+};
+
+/**
+ * impacts arrives as a real array from the database, but MapLibre serialises
+ * non-primitive feature properties to JSON before a click handler ever sees
+ * them — so the same field is a string on the map and an array in the list.
+ */
+export function parseImpacts(value) {
+  if (Array.isArray(value)) return value.filter(k => k in IMPACTS);
+  if (typeof value !== 'string' || !value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.filter(k => k in IMPACTS);
+  } catch { /* not JSON — fall through to the Postgres array literal */ }
+  return value.replace(/^\{|\}$/g, '').split(',').filter(k => k in IMPACTS);
+}
+
+export function impactTags(value) {
+  const keys = parseImpacts(value);
+  if (!keys.length) return '';
+  return `<span class="impact-tags">${keys.map(k =>
+    `<span class="impact-tag is-${esc(k)}"><span aria-hidden="true">${IMPACTS[k].glyph}</span> ${esc(IMPACTS[k].label)}</span>`
+  ).join('')}</span>`;
+}
+
 export function timeAgo(iso) {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return '';
@@ -47,7 +80,7 @@ export function renderReportList(host, reports, { categories, mode, supported, s
     host.innerHTML = `<p class="empty-note">${
       mode === 'summary'
         ? 'Zoom into a town or neighbourhood to see individual reports.'
-        : 'No reports here in the last 7 days. That is good news — or nobody has told us yet.'
+        : 'Nothing reported here in the last 7 days. That is good news — or nobody has told us yet.'
     }</p>`;
     return;
   }
@@ -56,26 +89,45 @@ export function renderReportList(host, reports, { categories, mode, supported, s
     const cat = byslug.get(r.category);
     const isOn = supported.has(r.id);
     const place = r.city ? `${esc(r.city)} · ` : '';
+    const confirms = Number(r.support_count) || 0;
+
+    // Confirming is for other people's reports; the author's move on their own
+    // is to withdraw it. Someone backing their own report would just be voting
+    // for their own visibility, since confirmations now drive it.
     const actions = signedIn ? `
       <div class="report-actions">
-        <button class="chip-action" data-support="${esc(r.id)}" aria-pressed="${isOn}">
-          ${isOn ? '✓ Confirmed' : 'I saw this too'}${r.support_count ? ` · ${r.support_count}` : ''}
-        </button>
         ${r.is_mine
-          ? `<button class="chip-action" data-withdraw="${esc(r.id)}">Withdraw</button>`
-          : `<button class="chip-action" data-flag="${esc(r.id)}">Flag</button>`}
+          ? `<button class="chip-action" data-withdraw="${esc(r.id)}">Withdraw my report</button>`
+          : `<button class="chip-action" data-support="${esc(r.id)}" aria-pressed="${isOn}">
+               ${isOn ? '✓ Confirmed' : 'I saw this too'}
+             </button>
+             <button class="chip-action" data-flag="${esc(r.id)}">Flag</button>`}
       </div>` : '';
 
     return `
-      <article class="report-entry" data-report="${esc(r.id)}">
+      <article class="report-entry${confirmClass(confirms)}" data-report="${esc(r.id)}">
         <span class="report-glyph" aria-hidden="true">${esc(cat?.glyph ?? '⚠')}</span>
         <div class="report-copy">
           <b>${esc(r.headline)}</b>
           <span class="report-meta">${place}${esc(cat?.label ?? r.category)} · ${timeAgo(r.happened_at)}</span>
+          ${impactTags(r.impacts)}
+          ${confirmBadge(confirms)}
           ${actions}
         </div>
       </article>`;
   }).join('');
+}
+
+/**
+ * How loudly a report is drawn. Confirmations are the only signal the site has
+ * that more than one person met the same thing in the same place, so they —
+ * not a self-assessed severity — are what raise a report.
+ */
+export const confirmClass = (n) => (n >= 3 ? ' is-confirmed-many' : n >= 1 ? ' is-confirmed' : '');
+
+export function confirmBadge(n) {
+  if (!n) return '';
+  return `<span class="confirm-badge">\u2713 ${n} ${n === 1 ? 'person' : 'people'} confirmed this</span>`;
 }
 
 export function popupHTML(props, categories) {
@@ -97,10 +149,11 @@ export function popupHTML(props, categories) {
         <p class="popup-title">${esc(props.headline)}</p>
       </div>
     </div>
+    ${impactTags(props.impacts)}
     ${body}
+    ${confirmBadge(supports)}
     <p class="popup-meta">
       ${where ? esc(where) + ' &middot; ' : ''}${esc(timeAgo(props.happened_at))}
-      ${supports ? ` &middot; ${supports} ${supports === 1 ? 'person' : 'people'} confirmed this` : ''}
     </p>`;
 }
 
@@ -125,7 +178,7 @@ export function setGateNote(host, { mode, shown = 0, hiddenCount = 0, signedIn }
   if (signedIn) { host.hidden = true; return; }
   host.hidden = false;
   if (mode === 'summary') {
-    host.innerHTML = `Each circle is how many scams were reported here this week.
+    host.innerHTML = `Each circle is how many scams were reported here in the last 7 days.
       <b>Zoom into a town</b> to see individual reports, or
       <button class="chip-action" data-open-auth>join free</button> to see them all.`;
   } else if (hiddenCount > 0) {

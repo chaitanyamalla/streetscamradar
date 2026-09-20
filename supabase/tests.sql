@@ -38,20 +38,30 @@ grant execute on all functions in schema ssr_test to anon, authenticated;
 delete from public.reports where headline like 'TEST %';
 insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111','alice@example.com'),
-  ('22222222-2222-2222-2222-222222222222','bob@example.com')
+  ('22222222-2222-2222-2222-222222222222','bob@example.com'),
+  ('33333333-3333-3333-3333-333333333333','carol@example.com')
 on conflict (id) do nothing;
 
-insert into public.reports (id, reporter_id, category, severity, headline, description, lat, lng, city, country_code, happened_at) values
- ('aaaaaaaa-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','pickpocket','high',  'TEST bag lifted on metro line 1','Two men blocked the doors while a third opened my backpack.',48.8606,2.3376,'Paris','FR', now() - interval '2 hours'),
- ('aaaaaaaa-0000-0000-0000-000000000002','22222222-2222-2222-2222-222222222222','taxi','medium',      'TEST driver refused the meter','Quoted a flat fare and refused to switch the meter on.',48.8600,2.3400,'Paris','FR', now() - interval '1 day'),
- ('aaaaaaaa-0000-0000-0000-000000000003','22222222-2222-2222-2222-222222222222','distraction','low',  'TEST bracelet pushed on wrist','Man tied a string bracelet on then demanded twenty euros.',48.8867,2.3431,'Paris','FR', now() - interval '3 days'),
- ('aaaaaaaa-0000-0000-0000-000000000004','11111111-1111-1111-1111-111111111111','atm','high',         'TEST skimmer near the station','The card slot was loose and a second panel sat above the keypad.',48.8610,2.3380,'Paris','FR', now() - interval '9 days'),
- ('aaaaaaaa-0000-0000-0000-000000000005','22222222-2222-2222-2222-222222222222','tickets','high',     'TEST fake temple tour sold','Paid for a guided tour that does not exist.',35.6762,139.6503,'Tokyo','JP', now() - interval '1 day')
+insert into public.reports (id, reporter_id, category, impacts, headline, description, lat, lng, city, country_code, happened_at) values
+ ('aaaaaaaa-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','pickpocket','{money}',        'TEST bag lifted on metro line 1','Two men blocked the doors while a third opened my backpack.',48.8606,2.3376,'Paris','FR', now() - interval '2 hours'),
+ ('aaaaaaaa-0000-0000-0000-000000000002','22222222-2222-2222-2222-222222222222','taxi','{money,threats}',      'TEST driver refused the meter','Quoted a flat fare and refused to switch the meter on.',48.8600,2.3400,'Paris','FR', now() - interval '1 day'),
+ ('aaaaaaaa-0000-0000-0000-000000000003','22222222-2222-2222-2222-222222222222','distraction','{}',            'TEST bracelet pushed on wrist','Man tied a string bracelet on then demanded twenty euros.',48.8867,2.3431,'Paris','FR', now() - interval '3 days'),
+ ('aaaaaaaa-0000-0000-0000-000000000004','11111111-1111-1111-1111-111111111111','atm','{money}',               'TEST skimmer near the station','The card slot was loose and a second panel sat above the keypad.',48.8610,2.3380,'Paris','FR', now() - interval '9 days'),
+ ('aaaaaaaa-0000-0000-0000-000000000005','22222222-2222-2222-2222-222222222222','tickets','{money,harm}',      'TEST fake temple tour sold','Paid for a guided tour that does not exist.',35.6762,139.6503,'Tokyo','JP', now() - interval '1 day')
 on conflict (id) do nothing;
+
+-- Confirmations, not a self-assessed severity, decide which reports a
+-- signed-out visitor is shown first. Both of these are bob's, so neither
+-- count includes its own author.
+insert into public.report_supports (report_id, user_id) values
+ ('aaaaaaaa-0000-0000-0000-000000000002','11111111-1111-1111-1111-111111111111'),
+ ('aaaaaaaa-0000-0000-0000-000000000002','33333333-3333-3333-3333-333333333333'),
+ ('aaaaaaaa-0000-0000-0000-000000000003','11111111-1111-1111-1111-111111111111')
+on conflict do nothing;
 
 -- 12 extra live Paris reports, to prove the public cap is real.
-insert into public.reports (reporter_id,category,severity,headline,description,lat,lng,city,happened_at)
-select '11111111-1111-1111-1111-111111111111','other','medium',
+insert into public.reports (reporter_id,category,impacts,headline,description,lat,lng,city,happened_at)
+select '11111111-1111-1111-1111-111111111111','other','{}',
        'TEST filler report number ' || g, 'Filler text used to prove the public row cap holds.',
        48.86 + g*0.0001, 2.34 + g*0.0001, 'Paris', now() - interval '1 hour'
 from generate_series(1,12) g;
@@ -70,8 +80,8 @@ select ssr_test.ok(ssr_test.denied('select * from public.profiles'),     'anon c
 select ssr_test.ok(ssr_test.denied('select * from public.app_settings'), 'anon cannot read app_settings');
 select ssr_test.ok(ssr_test.denied($$update public.app_settings set value='1' where key='public_sample_limit'$$),
                                                                          'anon cannot rewrite the public row cap');
-select ssr_test.ok(ssr_test.denied($$insert into public.reports (category,severity,headline,description,lat,lng,happened_at)
-                                     values ('other','high','TEST anon write attempt','writing without an account at all',1,1,now())$$),
+select ssr_test.ok(ssr_test.denied($$insert into public.reports (category,impacts,headline,description,lat,lng,happened_at)
+                                     values ('other','{money}','TEST anon write attempt','writing without an account at all',1,1,now())$$),
                                                                          'anon cannot file a report');
 
 -- Zoomed out across Europe: counts only.
@@ -80,11 +90,14 @@ select ssr_test.ok((select count(*) from public.public_sample_reports(40,-5,55,2
 select ssr_test.ok((select coalesce(sum(total),0) from public.public_area_summary(40,-5,55,20)) = 15,
                    'anon still gets aggregate counts when zoomed out');
 
--- Zoomed in on Paris: a capped handful, most severe first.
+-- Zoomed in on Paris: a capped handful, best-confirmed first.
 select ssr_test.ok((select count(*) from public.public_sample_reports(48.80,2.25,48.92,2.42)) = 5,
                    'anon sample is hard-capped at 5 with 15 reports in view');
-select ssr_test.ok((select severity from public.public_sample_reports(48.80,2.25,48.92,2.42) limit 1) = 'high',
-                   'anon sample leads with high severity');
+select ssr_test.ok((select headline from public.public_sample_reports(48.80,2.25,48.92,2.42) limit 1) like 'TEST driver%',
+                   'anon sample leads with the best-confirmed report, not a self-rated one');
+select ssr_test.ok((select impacts from public.public_sample_reports(48.80,2.25,48.92,2.42)
+                     where headline like 'TEST driver%') = '{money,threats}'::text[],
+                   'anon sample carries what happened, not a severity grade');
 select ssr_test.ok((select max(total_in_view) from public.public_sample_reports(48.80,2.25,48.92,2.42)) = 15,
                    'anon is told how many exist without being shown them');
 select ssr_test.ok(not exists (select 1 from public.public_sample_reports(48.80,2.25,48.92,2.42) where headline like '%skimmer%'),
@@ -113,16 +126,47 @@ select ssr_test.ok(ssr_test.denied('select * from public.reports'),
 select ssr_test.ok((select bool_and(is_mine) from public.reports_feed where headline like 'TEST bag lifted%'),
                    'is_mine identifies your own report');
 
-select ssr_test.ok(ssr_test.denied($$insert into public.reports (reporter_id,category,severity,headline,description,lat,lng,happened_at)
-                                     values ('22222222-2222-2222-2222-222222222222','other','high','TEST impersonation','filing this as somebody else entirely',1,1,now())$$),
+select ssr_test.ok(ssr_test.denied($$insert into public.reports (reporter_id,category,impacts,headline,description,lat,lng,happened_at)
+                                     values ('22222222-2222-2222-2222-222222222222','other','{money}','TEST impersonation','filing this as somebody else entirely',1,1,now())$$),
                    'member cannot file a report as another user');
-select ssr_test.ok(ssr_test.denied($$insert into public.reports (reporter_id,category,severity,headline,description,lat,lng,happened_at,support_count)
-                                     values ('11111111-1111-1111-1111-111111111111','other','high','TEST inflated support','starting out with fake community backing',1,1,now(),99)$$),
+select ssr_test.ok(ssr_test.denied($$insert into public.reports (reporter_id,category,impacts,headline,description,lat,lng,happened_at,support_count)
+                                     values ('11111111-1111-1111-1111-111111111111','other','{money}','TEST inflated support','starting out with fake community backing',1,1,now(),99)$$),
                    'member cannot pre-inflate support_count');
 select ssr_test.ok(ssr_test.denied($$update public.reports set support_count=999 where id='aaaaaaaa-0000-0000-0000-000000000001'$$),
                    'member cannot edit support_count afterwards');
 select ssr_test.ok(ssr_test.denied($$delete from public.reports where id='aaaaaaaa-0000-0000-0000-000000000002'$$),
                    'member cannot delete another member''s report');
+select ssr_test.ok(ssr_test.denied($$insert into public.reports (reporter_id,category,impacts,headline,description,lat,lng,happened_at)
+                                     values ('11111111-1111-1111-1111-111111111111','other','{catastrophic}','TEST invented impact','an impact nobody defined',1,1,now())$$),
+                   'impacts are limited to the three the form offers');
+rollback;
+
+-- A one-word description is a real answer. The headline carries the summary.
+begin;
+set local role authenticated;
+set local "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+insert into public.reports (reporter_id,category,impacts,headline,description,lat,lng,happened_at)
+  values ('11111111-1111-1111-1111-111111111111','other','{}','TEST one word description','Pickpockets',1,1,now());
+select ssr_test.ok(exists (select 1 from public.reports_feed where headline like 'TEST one word%'),
+                   'a one-word description is accepted');
+select ssr_test.ok(ssr_test.denied($$insert into public.reports (reporter_id,category,impacts,headline,description,lat,lng,happened_at)
+                                     values ('11111111-1111-1111-1111-111111111111','other','{}','TEST empty description','   ',1,1,now())$$),
+                   'but an empty one is not');
+rollback;
+
+-- Confirming is for other people's reports.
+begin;
+set local role authenticated;
+set local "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select ssr_test.ok(ssr_test.denied($$insert into public.report_supports (report_id,user_id)
+                                     values ('aaaaaaaa-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111')$$),
+                   'a member cannot confirm their own report');
+select ssr_test.ok((select support_count from public.reports_feed where id='aaaaaaaa-0000-0000-0000-000000000003') = 1,
+                   'but can confirm somebody else''s');
+delete from public.report_supports
+ where report_id='aaaaaaaa-0000-0000-0000-000000000003' and user_id='11111111-1111-1111-1111-111111111111';
+select ssr_test.ok((select support_count from public.reports_feed where id='aaaaaaaa-0000-0000-0000-000000000003') = 0,
+                   'and can take the confirmation back');
 rollback;
 
 -- Support counter is maintained by the trigger, never the client.

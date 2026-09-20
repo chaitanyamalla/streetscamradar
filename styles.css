@@ -196,6 +196,24 @@ em { font-style:italic; }
 .report-copy { min-width:0; flex:1; }
 .report-copy b { display:block; font-size:13px; line-height:1.35; }
 .report-meta { display:block; margin-top:3px; color:var(--muted); font-size:11px; }
+
+/* Confirmations are what raise a report now, so they are what the entry
+   shows: a left edge that deepens, and the count spelled out. */
+.report-entry.is-confirmed { border-left:3px solid var(--pin); padding-left:13px; }
+.report-entry.is-confirmed-many { border-left:3px solid var(--pin-deep);
+  padding-left:13px; background:#fdf6f1; }
+.confirm-badge { display:inline-block; margin-top:6px; padding:2px 8px;
+  border-radius:100px; background:#fbf1ea; border:1px solid #f0d7c6;
+  color:var(--pin-deep); font-size:10.5px; font-weight:700; }
+
+/* What happened, as small factual tags on a report. */
+.impact-tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+.impact-tag { display:inline-flex; align-items:center; gap:4px; padding:2px 7px;
+  border-radius:100px; border:1px solid var(--line-strong);
+  color:var(--ink-2); font-size:10.5px; font-weight:700; white-space:nowrap; }
+.impact-tag.is-money   { border-color:#e6cfa8; background:#fdf7ec; }
+.impact-tag.is-harm    { border-color:#eec3bd; background:#fdf1ef; }
+.impact-tag.is-threats { border-color:#e3cbe9; background:#faf2fc; }
 .report-actions { display:flex; align-items:center; gap:10px; margin-top:7px; }
 .chip-action { border:1px solid var(--line-strong); border-radius:100px; background:none;
   padding:3px 9px; font-size:10.5px; font-weight:700; color:var(--ink-soft); }
@@ -254,6 +272,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   color:var(--ink-2); }
 .dialog-body input[type="email"], .dialog-body input[type="search"],
 .dialog-body input[type="text"], .dialog-body input:not([type]),
+.dialog-body input[type="date"], .dialog-body input[type="time"],
 .dialog-body select, .dialog-body textarea {
   width:100%; margin-top:6px; padding:11px; border:1px solid var(--line-strong);
   border-radius:4px; background:var(--surface); font-size:13px; }
@@ -263,18 +282,25 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 .char-count { display:block; margin-top:4px; text-align:right;
   color:var(--muted); font:10px 'DM Mono',monospace; }
 
-.severity-picker { margin:16px 0 0; padding:0; border:0; }
-.severity-picker legend { padding:0; font-size:11.5px; font-weight:800; color:var(--ink-2); }
-.severity-picker label { display:flex; align-items:baseline; gap:8px; margin-top:8px;
-  padding:9px 11px; border:1px solid var(--line-strong); border-radius:4px;
-  font-weight:600; cursor:pointer; }
-.severity-picker label:has(input:checked) { border-color:var(--brand); background:#f2f8f7; }
-.severity-picker input { accent-color:var(--brand); }
-.severity-picker span { font-size:12.5px; font-weight:800; }
-.severity-picker span[data-sev="high"]   { color:var(--pin-deep); }
-.severity-picker span[data-sev="medium"] { color:var(--pin); }
-.severity-picker span[data-sev="low"]    { color:var(--ink-soft); }
-.severity-picker small { color:var(--muted); font-size:11px; font-weight:500; }
+/* What happened, ticked off as facts. Replaced a low/medium/high severity
+   radio group: a reporter cannot grade their own risk, but they do know
+   whether money went, whether anyone was hurt and whether they were
+   threatened. Any combination is possible, so these are checkboxes. */
+.impact-picker { margin:16px 0 0; padding:0; border:0; }
+.impact-picker legend { padding:0; font-size:11.5px; font-weight:800; color:var(--ink-2); }
+.legend-hint { margin-left:6px; color:var(--muted); font-size:11px; font-weight:500; }
+.impact-picker label { display:flex; align-items:center; gap:9px; margin-top:8px;
+  padding:10px 11px; border:1px solid var(--line-strong); border-radius:4px;
+  font-size:12.5px; font-weight:600; cursor:pointer; }
+.impact-picker label:has(input:checked) { border-color:var(--brand); background:#f2f8f7; }
+.impact-picker input { flex:none; accent-color:var(--brand); }
+.impact-glyph { font-size:15px; line-height:1; }
+.field-hint { margin:8px 0 0; color:var(--muted); font-size:11px; }
+
+/* Date and time side by side. Native inputs, so a phone opens its own
+   pickers and the 7-day range is enforced by the field itself. */
+.when-row { display:flex; gap:8px; }
+.when-row input { flex:1; min-width:0; }
 
 .location-block { margin-top:18px; padding:13px; border:1px solid var(--line);
   border-radius:var(--radius); background:var(--paper); }

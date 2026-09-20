@@ -200,12 +200,43 @@ function draw() {
 }
 
 // ---------------------------------------------------------------------------
+// When it happened
+//
+// This used to be a dropdown of rough buckets — earlier today, yesterday,
+// earlier this week. A date and a time say what actually happened, a phone
+// gives them its own pickers, and pinning min/max to the visibility window
+// means the form cannot offer an answer the map would then throw away.
+// ---------------------------------------------------------------------------
+const asLocalISO = (d) =>
+  new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString();
+
+function primeWhenFields() {
+  const dateField = $('#scam-when-date');
+  const timeField = $('#scam-when-time');
+  const now = new Date();
+  dateField.max = asLocalISO(now).slice(0, 10);
+  dateField.min = asLocalISO(new Date(now.getTime() - REPORT_WINDOW_DAYS * 86400000)).slice(0, 10);
+  if (!dateField.value) dateField.value = dateField.max;
+  if (!timeField.value) timeField.value = asLocalISO(now).slice(11, 16);
+}
+
+/** The chosen moment, or null if the pair does not make one. */
+function whenChosen() {
+  const date = $('#scam-when-date').value;
+  const time = $('#scam-when-time').value;
+  if (!date || !time) return null;
+  const when = new Date(`${date}T${time}`);
+  return Number.isNaN(when.getTime()) ? null : when;
+}
+
+// ---------------------------------------------------------------------------
 // Map interaction
 // ---------------------------------------------------------------------------
 function onMapClick(e) {
   if (state.picking) {
     setPin({ lat: e.lngLat.lat, lng: e.lngLat.lng });
     stopPicking();
+    primeWhenFields();
     $('#report-dialog').showModal();
     return;
   }
@@ -483,6 +514,7 @@ function wireUI() {
       $('#auth-dialog').showModal();
       return;
     }
+    primeWhenFields();
     $('#report-dialog').showModal();
   });
 
@@ -509,19 +541,36 @@ function wireUI() {
     e.preventDefault();
     if (!state.pin) { toast('Choose where it happened first.', { error: true }); return; }
 
+    const when = whenChosen();
+    if (!when) { toast('Tell us when it happened.', { error: true }); return; }
+    const now = Date.now();
+    // A few minutes of slack: phone clocks drift, and somebody filing this on
+    // the spot should not be told their own "now" is in the future.
+    if (when.getTime() > now + 5 * 60000) {
+      toast('That is in the future. Pick when it actually happened.', { error: true });
+      return;
+    }
+    if (when.getTime() < now - REPORT_WINDOW_DAYS * 86400000) {
+      toast(`Reports drop off the map after ${REPORT_WINDOW_DAYS} days, so this one would not show.`,
+            { error: true });
+      return;
+    }
+
+    const impacts = [...document.querySelectorAll('input[name="impact"]:checked')]
+      .map(box => box.value);
+
     const btn = $('#submit-report');
     btn.disabled = true; btn.textContent = 'Posting…';
-    const hoursAgo = Number($('#scam-when').value);
     try {
       if (state.pinPending) await state.pinPending;   // let the address land first
       await submitReport({
         category: $('#scam-category').value,
-        severity: document.querySelector('input[name="severity"]:checked').value,
+        impacts,
         headline: $('#scam-headline').value,
         description: details.value,
         lat: state.pin.lat, lng: state.pin.lng,
         address: state.pin.address, city: state.pin.city, countryCode: state.pin.countryCode,
-        happenedAt: new Date(Date.now() - hoursAgo * 3600_000).toISOString(),
+        happenedAt: when.toISOString(),
       });
       $('#report-dialog').close();
       e.target.reset();

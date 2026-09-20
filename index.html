@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0d1b26" />
-    <meta name="description" content="Plan your trip, travel informed. StreetScamRadar maps scams reported by travellers and locals worldwide — search any city, town or postcode and see what happened there this week." />
+    <meta name="description" content="Plan your trip, travel informed. StreetScamRadar maps scams reported by travellers and locals worldwide — search any city, town or postcode and see what happened there in the last 7 days." />
     <title>StreetScamRadar — plan your trip, travel informed</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -54,7 +54,7 @@
           <p class="intro-copy">
             Scams reported by travellers and locals, pinned to the exact corners, stations
             and markets where they happened. Search anywhere on Earth and see what people
-            ran into there this week.
+            ran into there in the last 7 days.
           </p>
 
           <form class="place-search" id="place-form" role="search">
@@ -134,7 +134,7 @@
         </div>
         <ol class="how-steps">
           <li><span class="step-num">1</span><div><b>Search where you are going</b><p>Any city, town, postcode or street on Earth. Drop in before you book, or while you are standing there.</p></div></li>
-          <li><span class="step-num">2</span><div><b>Read what happened this week</b><p>Reports older than seven days come off the map, so what you read is current rather than a decade of folklore.</p></div></li>
+          <li><span class="step-num">2</span><div><b>Read the last 7 days</b><p>A rolling seven days, counted back from right now — not a calendar week. What you read is current rather than a decade of folklore.</p></div></li>
           <li><span class="step-num">3</span><div><b>Add what you ran into</b><p>Drop a pin or type an address. The next person to search that street sees it.</p></div></li>
         </ol>
       </section>
@@ -225,11 +225,12 @@
         <label for="scam-category">What kind of scam?</label>
         <select id="scam-category" required></select>
 
-        <fieldset class="severity-picker">
-          <legend>How serious was it?</legend>
-          <label><input type="radio" name="severity" value="low" /><span data-sev="low">Low</span><small>Attempted, nothing lost</small></label>
-          <label><input type="radio" name="severity" value="medium" checked /><span data-sev="medium">Medium</span><small>Pressure or some loss</small></label>
-          <label><input type="radio" name="severity" value="high" /><span data-sev="high">High</span><small>Money lost, force, fake officials</small></label>
+        <fieldset class="impact-picker">
+          <legend>What happened? <span class="legend-hint">Tick anything that applies</span></legend>
+          <label><input type="checkbox" name="impact" value="money" /><span class="impact-glyph" aria-hidden="true">&#128181;</span><span>Money or belongings lost</span></label>
+          <label><input type="checkbox" name="impact" value="harm" /><span class="impact-glyph" aria-hidden="true">&#129657;</span><span>Someone was hurt or forced</span></label>
+          <label><input type="checkbox" name="impact" value="threats" /><span class="impact-glyph" aria-hidden="true">&#128552;</span><span>Threats, abuse or intimidation</span></label>
+          <p class="field-hint">Leave all three blank if it was attempted and nothing came of it.</p>
         </fieldset>
 
         <label for="scam-headline">One line summary</label>
@@ -248,17 +249,15 @@
           <p class="pin-status" id="pin-status">No location chosen yet.</p>
         </div>
 
-        <label for="scam-when">When?</label>
-        <select id="scam-when">
-          <option value="1">Within the last hour</option>
-          <option value="6" selected>Earlier today</option>
-          <option value="30">Yesterday</option>
-          <option value="72">2–3 days ago</option>
-          <option value="144">Earlier this week</option>
-        </select>
+        <label for="scam-when-date">When did it happen?</label>
+        <div class="when-row">
+          <input id="scam-when-date" type="date" required aria-label="Date it happened" />
+          <input id="scam-when-time" type="time" required aria-label="Time it happened" />
+        </div>
+        <p class="field-hint" id="when-hint">Anything within the last 7 days.</p>
 
         <label for="scam-details">What should others know?</label>
-        <textarea id="scam-details" required rows="4" minlength="20" maxlength="1200"
+        <textarea id="scam-details" required rows="4" maxlength="1200"
                   placeholder="The warning signs, how the approach started, and what you would do differently."></textarea>
         <span class="char-count"><span id="char-now">0</span>/1200</span>
 

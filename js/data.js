@@ -52,7 +52,7 @@ export async function fetchForBounds(bounds, { signedIn }) {
   if (signedIn) {
     const { data, error } = await supabase
       .from('reports_feed')
-      .select('id,category,severity,headline,description,lat,lng,address,city,country_code,happened_at,support_count,is_mine')
+      .select('id,category,impacts,headline,description,lat,lng,address,city,country_code,happened_at,support_count,is_mine')
       .gte('lat', minLat).lte('lat', maxLat)
       .gte('lng', minLng).lte('lng', maxLng)
       .order('happened_at', { ascending: false })
@@ -88,7 +88,7 @@ export async function submitReport(report) {
   const { error } = await supabase.from('reports').insert({
     reporter_id: user.id,
     category: report.category,
-    severity: report.severity,
+    impacts: report.impacts,
     headline: report.headline.trim(),
     description: report.description.trim(),
     lat: report.lat,

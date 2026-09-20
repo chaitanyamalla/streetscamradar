@@ -46,12 +46,16 @@ export const PUBLIC_DETAIL_MAX_SPAN = 0.35; // degrees; wider than this = counts
 export const PUBLIC_SAMPLE_LIMIT = 5;
 
 // --- Reports ---------------------------------------------------------------
+// A rolling seven days, counted back from right now — not a calendar week.
+// Mirrors app_settings.report_window_days, which is the real gate; this copy
+// only keeps the report form from offering a date the database would reject
+// or that would never appear on the map.
 export const REPORT_WINDOW_DAYS = 7;
 
-// Every report pin is the same colour. Severity is still collected on the form
-// and stored, but it is self-declared, so showing it as a risk grading would
-// imply an assessment nobody has made. Bring it back when there is a real
-// signal to grade with — the data will be waiting.
+// Every report pin is the same colour. What differs is size: a report several
+// people confirmed is drawn larger, because that is the one signal here that
+// more than one person met the same thing in the same place. The form no
+// longer asks for a low/medium/high rating — see map.js CONFIRM_BOOST.
 export const PIN_COLOR = '#e0713c';
 export const CLUSTER_COLOR = '#0f5f5a';
 

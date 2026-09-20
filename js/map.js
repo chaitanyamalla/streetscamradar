@@ -2,15 +2,24 @@
 // The map.
 //
 // Reports are drawn as a clustered GeoJSON source rather than DOM markers, so
-// a busy city stays readable and the browser stays fast. Colour always means
-// severity; the category is shown as a glyph in the list and popup, never on
-// the pin — map label fonts have no emoji coverage.
+// a busy city stays readable and the browser stays fast. Size means how many
+// people confirmed a report; the category is shown as a glyph in the list and
+// popup, never on the pin — map label fonts have no emoji coverage.
 // ---------------------------------------------------------------------------
 import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
 import { MAP_STYLE, WORLD_VIEW, PIN_COLOR, CLUSTER_COLOR,
          SAFETY_MIN_ZOOM } from './config.js';
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
+
+// How much bigger a confirmed report is drawn. Confirmations are the only
+// signal the site has that more than one person met the same thing in the same
+// place, so they are what earns a pin size — it used to be the reporter's own
+// low/medium/high guess, which nobody standing in a station can answer.
+// Capped: a much-confirmed report should stand out, not swallow the street.
+const CONFIRM_BOOST = ['interpolate', ['linear'],
+  ['coalesce', ['get', 'support_count'], 0],
+  0, 1, 1, 1.15, 3, 1.35, 10, 1.6];
 
 // Below this the map shows dots; at and above it, category icons.
 export const ICON_ZOOM = 11.5;
@@ -88,7 +97,7 @@ export function addLayers(map) {
     filter: ['!', ['has', 'point_count']], maxzoom: ICON_ZOOM,
     paint: {
       'circle-color': PIN_COLOR,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 6, 14, 10, 18, 14],
+      'circle-radius': ['*', ['interpolate', ['linear'], ['zoom'], 8, 6, 14, 10, 18, 14], CONFIRM_BOOST],
       'circle-stroke-width': 2.5,
       'circle-stroke-color': '#ffffff',
     },
@@ -100,7 +109,7 @@ export function addLayers(map) {
     filter: ['!', ['has', 'point_count']], maxzoom: ICON_ZOOM,
     paint: {
       'circle-color': PIN_COLOR, 'circle-opacity': 0.14,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 12, 14, 20, 18, 28],
+      'circle-radius': ['*', ['interpolate', ['linear'], ['zoom'], 8, 12, 14, 20, 18, 28], CONFIRM_BOOST],
     },
   }, 'report-point');
 
@@ -111,7 +120,7 @@ export function addLayers(map) {
     filter: ['!', ['has', 'point_count']], minzoom: ICON_ZOOM,
     layout: {
       'icon-image': FALLBACK_ICON,
-      'icon-size': ['interpolate', ['linear'], ['zoom'], ICON_ZOOM, 0.62, 16, 0.85, 19, 1],
+      'icon-size': ['*', ['interpolate', ['linear'], ['zoom'], ICON_ZOOM, 0.62, 16, 0.85, 19, 1], CONFIRM_BOOST],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
@@ -124,7 +133,9 @@ export function addLayers(map) {
     id: 'safety-icon', type: 'symbol', source: 'safety', minzoom: SAFETY_MIN_ZOOM,
     layout: {
       'icon-image': ['match', ['get', 'kind'], 'hospital', HOSPITAL_ICON, POLICE_ICON],
-      'icon-size': 0.8,
+      // Deliberately smaller than a scam pin at every zoom. These are context,
+      // not the point of the map, and at 0.8 they were the largest thing on it.
+      'icon-size': ['interpolate', ['linear'], ['zoom'], SAFETY_MIN_ZOOM, 0.42, 16, 0.52, 19, 0.6],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
       visibility: 'visible',
@@ -146,7 +157,7 @@ export const toDensity = (cells) => ({
   features: cells.map(c => ({
     type: 'Feature',
     geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
-    properties: { total: Number(c.total), high: Number(c.high) },
+    properties: { total: Number(c.total), confirmed: Number(c.confirmed ?? 0) },
   })),
 });
 

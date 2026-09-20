@@ -139,9 +139,17 @@ create table if not exists public.reports (
   id            uuid primary key default gen_random_uuid(),
   reporter_id   uuid references auth.users on delete set null,
   category      text not null references public.scam_categories(slug),
-  severity      text not null default 'medium' check (severity in ('low','medium','high')),
+  -- What actually happened, as facts a reporter can know. This replaced a
+  -- low/medium/high severity picker: nobody standing in a station can rate
+  -- their own risk on a three-point scale, and the answer told a reader
+  -- nothing they could act on. An empty array means it was attempted and
+  -- nothing here applies, which is itself useful.
+  impacts       text[] not null default '{}'
+                check (impacts <@ array['money','harm','threats']::text[]),
   headline      text not null check (char_length(btrim(headline)) between 8 and 90),
-  description   text not null check (char_length(btrim(description)) between 20 and 1200),
+  -- One word is a valid answer. The headline already carries the summary;
+  -- a 20-character floor here only ever blocked someone with little to add.
+  description   text not null check (char_length(btrim(description)) between 1 and 1200),
 
   lat           double precision not null check (lat between -90 and 90),
   lng           double precision not null check (lng between -180 and 180),
@@ -195,7 +203,7 @@ create policy "members create reports" on public.reports
 drop view if exists public.reports_feed;
 create view public.reports_feed
 with (security_invoker = false) as
-  select r.id, r.category, r.severity, r.headline, r.description,
+  select r.id, r.category, r.impacts, r.headline, r.description,
          r.lat, r.lng, r.address, r.city, r.country_code,
          r.happened_at, r.created_at,
          r.support_count, r.flag_count,
@@ -246,13 +254,32 @@ create table if not exists public.report_flags (
 alter table public.report_supports enable row level security;
 alter table public.report_flags    enable row level security;
 
+-- Whether a report is your own. SECURITY DEFINER because the support policy
+-- below has to ask, and members have no select on reports at all.
+create or replace function public.is_own_report(p_report_id uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.reports r
+     where r.id = p_report_id and r.reporter_id = auth.uid()
+  );
+$$;
+
+revoke all on function public.is_own_report(uuid) from public, anon;
+grant execute on function public.is_own_report(uuid) to authenticated;
+
 -- Own rows only: who supported what is nobody else's business. The public
 -- number lives in reports.support_count.
+--
+-- Confirming is for other people's reports. Support is now what decides how
+-- loudly a report is drawn, so a reporter confirming themselves would be
+-- voting for their own visibility. The author's move on their own report is
+-- to withdraw it.
 drop policy if exists "read own supports"  on public.report_supports;
 drop policy if exists "add own support"    on public.report_supports;
 drop policy if exists "drop own support"   on public.report_supports;
 create policy "read own supports" on public.report_supports for select to authenticated using (user_id = auth.uid());
-create policy "add own support"   on public.report_supports for insert to authenticated with check (user_id = auth.uid());
+create policy "add own support"   on public.report_supports for insert to authenticated
+  with check (user_id = auth.uid() and not public.is_own_report(report_id));
 create policy "drop own support"  on public.report_supports for delete to authenticated using (user_id = auth.uid());
 
 drop policy if exists "read own flags" on public.report_flags;
@@ -309,12 +336,15 @@ create trigger flags_recount
 -- Zoomed in  -> a capped handful of individual reports, best-supported first.
 -- Both SECURITY DEFINER, because the anon role cannot read reports at all.
 -- ---------------------------------------------------------------------------
+-- The return type changes with severity gone, and Postgres will not replace a
+-- function's signature in place.
+drop function if exists public.public_area_summary(double precision, double precision, double precision, double precision, int);
 create or replace function public.public_area_summary(
   min_lat double precision, min_lng double precision,
   max_lat double precision, max_lng double precision,
   cells   int default 12
 )
-returns table (lat double precision, lng double precision, total bigint, high bigint)
+returns table (lat double precision, lng double precision, total bigint, confirmed bigint)
 language sql stable security definer set search_path = public as $$
   with bounds as (
     select least(min_lat, max_lat) as y0, greatest(min_lat, max_lat) as y1,
@@ -329,7 +359,7 @@ language sql stable security definer set search_path = public as $$
   select g.y0 + (floor(least((r.lat - g.y0) / g.dy, greatest(cells, 1) - 1)) + 0.5) * g.dy,
          g.x0 + (floor(least((r.lng - g.x0) / g.dx, greatest(cells, 1) - 1)) + 0.5) * g.dx,
          count(*),
-         count(*) filter (where r.severity = 'high')
+         count(*) filter (where r.support_count > 0)
     from public.reports r, grid g
    where r.status = 'published'
      and r.happened_at > now() - public.report_window()
@@ -338,14 +368,22 @@ language sql stable security definer set search_path = public as $$
    group by 1, 2;
 $$;
 
+-- Signed-out visitors get the report text too. This used to withhold
+-- description, because the public view was a teaser with the account behind
+-- sign-up; a pin you can click but not read is just frustrating. It lived in
+-- supabase/ops/public_reports_with_detail.sql for a while, which meant every
+-- re-run of this file silently took the text away again until that script was
+-- run after it. One definition, here.
+drop function if exists public.public_sample_reports(double precision, double precision, double precision, double precision);
 create or replace function public.public_sample_reports(
   min_lat double precision, min_lng double precision,
   max_lat double precision, max_lng double precision
 )
 returns table (
-  id uuid, category text, severity text, headline text,
+  id uuid, category text, impacts text[], headline text, description text,
   lat double precision, lng double precision,
-  city text, happened_at timestamptz, support_count int, total_in_view bigint
+  address text, city text, country_code char(2),
+  happened_at timestamptz, support_count int, total_in_view bigint
 )
 language sql stable security definer set search_path = public as $$
   with bounds as (
@@ -353,7 +391,8 @@ language sql stable security definer set search_path = public as $$
            least(min_lng, max_lng) as x0, greatest(min_lng, max_lng) as x1
   ),
   visible as (
-    select r.id, r.category, r.severity, r.headline, r.lat, r.lng, r.city,
+    select r.id, r.category, r.impacts, r.headline, r.description,
+           r.lat, r.lng, r.address, r.city, r.country_code,
            r.happened_at, r.support_count
       from public.reports r, bounds b
      where r.status = 'published'
@@ -365,9 +404,12 @@ language sql stable security definer set search_path = public as $$
        and (b.y1 - b.y0) <= public.setting_num('public_detail_max_span', 0.35)
        and (b.x1 - b.x0) <= public.setting_num('public_detail_max_span', 0.35)
   )
+  -- Confirmations decide the order. A report several people recognised is a
+  -- better warning than one somebody rated "high" about themselves, and it is
+  -- the number the map now draws with.
   select v.*, (select count(*) from visible) as total_in_view
     from visible v
-   order by (v.severity = 'high') desc, v.support_count desc, v.happened_at desc
+   order by v.support_count desc, v.happened_at desc
    limit public.setting_int('public_sample_limit', 5);
 $$;
 

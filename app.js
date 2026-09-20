@@ -8,11 +8,11 @@
 // ---------------------------------------------------------------------------
 import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS, SAFETY_MIN_ZOOM } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
-         mySupports, addSupport, removeSupport, flagReport, supabase } from './js/data.js';
+         mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
+         supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
          signInWithGoogle, signOut, enabledProviders } from './js/auth.js';
 import { searchPlaces, describePoint, locateMe } from './js/geo.js';
-import { fetchSafetyPlaces, lastSafetyError } from './js/safety.js';
 import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
          maplibregl } from './js/map.js';
@@ -152,31 +152,31 @@ const passesFilter = (r) =>
 // report fetch above.
 let safetyInFlight = 0;
 async function refreshSafety() {
-  if (!layersReady) return;
+  if (!layersReady || !isConfigured()) return;
   const status = $('#safety-status');
 
   if (!state.safetyOn) { status.textContent = 'Turned off'; return; }
   if (map.getZoom() < SAFETY_MIN_ZOOM) {
-    status.textContent = 'Zoom into a city to see these';
+    status.textContent = 'Zoom in to see police and hospitals';
+    status.classList.remove('is-warning');
     return;
   }
 
   const ticket = ++safetyInFlight;
-  status.textContent = 'Looking for nearby help…';
-  const places = await fetchSafetyPlaces(boundsOf(map));
-  if (ticket !== safetyInFlight) return;         // a newer request already won
-
-  setSafetyPlaces(map, places);
-
-  // Distinguish "nothing here" from "could not ask" — silently showing
-  // nothing for both is what made this impossible to diagnose.
-  const failure = lastSafetyError();
-  status.textContent = failure
-    ? 'OpenStreetMap did not answer — try again shortly'
-    : places.length
-      ? `${places.length} nearby, from OpenStreetMap`
-      : 'None mapped in this area';
-  status.classList.toggle('is-warning', Boolean(failure));
+  try {
+    const places = await fetchSafetyPlaces(boundsOf(map));
+    if (ticket !== safetyInFlight) return;       // a newer request already won
+    setSafetyPlaces(map, places);
+    status.classList.remove('is-warning');
+    status.textContent = places.length
+      ? `${places.length} nearby`
+      : 'None recorded in this area yet';
+  } catch (err) {
+    if (ticket !== safetyInFlight) return;
+    console.error(err);
+    status.textContent = 'Could not load these right now';
+    status.classList.add('is-warning');
+  }
 }
 
 function draw() {

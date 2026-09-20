@@ -74,40 +74,19 @@ export const GEOCODER = {
 };
 
 // --- Safety & support --------------------------------------------------------
-// Police stations and hospitals are not our data — they are fetched live from
-// OpenStreetMap's Overpass API for whatever the map is currently showing,
-// never stored. No table, no sync job: an edit on OSM shows up on the next
-// pan, and there is nothing here to keep current.
-export const OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter';
-
-// The layer only switches on once zoomed into a place. A country-wide query
-// would be huge and slow, and "hospitals near here" only means something at
-// city scale anyway — this matches the zoom where report icons take over.
-// Raised from 12 to 13: at zoom 12 a wide screen asks Overpass for a box
-// ~100km across, which is most of the wait. Zoom 13 quarters that area, and
-// "police and hospitals nearby" is a neighbourhood question anyway.
-export const SAFETY_MIN_ZOOM = 13;
-
-// Backstop only — NOT a second gate. Zoom and visible span are coupled in Web
-// Mercator (span = 360 / (256 * 2^zoom) * mapWidthPx), so at SAFETY_MIN_ZOOM a
-// 2560px map already spans 0.88°. An earlier 0.45° cap therefore created a dead
-// zone: the layer switched on at zoom 12 but the fetch was refused on every
-// screen wider than ~1300px. This value must stay above the widest span that
-// SAFETY_MIN_ZOOM can produce, or the layer silently shows nothing.
-export const SAFETY_MAX_SPAN = 0.5;
-export const SAFETY_MIN_INTERVAL_MS = 1500; // be polite to the shared public instance
-
-// A busy Overpass queues rather than refusing, so a request can hang
-// indefinitely. Each mirror gets this long before we give up on it and try
-// the next — worst case is roughly this times the number of mirrors.
-export const SAFETY_REQUEST_TIMEOUT_MS = 7000;
-
-// The public Overpass instance is free and frequently busy. If the first does
-// not answer, try the next rather than leaving the layer blank.
-export const OVERPASS_MIRRORS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-];
+// Police stations and hospitals live in our own safety_places table, refreshed
+// from OpenStreetMap by .github/workflows/safety-data.yml. They were once read
+// live from Overpass on every pan, which tied the feature to a free, shared,
+// frequently congested service; it hung more often than it answered. Nothing
+// in the browser calls Overpass now.
+//
+// The zoom gate is only about clutter: safety pins appear at the same zoom as
+// scam report icons, where the map has room for detail. SAFETY_MAX_SPAN is a
+// backstop against pulling half a continent in one query — zoom is the real
+// gate, and this must stay above the widest span that zoom can produce
+// (~0.88 deg on a 2560px screen) or the layer silently shows nothing.
+export const SAFETY_MIN_ZOOM = 11.5;
+export const SAFETY_MAX_SPAN = 1.2;
 
 export const POLICE_COLOR = '#2f5fa8';
 export const HOSPITAL_COLOR = '#c5382c';

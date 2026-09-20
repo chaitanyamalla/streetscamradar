@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""
+Fetch police stations and hospitals from OpenStreetMap and emit SQL to load
+them into public.safety_places.
+
+Run from .github/workflows/safety-data.yml, where a GitHub runner has the
+network access to reach Overpass. Reads a CSV of "lat,lng" centres on stdin —
+one per area that has scam reports — and writes SQL to stdout, so the exact
+statements can be read in the job log before they touch the database.
+
+Nothing here talks to the database. It reads OSM, writes SQL, and the workflow
+pipes that into psql.
+"""
+import json
+import sys
+import time
+import urllib.parse
+import urllib.request
+
+MIRRORS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+]
+RADIUS_M = 6000        # around each reported area
+TIMEOUT_S = 60         # generous: this is a background job, not a page load
+PAUSE_S = 2            # between areas, to stay a good citizen
+MAX_PER_AREA = 300
+
+
+def overpass(lat, lng):
+    query = (
+        f"[out:json][timeout:50];"
+        f'nwr["amenity"~"^(hospital|police)$"](around:{RADIUS_M},{lat},{lng});'
+        f"out center {MAX_PER_AREA};"
+    )
+    body = urllib.parse.urlencode({"data": query}).encode()
+    last = None
+    for url in MIRRORS:
+        try:
+            req = urllib.request.Request(
+                url, data=body,
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    # Overpass asks callers to identify themselves.
+                    "User-Agent": "StreetScamRadar/1.0 (+https://streetscamradar.vercel.app)",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=TIMEOUT_S) as res:
+                return json.loads(res.read().decode())
+        except Exception as err:                      # noqa: BLE001
+            last = err
+            print(f"-- {url} failed for {lat},{lng}: {err}", file=sys.stderr)
+    raise RuntimeError(f"all mirrors failed for {lat},{lng}: {last}")
+
+
+def to_row(el):
+    tags = el.get("tags") or {}
+    if el.get("type") == "node":
+        lat, lng = el.get("lat"), el.get("lon")
+    else:
+        centre = el.get("center") or {}
+        lat, lng = centre.get("lat"), centre.get("lon")
+    if lat is None or lng is None:
+        return None
+
+    kind = "hospital" if tags.get("amenity") == "hospital" else "police"
+    name = tags.get("name") or ("Hospital" if kind == "hospital" else "Police station")
+    street = " ".join(x for x in (tags.get("addr:street"), tags.get("addr:housenumber")) if x)
+    return {
+        "id": f"{el.get('type')}/{el.get('id')}",
+        "kind": kind,
+        "name": name,
+        "address": street or None,
+        "lat": float(lat),
+        "lng": float(lng),
+    }
+
+
+def sql_str(value):
+    if value is None:
+        return "null"
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def main():
+    centres = []
+    for line in sys.stdin:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        lat, _, lng = line.partition(",")
+        try:
+            centres.append((float(lat), float(lng)))
+        except ValueError:
+            print(f"-- skipping unparsable line: {line!r}", file=sys.stderr)
+
+    if not centres:
+        print("-- no areas to fetch; nothing to do")
+        return
+
+    rows = {}
+    for i, (lat, lng) in enumerate(centres, 1):
+        print(f"-- [{i}/{len(centres)}] {lat},{lng}", file=sys.stderr)
+        for el in overpass(lat, lng).get("elements", []):
+            row = to_row(el)
+            if row:
+                rows[row["id"]] = row      # dedupe across overlapping areas
+        if i < len(centres):
+            time.sleep(PAUSE_S)
+
+    print(f"-- {len(rows)} places from {len(centres)} areas")
+    if not rows:
+        return
+
+    print("begin;")
+    for row in rows.values():
+        print(
+            "insert into public.safety_places (id, kind, name, address, lat, lng, updated_at) values ("
+            f"{sql_str(row['id'])}, {sql_str(row['kind'])}, {sql_str(row['name'])}, "
+            f"{sql_str(row['address'])}, {row['lat']}, {row['lng']}, now()) "
+            "on conflict (id) do update set "
+            "kind = excluded.kind, name = excluded.name, address = excluded.address, "
+            "lat = excluded.lat, lng = excluded.lng, updated_at = now();"
+        )
+    print("commit;")
+    print("select kind, count(*) from public.safety_places group by kind order by kind;")
+
+
+if __name__ == "__main__":
+    main()

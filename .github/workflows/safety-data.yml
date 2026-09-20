@@ -1,0 +1,120 @@
+# ---------------------------------------------------------------------------
+# Refresh public.safety_places from OpenStreetMap.
+#
+# The site used to query Overpass live on every pan, which made a core feature
+# only as reliable as a free, congested, shared service. This job does that
+# work here instead — where slow is fine — and the page just reads our own
+# table. Police stations and hospitals barely move, so running this
+# occasionally is plenty.
+#
+# Areas are derived from where reports actually are, so the data follows the
+# map rather than a hardcoded city list.
+#
+# Needs the same SUPABASE_DB_URL secret as the database workflow.
+# ---------------------------------------------------------------------------
+name: Refresh safety places
+
+on:
+  workflow_dispatch:
+    inputs:
+      extra_areas:
+        description: 'Optional extra "lat,lng" centres, semicolon separated'
+        required: false
+        default: ''
+        type: string
+  schedule:
+    - cron: '17 4 * * 1'   # Mondays, 04:17 UTC
+
+concurrency:
+  group: safety-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the secret is set
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "${SUPABASE_DB_URL}" ]; then
+            echo "::error::SUPABASE_DB_URL is not set."
+            exit 1
+          fi
+
+      - name: Install psql
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          fi
+
+      # The direct db.<ref>.supabase.co host is IPv6-only and runners are
+      # IPv4-only, so reuse the same pooler discovery as the database workflow.
+      - name: Resolve a reachable host
+        env:
+          PGURL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python3 - <<'PY' > resolved.env
+          import os, sys, urllib.parse, subprocess
+          u = os.environ["PGURL"].strip().strip('"').strip("'")
+          p = urllib.parse.urlparse(u)
+          host, pwd = p.hostname or "", p.password or ""
+          print(f"::add-mask::{pwd}", file=sys.stderr)
+
+          if "pooler.supabase.com" in host or not host.startswith("db."):
+              print(f"PGURL_FINAL={u}")
+              sys.exit(0)
+
+          ref = host[len("db."):-len(".supabase.co")]
+          regions = ["eu-central-1","eu-west-1","eu-west-2","eu-west-3","eu-north-1","eu-central-2",
+                     "ap-south-1","ap-southeast-1","ap-southeast-2","ap-northeast-1","ap-northeast-2",
+                     "us-east-1","us-east-2","us-west-1","us-west-2","ca-central-1","sa-east-1"]
+          quoted = urllib.parse.quote(pwd, safe="")
+          env = {**os.environ, "PGCONNECT_TIMEOUT": "6"}
+          for prefix in ("aws-0", "aws-1"):
+              for r in regions:
+                  ph = f"{prefix}-{r}.pooler.supabase.com"
+                  cand = f"postgresql://postgres.{ref}:{quoted}@{ph}:5432/postgres"
+                  if subprocess.run(["psql", cand, "-tAc", "select 1"],
+                                    capture_output=True, text=True, env=env).returncode == 0:
+                      print(f"Connected via {ph}", file=sys.stderr)
+                      print(f"PGURL_FINAL={cand}")
+                      sys.exit(0)
+          print("::error::Could not reach any pooler host.", file=sys.stderr)
+          sys.exit(1)
+          PY
+          cat resolved.env >> "$GITHUB_ENV"
+          rm -f resolved.env
+
+      # One centre per ~11km cell that has reports, so overlapping reports in
+      # one city do not each trigger their own Overpass query.
+      - name: Work out which areas need data
+        env:
+          PGURL: ${{ env.PGURL_FINAL }}
+          EXTRA: ${{ inputs.extra_areas }}
+        run: |
+          psql "$PGURL" -tAF',' -v ON_ERROR_STOP=1 -c "
+            select distinct round(lat::numeric, 1), round(lng::numeric, 1)
+              from public.reports
+             where status = 'published'
+             order by 1, 2;" > areas.csv
+          if [ -n "$EXTRA" ]; then
+            echo "$EXTRA" | tr ';' '\n' >> areas.csv
+          fi
+          echo "Areas to fetch:"
+          cat areas.csv
+          echo "count: $(grep -c . areas.csv)"
+
+      - name: Fetch from OpenStreetMap
+        run: |
+          python3 supabase/ops/fetch_safety_places.py < areas.csv > safety.sql
+          echo "Generated $(grep -c 'insert into' safety.sql || echo 0) upserts"
+          head -3 safety.sql
+
+      - name: Load into Supabase
+        env:
+          PGURL: ${{ env.PGURL_FINAL }}
+        run: |
+          psql "$PGURL" -v ON_ERROR_STOP=1 -f safety.sql

@@ -162,3 +162,27 @@ export async function saveHomeArea({ label, lat, lng }) {
     .update({ home_label: label, home_lat: lat, home_lng: lng }).eq('id', user.id);
   if (error) throw error;
 }
+
+// --- Safety places ---------------------------------------------------------
+/**
+ * Police stations and hospitals in view. Public reference data, so no
+ * sign-in branching: the same rows for everyone.
+ *
+ * These used to come straight from OpenStreetMap's Overpass API on every pan,
+ * which tied a feature of the site to a free, shared, frequently congested
+ * service — it hung more often than it answered. They are now refreshed into
+ * our own table by .github/workflows/safety-data.yml, so this is one indexed
+ * query like everything else here.
+ */
+export async function fetchSafetyPlaces(bounds) {
+  need();
+  const { minLat, minLng, maxLat, maxLng } = bounds;
+  const { data, error } = await supabase
+    .from('safety_places')
+    .select('id,kind,name,address,lat,lng')
+    .gte('lat', minLat).lte('lat', maxLat)
+    .gte('lng', minLng).lte('lng', maxLng)
+    .limit(400);
+  if (error) throw error;
+  return data ?? [];
+}

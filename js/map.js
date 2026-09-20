@@ -10,6 +10,10 @@ import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
 import { MAP_STYLE, WORLD_VIEW, PIN_COLOR, CLUSTER_COLOR } from './config.js';
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
+
+// Below this the map shows dots; at and above it, category icons.
+export const ICON_ZOOM = 11.5;
+const FALLBACK_ICON = 'scam-icon-fallback';
 const compact = () => window.matchMedia('(max-width: 900px)').matches;
 
 export function createMap(container) {
@@ -76,9 +80,12 @@ export function addLayers(map) {
     paint: { 'text-color': '#ffffff' },
   });
 
-  // --- Individual reports, coloured by severity ---------------------------
+  // --- Individual reports ------------------------------------------------
+  // Dots while the view is wide; category icons once you have zoomed into a
+  // place, where there is room for them to mean something.
   map.addLayer({
-    id: 'report-point', type: 'circle', source: 'reports', filter: ['!', ['has', 'point_count']],
+    id: 'report-point', type: 'circle', source: 'reports',
+    filter: ['!', ['has', 'point_count']], maxzoom: ICON_ZOOM,
     paint: {
       'circle-color': PIN_COLOR,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 6, 14, 10, 18, 14],
@@ -90,12 +97,25 @@ export function addLayers(map) {
   // A soft ring under every pin, so single reports still read at low zoom.
   map.addLayer({
     id: 'report-halo', type: 'circle', source: 'reports',
-    filter: ['!', ['has', 'point_count']],
+    filter: ['!', ['has', 'point_count']], maxzoom: ICON_ZOOM,
     paint: {
       'circle-color': PIN_COLOR, 'circle-opacity': 0.14,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 12, 14, 20, 18, 28],
     },
   }, 'report-point');
+
+  // Icons take over from ICON_ZOOM. icon-image is a placeholder until the
+  // categories arrive — see registerCategoryIcons.
+  map.addLayer({
+    id: 'report-icon', type: 'symbol', source: 'reports',
+    filter: ['!', ['has', 'point_count']], minzoom: ICON_ZOOM,
+    layout: {
+      'icon-image': FALLBACK_ICON,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], ICON_ZOOM, 0.62, 16, 0.85, 19, 1],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+    },
+  });
 }
 
 export const toFeatures = (reports) => ({
@@ -143,3 +163,56 @@ export function flyToPlace(map, place, fallbackZoom) {
 }
 
 export { maplibregl };
+
+/**
+ * MapLibre can only place an icon it already holds, and the glyph fonts in a
+ * vector style carry no emoji, so each category badge is drawn once to a
+ * canvas and handed to the map as an image.
+ *
+ * Called after the categories load. A match expression maps each slug to its
+ * image with a fallback, so a category added later cannot leave a blank pin.
+ */
+export function registerCategoryIcons(map, categories) {
+  const badge = (glyph) => {
+    const size = 46, ratio = 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size * ratio;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.scale(ratio, ratio);
+
+    const r = size / 2;
+    ctx.beginPath();
+    ctx.arc(r, r, r - 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = PIN_COLOR;
+    ctx.stroke();
+
+    ctx.font = `${Math.round(size * 0.46)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(glyph || '\u26A0', r, r + 1);
+
+    return ctx.getImageData(0, 0, canvas.width, canvas.height);
+  };
+
+  const add = (id, glyph) => {
+    if (map.hasImage?.(id)) return;
+    const image = badge(glyph);
+    if (image) map.addImage(id, image, { pixelRatio: 2 });
+  };
+
+  add(FALLBACK_ICON, '\u26A0');
+  categories.forEach(c => add(`scam-icon-${c.slug}`, c.glyph));
+
+  // ['match', category, slug, image, ..., fallback]
+  const expression = ['match', ['get', 'category']];
+  categories.forEach(c => expression.push(c.slug, `scam-icon-${c.slug}`));
+  expression.push(FALLBACK_ICON);
+
+  if (map.getLayer?.('report-icon')) {
+    map.setLayoutProperty('report-icon', 'icon-image', expression);
+  }
+}

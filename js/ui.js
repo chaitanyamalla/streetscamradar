@@ -80,14 +80,28 @@ export function renderReportList(host, reports, { categories, mode, supported, s
 
 export function popupHTML(props, categories) {
   const cat = categories.find(c => c.slug === props.category);
+  const where = [props.address, props.city].filter(Boolean).join(', ');
+  const supports = Number(props.support_count) || 0;
+
+  // Signed-out visitors get the text too now, but a member's feed may still
+  // arrive before the description does, so handle its absence.
   const body = props.description
-    ? `<p class="popup-body">${esc(String(props.description).slice(0, 220))}</p>`
-    : '<p class="popup-body">Sign in to read the full account.</p>';
+    ? `<p class="popup-body">${esc(props.description)}</p>`
+    : '';
+
   return `
-    <p class="popup-kicker">${esc(cat?.glyph ?? '')} ${esc(cat?.label ?? props.category)}</p>
-    <p class="popup-title">${esc(props.headline)}</p>
+    <div class="popup-head">
+      <span class="popup-glyph" aria-hidden="true">${esc(cat?.glyph ?? '\u26A0')}</span>
+      <div>
+        <p class="popup-kicker">${esc(cat?.label ?? props.category)}</p>
+        <p class="popup-title">${esc(props.headline)}</p>
+      </div>
+    </div>
     ${body}
-    <p class="popup-meta">${esc(props.city ?? '')} ${esc(timeAgo(props.happened_at))}</p>`;
+    <p class="popup-meta">
+      ${where ? esc(where) + ' &middot; ' : ''}${esc(timeAgo(props.happened_at))}
+      ${supports ? ` &middot; ${supports} ${supports === 1 ? 'person' : 'people'} confirmed this` : ''}
+    </p>`;
 }
 
 export function setGateNote(host, { mode, shown = 0, hiddenCount = 0, signedIn }) {

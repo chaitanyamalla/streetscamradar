@@ -12,7 +12,8 @@ import { getCategories, fetchForBounds, submitReport, withdrawReport,
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
          signInWithGoogle, signOut, enabledProviders } from './js/auth.js';
 import { searchPlaces, describePoint, locateMe } from './js/geo.js';
-import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace, maplibregl } from './js/map.js';
+import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
+         registerCategoryIcons, maplibregl } from './js/map.js';
 import { esc, toast, renderCategoryFilters, renderReportList, popupHTML, setGateNote } from './js/ui.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -36,10 +37,21 @@ const signedIn = () => Boolean(state.user);
 // ---------------------------------------------------------------------------
 const map = createMap('city-map');
 let layersReady = false;
+let openPopup = null;   // only one info window at a time
 
 map.on('load', () => {
   addLayers(map);
   layersReady = true;
+  if (state.categories.length) registerCategoryIcons(map, state.categories);
+
+  // A pin that opens something should look like it.
+  for (const layer of ['report-point', 'report-icon', 'clusters']) {
+    map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', layer, () => {
+      map.getCanvas().style.cursor = state.picking ? 'crosshair' : '';
+    });
+  }
+
   refresh();
 });
 map.on('moveend', () => scheduleRefresh());
@@ -69,6 +81,7 @@ async function init() {
     try {
       state.categories = await getCategories();
       state.activeCategories = new Set(state.categories.map(c => c.slug));
+      if (layersReady) registerCategoryIcons(map, state.categories);
       renderCategoryFilters($('#category-filters'), state.categories, state.activeCategories);
       fillCategorySelect();
     } catch (err) {
@@ -159,9 +172,13 @@ function onMapClick(e) {
     return;
   }
 
-  const hits = layersReady
-    ? map.queryRenderedFeatures(e.point, { layers: ['report-point', 'clusters'] })
-    : [];
+  // Query a small box rather than a point, so a fingertip on a phone hits the
+  // pin it was aimed at.
+  const pad = 8;
+  const box = [[e.point.x - pad, e.point.y - pad], [e.point.x + pad, e.point.y + pad]];
+  const layers = ['report-icon', 'report-point', 'clusters']
+    .filter(id => map.getLayer(id));
+  const hits = layersReady ? map.queryRenderedFeatures(box, { layers }) : [];
   if (!hits.length) return;
 
   const hit = hits[0];
@@ -169,7 +186,9 @@ function onMapClick(e) {
     map.easeTo({ center: hit.geometry.coordinates, zoom: map.getZoom() + 2 });
     return;
   }
-  new maplibregl.Popup({ offset: 14, closeButton: false, maxWidth: '260px' })
+
+  openPopup?.remove();
+  openPopup = new maplibregl.Popup({ offset: 16, closeButton: true, maxWidth: '300px', className: 'report-popup' })
     .setLngLat(hit.geometry.coordinates)
     .setHTML(popupHTML(hit.properties, state.categories))
     .addTo(map);
@@ -296,6 +315,20 @@ function wireUI() {
 
   // --- report list actions
   $('#report-list').addEventListener('click', async e => {
+    const entry = e.target.closest('.report-entry');
+    if (entry && !e.target.closest('.chip-action')) {
+      const report = state.lastFetch.reports.find(x => String(x.id) === entry.dataset.report);
+      if (report) {
+        map.flyTo({ center: [report.lng, report.lat], zoom: Math.max(map.getZoom(), 15), duration: 700 });
+        openPopup?.remove();
+        openPopup = new maplibregl.Popup({ offset: 16, closeButton: true, maxWidth: '300px', className: 'report-popup' })
+          .setLngLat([report.lng, report.lat])
+          .setHTML(popupHTML(report, state.categories))
+          .addTo(map);
+      }
+      return;
+    }
+
     const support = e.target.closest('[data-support]');
     const flag = e.target.closest('[data-flag]');
     const withdraw = e.target.closest('[data-withdraw]');

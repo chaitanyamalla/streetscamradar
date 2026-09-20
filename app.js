@@ -32,6 +32,7 @@ const state = {
   supported: new Set(),
   picking: false,
   safetyOn: true,
+  profile: null,      // display_name and home area, read once at sign-in
   safetyPlaces: [],   // what the safety layer last loaded, for the country lookup
   pin: null,          // { lat, lng, address, city, countryCode }
   pinPending: null,   // in-flight reverse geocode for that pin
@@ -82,10 +83,21 @@ init().catch(err => {
 
 async function init() {
   await initAuth();
-  onAuthChange(user => {
+  onAuthChange(async user => {
     state.user = user;
+    state.profile = null;
     paintAuthState();
     refresh();
+    // One small read, so the avatar can show the name you chose rather than
+    // whatever your email happens to start with.
+    if (user) {
+      try {
+        state.profile = await getProfile();
+        paintAvatar();
+      } catch (err) {
+        console.error(err);      // the email initial is a fine fallback
+      }
+    }
   });
 
   if (isConfigured()) {
@@ -118,7 +130,29 @@ function paintAuthState() {
   const btn = $('#auth-button');
   btn.textContent = signedIn() ? 'Sign out' : 'Sign in';
   btn.setAttribute('title', signedIn() ? state.user.email ?? 'Signed in' : 'Sign in or create an account');
-  $('#profile-button').hidden = !signedIn();
+  paintAvatar();
+}
+
+/**
+ * The header's way into your account: one letter, not two words.
+ *
+ * Your display name first, because it is what you chose to be called; the
+ * email otherwise, since everyone has one. The full identity stays in the
+ * title and the aria-label, so the button is still readable to a screen
+ * reader and on hover.
+ */
+function paintAvatar() {
+  const button = $('#profile-button');
+  button.hidden = !signedIn();
+  if (!signedIn()) return;
+
+  const name = (state.profile?.display_name || '').trim();
+  const email = state.user?.email ?? '';
+  const initial = (name || email).trim().charAt(0);
+  $('#profile-initial').textContent = initial || '\u2022';
+  const label = name || email || 'Signed in';
+  button.title = `Your profile — ${label}`;
+  button.setAttribute('aria-label', `Your profile, ${label}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -212,6 +246,8 @@ async function loadProfile() {
     };
     paintProfileList();
 
+    state.profile = saved;
+    paintAvatar();
     $('#profile-name').value = saved?.display_name ?? '';
     const since = saved?.created_at ?? state.user?.created_at;
     $('#profile-since').textContent = since
@@ -908,7 +944,10 @@ function wireUI() {
   $('#name-form').addEventListener('submit', async e => {
     e.preventDefault();
     try {
-      await saveDisplayName($('#profile-name').value.trim());
+      const name = $('#profile-name').value.trim();
+      await saveDisplayName(name);
+      state.profile = { ...(state.profile ?? {}), display_name: name || null };
+      paintAvatar();
       toast('Name saved.');
     } catch (err) {
       toast(err.message, { error: true });

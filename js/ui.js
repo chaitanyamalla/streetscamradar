@@ -190,14 +190,37 @@ function directionsHTML(props) {
   return parts.length ? `<div class="popup-actions">${parts.join('')}</div>` : '';
 }
 
+/**
+ * Opening hours short enough to sit on the kicker line.
+ *
+ * OpenStreetMap records anything from "24/7" to
+ * "Mo-Fr 15:00-17:00; Sa,Su,PH 13:00-17:00". The first clause is the one that
+ * answers "can I go now?"; the rest stays in the body, so nothing is lost by
+ * putting the short form up top.
+ */
+export function shortHours(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  const first = text.split(';')[0].trim();
+  return first.length > 24 ? `${first.slice(0, 23)}\u2026` : first;
+}
+
 export function safetyPopupHTML(props) {
   // MapLibre serialises feature properties, so a boolean arrives as a string.
   const hasER = props.emergency === true || props.emergency === 'true';
-  const kicker = hasER ? 'Hospital &middot; emergency department' : 'Hospital';
+  const brief = shortHours(props.opening_hours);
+  const kicker = [
+    'Hospital',
+    hasER ? 'emergency department' : null,
+    brief || null,
+  ].filter(Boolean).join(' &middot; ');
 
   const lines = [];
   if (props.address) lines.push(esc(props.address));
-  if (props.opening_hours) lines.push(`Open ${esc(props.opening_hours)}`);
+  // Only repeat the hours below when the short form left something out.
+  if (props.opening_hours && String(props.opening_hours).trim() !== brief) {
+    lines.push(`Open ${esc(props.opening_hours)}`);
+  }
 
   return `
     <div class="popup-head">

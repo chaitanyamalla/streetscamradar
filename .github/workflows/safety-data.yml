@@ -27,6 +27,11 @@ on:
         required: false
         default: ''
         type: string
+      prune:
+        description: 'Delete places this run did not find. ONLY for a run that covers everything.'
+        required: false
+        default: false
+        type: boolean
   schedule:
     # Daily, not weekly: a city only gets covered once it has a report, so a
     # new city would otherwise sit blank for up to a week. Cities already
@@ -139,8 +144,15 @@ jobs:
         run: python3 supabase/ops/fetch_safety_places_test.py
 
       - name: Fetch from OpenStreetMap
+        env:
+          # Pruning removes places the filters no longer accept — unnamed
+          # nodes, barracks, the second mapping of a station already on the
+          # map. It deletes whatever this run did not touch, so it belongs
+          # only on a run that covers every area, and the generator refuses it
+          # outright if any area was unreachable.
+          FLAGS: ${{ inputs.prune && '--prune' || '' }}
         run: |
-          python3 supabase/ops/fetch_safety_places.py < areas.csv > safety.sql
+          python3 supabase/ops/fetch_safety_places.py $FLAGS < areas.csv > safety.sql
           # The script's first line is its own summary: how many places, from
           # how many areas, and which areas it had to skip.
           head -1 safety.sql

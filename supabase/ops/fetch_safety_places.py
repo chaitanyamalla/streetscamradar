@@ -31,10 +31,13 @@ subdivision rather than the country. Countries that do not tag ISO3166-2 at
 that level fall back to a single country-wide query.
 """
 import json
+import re
 import sys
 import time
+import unicodedata
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 
 MIRRORS = [
     "https://overpass-api.de/api/interpreter",
@@ -44,7 +47,41 @@ NOMINATIM = "https://nominatim.openstreetmap.org/search"
 RADIUS_M = 15000       # fallback only, when a city cannot be resolved
 PAUSE_S = 3            # between areas, to stay a good citizen
 RETRIES = 3            # per area, across all mirrors, before giving up on it
-AMENITY = 'nwr["amenity"~"^(hospital|police)$"]'
+
+# What counts as a place somebody can actually walk into.
+#
+# Reported from Rome: far more police stations on the map than exist. OSM tags
+# amenity=police on a great deal that is not a station you can visit — barracks,
+# vehicle pounds, traffic-police offices, training grounds, checkpoints — and
+# in Italy a single station is often mapped twice, once as the building and
+# once as a node inside it. Asking for "amenity=police" and drawing whatever
+# came back is how a handful of real stations became a dozen pins.
+#
+# So: it must be named, it must not be one of the sub-types below, and it must
+# not be tagged as closed to the public. Named is the single most effective
+# filter — an unnamed police node is almost always somebody marking a building
+# they walked past, not a station with a front desk.
+NOT_A_STATION = ("barracks|car_pound|checkpoint|naval_base|offices|storage|"
+                 "training_facility|range|academy|detention|dog_unit|mounted_unit")
+CLOSED = "private|no|military|employees|permit"
+
+AMENITY = (
+    f'nwr["amenity"="police"]["name"]'
+    f'["police"!~"^({NOT_A_STATION})$"]'
+    f'["access"!~"^({CLOSED})$"]'
+    f'["operator:type"!~"^(military)$"]'
+    f'["military"!~"."]'
+    f'{{scope}};'
+    f'nwr["amenity"="hospital"]["name"]'
+    f'["access"!~"^({CLOSED})$"]'
+    f'["hospital"!~"^(construction|disused)$"]'
+    f'{{scope}};'
+)
+
+# Two features with the same name this close together are the same place mapped
+# twice — the classic being a station's building polygon and a node inside it,
+# or a hospital campus plus each of its wings.
+SAME_PLACE_M = 400
 
 # A city is a small query; a subdivision is a large one and needs both a longer
 # Overpass budget and room for far more results. The HTTP read timeout is kept
@@ -148,8 +185,8 @@ def city_area(city, country, lat, lng):
         scope = f"(around:{RADIUS_M},{lat},{lng})"
     time.sleep(1.1)   # Nominatim asks for no more than one call a second
     query = (f"[out:json][timeout:{CITY['timeout']}];"
-             f"{AMENITY}{scope};"
-             f"out center {CITY['cap']};")
+             + AMENITY.replace("{scope}", scope)
+             + f"out center {CITY['cap']};")
     return Area(label, query, CITY, country)
 
 
@@ -184,18 +221,18 @@ def country_areas(cc):
         print(f"-- no ISO3166-2 subdivisions found for {cc}; "
               f"falling back to one country-wide query", file=sys.stderr)
         query = (f"[out:json][timeout:{REGION['timeout']}];"
-                 f'rel["ISO3166-1"="{cc}"]["admin_level"="2"];map_to_area->.a;'
-                 f"{AMENITY}(area.a);"
-                 f"out center {REGION['cap']};")
+                 + f'rel["ISO3166-1"="{cc}"]["admin_level"="2"];map_to_area->.a;'
+                 + AMENITY.replace("{scope}", "(area.a)")
+                 + f"out center {REGION['cap']};")
         return [Area(cc, query, REGION, cc)]
 
     print(f"-- {cc}: {len(codes)} subdivisions — {', '.join(codes)}", file=sys.stderr)
     areas = []
     for code in codes:
         query = (f"[out:json][timeout:{REGION['timeout']}];"
-                 f'rel["ISO3166-2"="{code}"]["admin_level"="4"];map_to_area->.a;'
-                 f"{AMENITY}(area.a);"
-                 f"out center {REGION['cap']};")
+                 + f'rel["ISO3166-2"="{code}"]["admin_level"="4"];map_to_area->.a;'
+                 + AMENITY.replace("{scope}", "(area.a)")
+                 + f"out center {REGION['cap']};")
         areas.append(Area(code, query, REGION, cc))
     return areas
 
@@ -227,6 +264,53 @@ def plan(lines):
     return areas
 
 
+GENERIC_NAME = re.compile(
+    r"^(police|police station|polizei|polizia|politie|politi|gendarmerie|"
+    r"hospital|hospital building|krankenhaus|ospedale|h[oô]pital|clinic)$", re.I)
+
+
+def normalise(name):
+    """A name reduced to what two mappings of the same place have in common."""
+    text = unicodedata.normalize("NFKD", name or "")
+    text = "".join(c for c in text if not unicodedata.combining(c)).lower()
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
+
+
+def metres_apart(a, b):
+    """Good enough at city scale, and far cheaper than the real thing."""
+    lat_m = (a["lat"] - b["lat"]) * 111_320
+    lng_m = (a["lng"] - b["lng"]) * 111_320 * max(0.01, abs(
+        1 - ((a["lat"] + b["lat"]) / 2 / 90) ** 2) ** 0.5)
+    return (lat_m ** 2 + lng_m ** 2) ** 0.5
+
+
+def dedupe(rows):
+    """
+    Drop the second mapping of a place already in the list.
+
+    A station is routinely mapped as a building polygon with a node inside it,
+    and a hospital campus as the site plus each of its wings — all with the
+    same name. Every one of those becomes a pin, which is most of why a city
+    looked like it had several times the police stations it has. Same kind,
+    same name, within 400m: same place.
+    """
+    kept, dropped = [], 0
+    by_name = {}
+    for row in rows:
+        key = (row["kind"], normalise(row["name"]))
+        twin = next((k for k in by_name.get(key, [])
+                     if metres_apart(k, row) <= SAME_PLACE_M), None)
+        if twin:
+            # Prefer whichever mapping carries a street address.
+            if row["address"] and not twin["address"]:
+                twin["address"] = row["address"]
+            dropped += 1
+            continue
+        by_name.setdefault(key, []).append(row)
+        kept.append(row)
+    return kept, dropped
+
+
 def to_row(el, country):
     tags = el.get("tags") or {}
     if el.get("type") == "node":
@@ -238,7 +322,14 @@ def to_row(el, country):
         return None
 
     kind = "hospital" if tags.get("amenity") == "hospital" else "police"
-    name = tags.get("name") or ("Hospital" if kind == "hospital" else "Police station")
+
+    # Unnamed places no longer come back from Overpass, and a name that is just
+    # the word "police" tells a visitor nothing and is usually somebody marking
+    # a building in passing. Either way it is not a place to send someone.
+    name = (tags.get("name") or "").strip()
+    if not name or GENERIC_NAME.match(name):
+        return None
+
     street = " ".join(x for x in (tags.get("addr:street"), tags.get("addr:housenumber")) if x)
     cc = (tags.get("addr:country") or country or "").strip().upper() or None
     return {
@@ -258,7 +349,7 @@ def sql_str(value):
     return "'" + str(value).replace("'", "''") + "'"
 
 
-def emit_sql(rows):
+def emit_sql(rows, prune_before=None, skipped=()):
     """
     Batched inserts, not one statement per place.
 
@@ -286,11 +377,30 @@ def emit_sql(rows):
               "address = excluded.address, lat = excluded.lat, lng = excluded.lng, "
               "country_code = coalesce(excluded.country_code, "
               "public.safety_places.country_code), updated_at = now();")
+    # Pruning is how a place that no longer qualifies actually leaves the map.
+    # Tightening the filters only changes what comes back; without this, every
+    # unnamed node and duplicate building ever loaded would sit there forever.
+    #
+    # It deletes whatever this run did not touch, so it is only safe on a run
+    # that covered everything — hence the explicit flag, and the refusal below
+    # if any area was skipped, since those rows would be deleted for having
+    # been unreachable rather than for being wrong.
+    if prune_before:
+        if skipped:
+            print(f"-- NOT pruning: {len(skipped)} area(s) were skipped, and their "
+                  f"places would be deleted for being unreachable rather than wrong",
+                  file=sys.stderr)
+            print("-- prune skipped: not every area came back")
+        else:
+            print(f"delete from public.safety_places "
+                  f"where updated_at < timestamptz '{prune_before}';")
     print("commit;")
     print("select kind, count(*) from public.safety_places group by kind order by kind;")
 
 
 def main():
+    prune = "--prune" in sys.argv
+    started = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     areas = plan(sys.stdin)
     if not areas:
         print("-- no areas to fetch; nothing to do")
@@ -319,8 +429,10 @@ def main():
         if i < len(areas):
             time.sleep(area.budget["pause"])
 
+    kept, dupes = dedupe(list(rows.values()))
     done = len(areas) - len(skipped)
-    summary = f"{len(rows)} places from {done}/{len(areas)} areas"
+    summary = (f"{len(kept)} places from {done}/{len(areas)} areas"
+               f" ({dupes} duplicate mappings merged)")
     if skipped:
         summary += f" ({len(skipped)} skipped: " + "; ".join(skipped) + ")"
     print(f"-- {summary}")
@@ -328,11 +440,11 @@ def main():
 
     # Only a total washout is a failure. Partial data beats no data, and the
     # next scheduled run picks up whatever was missed.
-    if not rows:
+    if not kept:
         print("-- nothing fetched; failing so this does not pass silently", file=sys.stderr)
         sys.exit(1)
 
-    emit_sql(list(rows.values()))
+    emit_sql(kept, prune_before=started if prune else None, skipped=skipped)
 
 
 if __name__ == "__main__":

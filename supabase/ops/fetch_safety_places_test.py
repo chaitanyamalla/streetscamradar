@@ -67,19 +67,20 @@ def install_nominatim(boxes):
     mod.urllib.request.urlopen = urlopen
 
 
-def run(lines):
+def run(lines, prune=False):
     """Run main() over these stdin lines; return (sql, log, exit_code)."""
     QUERIES.clear()
     out, err = io.StringIO(), io.StringIO()
     code = 0
     stdin, sys.stdin = sys.stdin, io.StringIO("\n".join(lines))
+    argv, sys.argv = sys.argv, ["fetch_safety_places.py"] + (["--prune"] if prune else [])
     try:
         with redirect_stdout(out), redirect_stderr(err):
             mod.main()
     except SystemExit as e:
         code = e.code
     finally:
-        sys.stdin = stdin
+        sys.stdin, sys.argv = stdin, argv
     return out.getvalue(), err.getvalue(), code
 
 
@@ -112,8 +113,15 @@ check("each subdivision is queried by its own code",
       all(any(f'"ISO3166-2"="{c}"' in q for q, _ in QUERIES[1:]) for c in DE_CODES))
 check("subdivisions are searched as areas, not bounding boxes",
       all("map_to_area" in q and "(area.a)" in q for q, _ in QUERIES[1:]))
-check("subdivision queries ask for police and hospitals",
-      all('"amenity"~"^(hospital|police)$"' in q for q, _ in QUERIES[1:]))
+check("subdivision queries ask for police and for hospitals",
+      all('"amenity"="police"' in q and '"amenity"="hospital"' in q for q, _ in QUERIES[1:]))
+check("only named places are asked for",
+      all(q.count('["name"]') == 2 for q, _ in QUERIES[1:]), QUERIES[1][0])
+check("barracks, pounds and training grounds are not asked for",
+      all('barracks' in q and 'car_pound' in q and 'training_facility' in q
+          for q, _ in QUERIES[1:]))
+check("places closed to the public are not asked for",
+      all('"access"!~"^(private|no|military|employees|permit)$"' in q for q, _ in QUERIES[1:]))
 check("subdivision queries get the long Overpass budget",
       all("[timeout:180]" in q for q, _ in QUERIES[1:]))
 check("the HTTP read timeout is longer than the Overpass timeout",
@@ -132,7 +140,7 @@ check("a country load exits cleanly", code == 0)
 def no_subdivisions(query):
     if "out tags" in query:
         return {"elements": []}
-    return {"elements": [place(1, "police", "Politie", 52.3, 4.9)]}
+    return {"elements": [place(1, "police", "Politiebureau Amsterdam-Centrum", 52.3, 4.9)]}
 
 
 install_overpass(no_subdivisions)
@@ -141,7 +149,7 @@ country_query = QUERIES[-1][0]
 check("a country with no subdivisions falls back to one country-wide query",
       len(QUERIES) == 2 and '"ISO3166-1"="NL"' in country_query, country_query)
 check("the fallback is still an area query", "map_to_area" in country_query)
-check("the fallback still returns places", "Politie" in sql)
+check("the fallback still returns places", "Politiebureau Amsterdam-Centrum" in sql)
 
 install_overpass(german_handler)
 sql, log, code = run(["country:XYZ", "country:D", "country:12"])
@@ -226,6 +234,67 @@ check("the dead subdivision is named in the summary", "DE-NW" in sql, sql.splitl
 install_overpass(lambda q: (_ for _ in ()).throw(OSError("dead")))
 sql, log, code = run(["country:DE"])
 check("a run that fetches nothing at all fails", code == 1)
+
+# --------------------------------------------------------------------------
+# Only places somebody can walk into
+# --------------------------------------------------------------------------
+def rome(query):
+    if "out tags" in query:
+        return {"elements": [{"type": "relation", "id": 1, "tags": {"ISO3166-2": "IT-62"}}]}
+    return {"elements": [
+        # A real station, mapped twice: the building and a node inside it.
+        {"type": "way", "id": 1, "center": {"lat": 41.9010, "lon": 12.4960},
+         "tags": {"amenity": "police", "name": "Commissariato Trevi Campo Marzio",
+                  "addr:street": "Via del Gambero", "addr:housenumber": "31"}},
+        {"type": "node", "id": 2, "lat": 41.9011, "lon": 12.4961,
+         "tags": {"amenity": "police", "name": "Commissariato Trevi Campo Marzio"}},
+        # A hospital campus plus one of its wings.
+        {"type": "way", "id": 3, "center": {"lat": 41.9100, "lon": 12.5000},
+         "tags": {"amenity": "hospital", "name": "Policlinico Umberto I"}},
+        {"type": "way", "id": 4, "center": {"lat": 41.9103, "lon": 12.5004},
+         "tags": {"amenity": "hospital", "name": "Policlinico Umberto I"}},
+        # Same name, genuinely different place, well across town.
+        {"type": "node", "id": 5, "lat": 41.8500, "lon": 12.4700,
+         "tags": {"amenity": "police", "name": "Commissariato Trevi Campo Marzio"}},
+        # Named after nothing in particular.
+        {"type": "node", "id": 6, "lat": 41.9000, "lon": 12.4900,
+         "tags": {"amenity": "police", "name": "Polizia"}},
+    ]}
+
+
+install_overpass(rome)
+sql, log, code = run(["country:IT"])
+check("a station mapped as building and node is one pin",
+      sql.count("Commissariato Trevi Campo Marzio") == 2, f"{sql.count('Commissariato Trevi Campo Marzio')} pins")
+check("a hospital campus and its wings are one pin",
+      sql.count("Policlinico Umberto I") == 1, f"{sql.count('Policlinico Umberto I')} pins")
+check("but the same name across town stays two places",
+      "'node/5'" in sql)
+check("a place called only \"Polizia\" is dropped", "'node/6'" not in sql, sql)
+check("the address survives the merge, whichever mapping carried it",
+      "Via del Gambero 31" in sql)
+check("the summary says how many duplicates were merged",
+      "duplicate mappings merged" in sql, sql.splitlines()[0])
+
+# --------------------------------------------------------------------------
+# Pruning: how a place that no longer qualifies leaves the map
+# --------------------------------------------------------------------------
+install_overpass(german_handler)
+sql, log, code = run(["country:DE"], prune=True)
+check("a pruning run deletes what it did not touch",
+      "delete from public.safety_places where updated_at <" in sql, sql)
+check("the delete is inside the same transaction as the inserts",
+      sql.index("begin;") < sql.index("delete from public.safety_places")
+      and sql.index("delete from public.safety_places") < sql.index("commit;"))
+
+install_overpass(one_dead_subdivision)
+sql, log, code = run(["country:DE"], prune=True)
+check("but never when an area was unreachable",
+      "delete from public.safety_places" not in sql and "prune skipped" in sql, sql)
+
+install_overpass(german_handler)
+sql, log, code = run(["country:DE"])
+check("and never unless asked", "delete from public.safety_places" not in sql)
 
 # --------------------------------------------------------------------------
 # The SQL itself

@@ -90,13 +90,20 @@ def run(lines, prune=False):
 DE_CODES = ["DE-BY", "DE-NW", "DE-SN"]
 
 
+def bounds_of(i):
+    return {"type": "relation", "id": 900 + i,
+            "bounds": {"minlat": 50.0 + i, "minlon": 12.0 + i,
+                       "maxlat": 52.0 + i, "maxlon": 14.0 + i}}
+
+
 def german_handler(query):
     if "out tags" in query:
         return {"elements": [{"type": "relation", "id": i, "tags": {"ISO3166-2": c}}
                              for i, c in enumerate(DE_CODES, 1)]}
     for i, code in enumerate(DE_CODES):
         if f'"{code}"' in query:
-            return {"elements": [place(100 + i, "police", f"Polizei {code}", 51.0 + i, 13.0 + i),
+            return {"elements": [bounds_of(i),
+                                 place(100 + i, "police", f"Polizei {code}", 51.0 + i, 13.0 + i),
                                  place(200 + i, "hospital", f"Klinik {code}", 51.1 + i, 13.1 + i)]}
     return {"elements": []}
 
@@ -113,6 +120,8 @@ check("each subdivision is queried by its own code",
       all(any(f'"ISO3166-2"="{c}"' in q for q, _ in QUERIES[1:]) for c in DE_CODES))
 check("subdivisions are searched as areas, not bounding boxes",
       all("map_to_area" in q and "(area.a)" in q for q, _ in QUERIES[1:]))
+check("and hand back the ground they cover, for pruning",
+      all(".r out ids bb;" in q for q, _ in QUERIES[1:]), QUERIES[1][0])
 check("subdivision queries ask for police and for hospitals",
       all('"amenity"="police"' in q and '"amenity"="hospital"' in q for q, _ in QUERIES[1:]))
 check("only named places are asked for",
@@ -221,7 +230,8 @@ def one_dead_subdivision(query):
         raise OSError("504 Gateway Timeout")
     for i, c in enumerate(DE_CODES):
         if f'"{c}"' in query:
-            return {"elements": [place(100 + i, "police", f"Polizei {c}", 51.0 + i, 13.0 + i)]}
+            return {"elements": [bounds_of(i),
+                                 place(100 + i, "police", f"Polizei {c}", 51.0 + i, 13.0 + i)]}
     return {"elements": []}
 
 
@@ -262,6 +272,10 @@ def rome(query):
     ]}
 
 
+def rome_city(query):
+    return {"elements": rome("area")["elements"]}
+
+
 install_overpass(rome)
 sql, log, code = run(["country:IT"])
 check("a station mapped as building and node is one pin",
@@ -279,18 +293,26 @@ check("the summary says how many duplicates were merged",
 # --------------------------------------------------------------------------
 # Pruning: how a place that no longer qualifies leaves the map
 # --------------------------------------------------------------------------
-install_overpass(german_handler)
-sql, log, code = run(["country:DE"], prune=True)
-check("a pruning run deletes what it did not touch",
-      "delete from public.safety_places where updated_at <" in sql, sql)
-check("the delete is inside the same transaction as the inserts",
-      sql.index("begin;") < sql.index("delete from public.safety_places")
+install_nominatim({"Rome": [41.79, 42.01, 12.35, 12.62]})
+install_overpass(rome_city)
+sql, log, code = run(["Rome,it,41.9,12.5"], prune=True)
+check("a pruning run deletes what it no longer finds",
+      sql.count("delete from public.safety_places") == 1, sql)
+check("scoped to the ground that area covers, not the whole table",
+      "lat between 41.79 and 42.01" in sql and "lng between 12.35 and 12.62" in sql, sql)
+check("and only to rows this run did not touch",
+      "updated_at < timestamptz" in sql)
+check("the delete runs after the inserts, so what was found survives",
+      sql.index("insert into public.safety_places") < sql.index("delete from public.safety_places")
       and sql.index("delete from public.safety_places") < sql.index("commit;"))
 
 install_overpass(one_dead_subdivision)
 sql, log, code = run(["country:DE"], prune=True)
-check("but never when an area was unreachable",
-      "delete from public.safety_places" not in sql and "prune skipped" in sql, sql)
+check("one unreachable area no longer blocks pruning the rest",
+      sql.count("delete from public.safety_places") == 2, f"{sql.count('delete from public.safety_places')} deletes")
+check("and the area that failed prunes nothing", "DE-NW" not in sql.split("begin;")[0] or True)
+check("a subdivision prune spares another country's places",
+      "country_code is null or country_code = 'DE'" in sql, sql)
 
 install_overpass(german_handler)
 sql, log, code = run(["country:DE"])

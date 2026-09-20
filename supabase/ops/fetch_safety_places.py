@@ -94,13 +94,23 @@ INSERT_BATCH = 500     # rows per insert statement; see emit_sql
 
 
 class Area:
-    """Somewhere to search, already turned into an Overpass query."""
+    """
+    Somewhere to search, already turned into an Overpass query.
 
-    def __init__(self, label, query, budget, country=None):
+    `box` is the ground this area is responsible for, as (south, west, north,
+    east). Pruning uses it: once an area has been fetched successfully, any
+    place still inside its box that this run did not touch is a place that no
+    longer qualifies, and can go. A subdivision's box is its relation's
+    bounding box, which is wider than the subdivision itself, so a prune there
+    also protects rows belonging to another country — see prune_sql.
+    """
+
+    def __init__(self, label, query, budget, country=None, box=None):
         self.label = label
         self.query = query
         self.budget = budget
         self.country = country
+        self.box = box
 
 
 def http_post(url, body, timeout):
@@ -183,11 +193,14 @@ def city_area(city, country, lat, lng):
         print(f"--   falling back to {RADIUS_M // 1000}km around {lat},{lng}",
               file=sys.stderr)
         scope = f"(around:{RADIUS_M},{lat},{lng})"
+        # The circle's bounding box, so a radius area can prune too.
+        degrees = RADIUS_M / 111_320
+        box = (lat - degrees, lng - degrees * 2, lat + degrees, lng + degrees * 2)
     time.sleep(1.1)   # Nominatim asks for no more than one call a second
     query = (f"[out:json][timeout:{CITY['timeout']}];"
              + AMENITY.replace("{scope}", scope)
              + f"out center {CITY['cap']};")
-    return Area(label, query, CITY, country)
+    return Area(label, query, CITY, country, box)
 
 
 def subdivision_codes(cc):
@@ -221,7 +234,9 @@ def country_areas(cc):
         print(f"-- no ISO3166-2 subdivisions found for {cc}; "
               f"falling back to one country-wide query", file=sys.stderr)
         query = (f"[out:json][timeout:{REGION['timeout']}];"
-                 + f'rel["ISO3166-1"="{cc}"]["admin_level"="2"];map_to_area->.a;'
+                 + f'rel["ISO3166-1"="{cc}"]["admin_level"="2"]->.r;'
+                 + '.r out ids bb;'
+                 + '.r map_to_area->.a;'
                  + AMENITY.replace("{scope}", "(area.a)")
                  + f"out center {REGION['cap']};")
         return [Area(cc, query, REGION, cc)]
@@ -230,7 +245,9 @@ def country_areas(cc):
     areas = []
     for code in codes:
         query = (f"[out:json][timeout:{REGION['timeout']}];"
-                 + f'rel["ISO3166-2"="{code}"]["admin_level"="4"];map_to_area->.a;'
+                 + f'rel["ISO3166-2"="{code}"]["admin_level"="4"]->.r;'
+                 + '.r out ids bb;'          # the area's own box, for pruning
+                 + '.r map_to_area->.a;'
                  + AMENITY.replace("{scope}", "(area.a)")
                  + f"out center {REGION['cap']};")
         areas.append(Area(code, query, REGION, cc))
@@ -349,7 +366,33 @@ def sql_str(value):
     return "'" + str(value).replace("'", "''") + "'"
 
 
-def emit_sql(rows, prune_before=None, skipped=()):
+def prune_sql(area, before):
+    """
+    Delete what this area no longer vouches for.
+
+    Scoped to the ground the area covers and to rows this run did not touch, so
+    a failed area elsewhere costs nothing — which is the whole point. The
+    previous version deleted globally and therefore refused to run at all
+    unless every single area came back; against a congested Overpass that
+    meant it never ran.
+
+    A subdivision's box is its relation's bounding box, which spills over the
+    border — Bavaria's box reaches into Austria and Czechia. So a prune also
+    spares rows that belong to another country, leaving only rows with no
+    country recorded at all, which are the ones loaded before any of this
+    existed and exactly what wants clearing.
+    """
+    south, west, north, east = area.box
+    where = [f"updated_at < timestamptz '{before}'",
+             f"lat between {south} and {north}",
+             f"lng between {west} and {east}"]
+    if area.country:
+        where.append(f"(country_code is null or country_code = {sql_str(area.country.upper())})")
+    return (f"-- {area.label}: drop what this run no longer finds here\n"
+            f"delete from public.safety_places where " + "\n  and ".join(where) + ";")
+
+
+def emit_sql(rows, prune_before=None, areas=()):
     """
     Batched inserts, not one statement per place.
 
@@ -380,20 +423,12 @@ def emit_sql(rows, prune_before=None, skipped=()):
     # Pruning is how a place that no longer qualifies actually leaves the map.
     # Tightening the filters only changes what comes back; without this, every
     # unnamed node and duplicate building ever loaded would sit there forever.
-    #
-    # It deletes whatever this run did not touch, so it is only safe on a run
-    # that covered everything — hence the explicit flag, and the refusal below
-    # if any area was skipped, since those rows would be deleted for having
-    # been unreachable rather than for being wrong.
+    # It runs after the inserts, so everything this run found has a fresh
+    # updated_at and survives.
     if prune_before:
-        if skipped:
-            print(f"-- NOT pruning: {len(skipped)} area(s) were skipped, and their "
-                  f"places would be deleted for being unreachable rather than wrong",
-                  file=sys.stderr)
-            print("-- prune skipped: not every area came back")
-        else:
-            print(f"delete from public.safety_places "
-                  f"where updated_at < timestamptz '{prune_before}';")
+        for area in areas:
+            print(prune_sql(area, prune_before))
+        print(f"-- pruned {len(areas)} area(s) that came back")
     print("commit;")
     print("select kind, count(*) from public.safety_places group by kind order by kind;")
 
@@ -408,6 +443,7 @@ def main():
 
     rows = {}
     skipped = []
+    pruneable = []          # areas that came back, so their ground is known good
     for i, area in enumerate(areas, 1):
         print(f"-- [{i}/{len(areas)}] {area.label}", file=sys.stderr)
         result = overpass(area.query, area.budget)
@@ -417,6 +453,12 @@ def main():
         else:
             found = 0
             for el in result.get("elements", []):
+                # A subdivision query emits its own relation first, carrying
+                # the bounding box this area is responsible for.
+                if el.get("type") == "relation" and el.get("bounds"):
+                    b = el["bounds"]
+                    area.box = (b["minlat"], b["minlon"], b["maxlat"], b["maxlon"])
+                    continue
                 row = to_row(el, area.country)
                 if not row:
                     continue
@@ -426,6 +468,8 @@ def main():
                     row["country_code"] = previous["country_code"]
                 rows[row["id"]] = row   # dedupe across overlapping areas
             print(f"--   {found} places", file=sys.stderr)
+            if area.box:
+                pruneable.append(area)
         if i < len(areas):
             time.sleep(area.budget["pause"])
 
@@ -444,7 +488,7 @@ def main():
         print("-- nothing fetched; failing so this does not pass silently", file=sys.stderr)
         sys.exit(1)
 
-    emit_sql(kept, prune_before=started if prune else None, skipped=skipped)
+    emit_sql(kept, prune_before=started if prune else None, areas=pruneable)
 
 
 if __name__ == "__main__":

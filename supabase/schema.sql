@@ -232,6 +232,52 @@ $$;
 revoke all on function public.delete_my_report(uuid) from public, anon;
 grant execute on function public.delete_my_report(uuid) to authenticated;
 
+-- Fix your own wording. SECURITY DEFINER for the same reason as the delete:
+-- members have no UPDATE on the table at all, and this is the only way in.
+--
+-- What it will not let you change: whose report it is, where it happened, what
+-- category it is, or what it has collected. A report that could be rewritten
+-- into a different report somewhere else, after people had confirmed it, would
+-- make confirmation meaningless.
+--
+-- The time is optional. Left null it keeps the original, which is the point —
+-- correcting a typo should not quietly move when the scam happened. Given, it
+-- must still be a time the report could have been filed with in the first
+-- place: not in the future, and not older than the window.
+create or replace function public.edit_my_report(
+  p_report_id   uuid,
+  p_headline    text,
+  p_description text,
+  p_happened_at timestamptz default null
+) returns boolean language plpgsql security definer set search_path = public as $$
+declare changed int;
+begin
+  if auth.uid() is null then
+    raise exception 'sign in required';
+  end if;
+  if p_happened_at is not null then
+    if p_happened_at > now() + interval '1 hour' then
+      raise exception 'that time is in the future';
+    end if;
+    if p_happened_at <= now() - public.report_window() then
+      raise exception 'that time is outside the % window', public.report_window();
+    end if;
+  end if;
+
+  update public.reports r
+     set headline    = btrim(p_headline),
+         description = btrim(p_description),
+         happened_at = coalesce(p_happened_at, r.happened_at)
+   where r.id = p_report_id
+     and r.reporter_id = auth.uid();
+  get diagnostics changed = row_count;
+  return changed > 0;
+end;
+$$;
+
+revoke all on function public.edit_my_report(uuid, text, text, timestamptz) from public, anon;
+grant execute on function public.edit_my_report(uuid, text, text, timestamptz) to authenticated;
+
 -- ---------------------------------------------------------------------------
 -- Support ("I saw this too") and flags. One of each per member per report.
 -- Support is what earns a report visibility; flags are what take it away.

@@ -194,6 +194,28 @@ select ssr_test.ok(public.delete_my_report('aaaaaaaa-0000-0000-0000-000000000001
                    'delete_my_report withdraws your own report');
 rollback;
 
+-- Editing your own wording.
+begin;
+set local role authenticated;
+set local "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select ssr_test.ok(public.edit_my_report('aaaaaaaa-0000-0000-0000-000000000002','TEST hijacked headline','trying to rewrite somebody else''s report') = false,
+                   'edit_my_report refuses another member''s report');
+select ssr_test.ok(public.edit_my_report('aaaaaaaa-0000-0000-0000-000000000001','TEST corrected headline here','A better description of what happened.') = true,
+                   'edit_my_report rewrites your own');
+select ssr_test.ok((select headline from public.reports_feed where id='aaaaaaaa-0000-0000-0000-000000000001') = 'TEST corrected headline here',
+                   'and the new wording is what everyone reads');
+select ssr_test.ok((select happened_at from public.reports_feed where id='aaaaaaaa-0000-0000-0000-000000000001') > now() - interval '3 hours',
+                   'an edit with no time given leaves when it happened alone');
+select ssr_test.ok(ssr_test.denied($$select public.edit_my_report('aaaaaaaa-0000-0000-0000-000000000001','TEST ok headline here','x',now() + interval '2 days')$$),
+                   'a time in the future is refused');
+select ssr_test.ok(ssr_test.denied($$select public.edit_my_report('aaaaaaaa-0000-0000-0000-000000000001','TEST ok headline here','x',now() - interval '30 days')$$),
+                   'a time outside the window is refused');
+select ssr_test.ok(ssr_test.denied($$select public.edit_my_report('aaaaaaaa-0000-0000-0000-000000000001','short','x')$$),
+                   'the headline still has to be a headline');
+select ssr_test.ok((select support_count from public.reports_feed where id='aaaaaaaa-0000-0000-0000-000000000001') = 0,
+                   'editing does not disturb what a report collected');
+rollback;
+
 -- Community moderation, once you switch it on.
 update public.app_settings set value='2' where key='auto_hide_flag_threshold';
 begin;

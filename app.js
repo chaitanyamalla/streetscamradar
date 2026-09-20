@@ -10,8 +10,8 @@ import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DA
          SAFETY_MIN_ZOOM, EMERGENCY_MIN_ZOOM } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
-         myReports, myConfirmationCount, getProfile, saveDisplayName,
-         supabase } from './js/data.js';
+         myReports, myConfirmationCount, myConfirmedReports, editMyReport,
+         getProfile, saveDisplayName, supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
          signInWithGoogle, signOut, enabledProviders, changePassword } from './js/auth.js';
 import { searchPlaces, describePoint, locateMe } from './js/geo.js';
@@ -20,7 +20,7 @@ import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
          maplibregl } from './js/map.js';
 import { esc, toast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
-         setGateNote, renderProfileReports, renderProfileStats } from './js/ui.js';
+         setGateNote, renderProfileReports, renderProfileStats, STAT_TITLES } from './js/ui.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -122,6 +122,29 @@ function paintAuthState() {
 }
 
 // ---------------------------------------------------------------------------
+// Dialogs and the back button
+//
+// A modal dialog is a place you went, so the phone's back button should bring
+// you out of it. Without this, back leaves the site entirely — which on a
+// phone is the single easiest way to lose what you were typing.
+// ---------------------------------------------------------------------------
+function openDialog(selector) {
+  const dialog = $(selector);
+  if (!dialog || dialog.open) return;
+  dialog.showModal();
+  history.pushState({ dialog: selector }, '');
+  // Closing any other way (the X, Escape, a button) has to unwind the history
+  // entry too, or back would then need two presses to do anything.
+  dialog.addEventListener('close', () => {
+    if (history.state?.dialog === selector) history.back();
+  }, { once: true });
+}
+
+window.addEventListener('popstate', () => {
+  document.querySelectorAll('dialog[open]').forEach(d => d.close());
+});
+
+// ---------------------------------------------------------------------------
 // Profile
 //
 // Your own corner of the site: what you have filed, what it collected, and the
@@ -130,30 +153,36 @@ function paintAuthState() {
 // still here, since that view keeps your own rows visible to you whatever
 // their age.
 // ---------------------------------------------------------------------------
+const profile = { reports: [], confirmed: null, stats: null, filter: 'filed' };
+
 async function openProfile() {
-  const dialog = $('#profile-dialog');
   $('#profile-email').textContent = state.user?.email ?? 'Signed in';
   $('#profile-reports').innerHTML = '<p class="empty-note">Loading…</p>';
   $('#profile-stats').innerHTML = '';
-  dialog.showModal();
+  profile.filter = 'filed';
+  openDialog('#profile-dialog');
   await loadProfile();
 }
 
 async function loadProfile() {
   try {
-    const [reports, given, profile] = await Promise.all([
+    const [reports, given, saved] = await Promise.all([
       myReports(), myConfirmationCount(), getProfile(),
     ]);
+    profile.reports = reports;
+    profile.confirmed = null;              // fetched only if you ask for it
 
     const cutoff = Date.now() - REPORT_WINDOW_DAYS * 86400000;
-    const live = reports.filter(r => new Date(r.happened_at).getTime() > cutoff).length;
-    const received = reports.reduce((sum, r) => sum + (Number(r.support_count) || 0), 0);
+    profile.stats = {
+      filed: reports.length,
+      live: reports.filter(r => new Date(r.happened_at).getTime() > cutoff).length,
+      received: reports.reduce((sum, r) => sum + (Number(r.support_count) || 0), 0),
+      given,
+    };
+    paintProfileList();
 
-    renderProfileStats($('#profile-stats'), { filed: reports.length, live, received, given });
-    renderProfileReports($('#profile-reports'), reports, state.categories, REPORT_WINDOW_DAYS);
-
-    $('#profile-name').value = profile?.display_name ?? '';
-    const since = profile?.created_at ?? state.user?.created_at;
+    $('#profile-name').value = saved?.display_name ?? '';
+    const since = saved?.created_at ?? state.user?.created_at;
     $('#profile-since').textContent = since
       ? `Member since ${new Date(since).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`
       : '';
@@ -162,6 +191,56 @@ async function loadProfile() {
     $('#profile-reports').innerHTML =
       '<p class="empty-note">Could not load your reports right now.</p>';
   }
+}
+
+/** Which reports the current tile is counting. */
+function reportsForFilter() {
+  const cutoff = Date.now() - REPORT_WINDOW_DAYS * 86400000;
+  if (profile.filter === 'live') {
+    return profile.reports.filter(r => new Date(r.happened_at).getTime() > cutoff);
+  }
+  if (profile.filter === 'received') {
+    return profile.reports.filter(r => (Number(r.support_count) || 0) > 0);
+  }
+  if (profile.filter === 'given') return profile.confirmed ?? [];
+  return profile.reports;
+}
+
+function paintProfileList() {
+  if (!profile.stats) return;
+  renderProfileStats($('#profile-stats'), profile.stats, profile.filter);
+  $('#reports-heading').textContent = STAT_TITLES[profile.filter];
+  $('#stat-back').hidden = profile.filter === 'filed';
+  renderProfileReports($('#profile-reports'), reportsForFilter(),
+    state.categories, REPORT_WINDOW_DAYS, { mine: profile.filter !== 'given' });
+}
+
+async function showStat(key) {
+  profile.filter = key;
+  if (key === 'given' && profile.confirmed === null) {
+    $('#profile-reports').innerHTML = '<p class="empty-note">Loading…</p>';
+    try {
+      profile.confirmed = await myConfirmedReports();
+    } catch (err) {
+      console.error(err);
+      profile.confirmed = [];
+    }
+  }
+  paintProfileList();
+}
+
+/** Close the profile and put the report in front of you on the map. */
+function showReportOnMap(id) {
+  const report = [...profile.reports, ...(profile.confirmed ?? [])]
+    .find(r => String(r.id) === String(id));
+  if (!report) return;
+  $('#profile-dialog').close();
+  map.flyTo({ center: [report.lng, report.lat], zoom: Math.max(map.getZoom(), 15), duration: 700 });
+  openPopup?.remove();
+  openPopup = new maplibregl.Popup({ offset: 16, closeButton: true, maxWidth: '300px', className: 'report-popup' })
+    .setLngLat([report.lng, report.lat])
+    .setHTML(popupHTML(report, state.categories))
+    .addTo(map);
 }
 
 // ---------------------------------------------------------------------------
@@ -359,7 +438,7 @@ function onMapClick(e) {
     setPin({ lat: e.lngLat.lat, lng: e.lngLat.lng });
     stopPicking();
     primeWhenFields();
-    $('#report-dialog').showModal();
+    openDialog('#report-dialog');
     return;
   }
 
@@ -565,12 +644,12 @@ function wireUI() {
   document.addEventListener('click', e => {
     const closer = e.target.closest('[data-close]');
     if (closer) document.getElementById(closer.dataset.close)?.close();
-    if (e.target.closest('[data-open-auth]')) $('#auth-dialog').showModal();
+    if (e.target.closest('[data-open-auth]')) openDialog('#auth-dialog');
   });
 
   $('#auth-button').addEventListener('click', async () => {
     if (signedIn()) { await signOut(); toast('Signed out.'); }
-    else $('#auth-dialog').showModal();
+    else openDialog('#auth-dialog');
   });
 
   // --- profile
@@ -582,19 +661,105 @@ function wireUI() {
     toast('Signed out.');
   });
 
-  // Withdrawing from the profile has to refresh both the list you are looking
-  // at and the map behind it.
+  $('#profile-stats').addEventListener('click', e => {
+    const tile = e.target.closest('[data-stat]');
+    if (tile) showStat(tile.dataset.stat);
+  });
+  $('#stat-back').addEventListener('click', () => showStat('filed'));
+
+  const entryOf = (id) => $(`.profile-report[data-report="${CSS.escape(id)}"]`);
+
   $('#profile-reports').addEventListener('click', async e => {
-    const button = e.target.closest('[data-withdraw]');
-    if (!button) return;
-    if (!confirm('Remove this report from the map? This cannot be undone.')) return;
-    button.disabled = true;
+    const show = e.target.closest('[data-show]');
+    if (show) { showReportOnMap(show.dataset.show); return; }
+
+    // Withdrawing asks in the page rather than through a browser confirm box,
+    // which on a phone is a grey strip at the top that is easy to dismiss
+    // without reading.
+    const ask = e.target.closest('[data-withdraw]');
+    if (ask) {
+      const entry = entryOf(ask.dataset.withdraw);
+      entry.querySelector('[data-confirm]').hidden = false;
+      entry.querySelector('.report-actions').hidden = true;
+      return;
+    }
+    const no = e.target.closest('[data-withdraw-no]');
+    if (no) {
+      const entry = entryOf(no.dataset.withdrawNo);
+      entry.querySelector('[data-confirm]').hidden = true;
+      entry.querySelector('.report-actions').hidden = false;
+      return;
+    }
+    const yes = e.target.closest('[data-withdraw-yes]');
+    if (yes) {
+      yes.disabled = true;
+      try {
+        await withdrawReport(yes.dataset.withdrawYes);
+        toast('Your report has been withdrawn.');
+        await Promise.all([loadProfile(), refresh()]);
+      } catch (err) {
+        yes.disabled = false;
+        toast(err.message, { error: true });
+      }
+      return;
+    }
+
+    const edit = e.target.closest('[data-edit]');
+    if (edit) {
+      const entry = entryOf(edit.dataset.edit);
+      entry.querySelector('[data-edit-form]').hidden = false;
+      entry.querySelector('.report-actions').hidden = true;
+      entry.querySelector('input[name="headline"]').focus();
+      return;
+    }
+    const cancel = e.target.closest('[data-edit-cancel]');
+    if (cancel) {
+      const entry = entryOf(cancel.dataset.editCancel);
+      entry.querySelector('[data-edit-form]').hidden = true;
+      entry.querySelector('.report-actions').hidden = false;
+    }
+  });
+
+  $('#profile-reports').addEventListener('change', e => {
+    const retime = e.target.closest('input[name="retime"]');
+    if (retime) retime.closest('form').querySelector('[data-when]').hidden = !retime.checked;
+  });
+
+  $('#profile-reports').addEventListener('submit', async e => {
+    const form = e.target.closest('[data-edit-form]');
+    if (!form) return;
+    e.preventDefault();
+
+    const id = form.dataset.editForm;
+    const data = new FormData(form);
+    let happenedAt = null;
+
+    // The time only moves if you asked it to. Correcting a typo should not
+    // quietly change when the scam happened.
+    if (data.get('retime')) {
+      const when = new Date(`${data.get('date')}T${data.get('time')}`);
+      if (Number.isNaN(when.getTime())) { toast('That is not a time.', { error: true }); return; }
+      if (when.getTime() > Date.now() + 5 * 60000) {
+        toast('That is in the future.', { error: true }); return;
+      }
+      if (when.getTime() < Date.now() - REPORT_WINDOW_DAYS * 86400000) {
+        toast(`Reports drop off the map after ${REPORT_WINDOW_DAYS} days.`, { error: true }); return;
+      }
+      happenedAt = when.toISOString();
+    }
+
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true; button.textContent = 'Saving…';
     try {
-      await withdrawReport(button.dataset.withdraw);
-      toast('Your report has been withdrawn.');
+      await editMyReport(id, {
+        headline: data.get('headline'),
+        description: data.get('description'),
+        happenedAt,
+      });
+      toast('Report updated.');
       await Promise.all([loadProfile(), refresh()]);
     } catch (err) {
-      button.disabled = false;
+      button.disabled = false; button.textContent = 'Save changes';
       toast(err.message, { error: true });
     }
   });
@@ -691,11 +856,11 @@ function wireUI() {
   $('#open-report').addEventListener('click', () => {
     if (!signedIn()) {
       toast('Join the community to add a report — it takes one email.');
-      $('#auth-dialog').showModal();
+      openDialog('#auth-dialog');
       return;
     }
     primeWhenFields();
-    $('#report-dialog').showModal();
+    openDialog('#report-dialog');
   });
 
   $('#pick-on-map').addEventListener('click', () => { $('#report-dialog').close(); startPicking(); });
@@ -770,7 +935,7 @@ function wireUI() {
 
   // Escape cancels map-picking mode.
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && state.picking) { stopPicking(); $('#report-dialog').showModal(); }
+    if (e.key === 'Escape' && state.picking) { stopPicking(); openDialog('#report-dialog'); }
   });
 }
 

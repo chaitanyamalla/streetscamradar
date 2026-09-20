@@ -174,15 +174,27 @@ export function safetyPopupHTML(props) {
     <p class="popup-meta">via OpenStreetMap</p>`;
 }
 
+/** A date and time input pair, pre-filled from an ISO timestamp in local time. */
+const localParts = (iso) => {
+  const d = new Date(iso);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString();
+  return { date: local.slice(0, 10), time: local.slice(11, 16) };
+};
+
 /**
  * Your own reports, in your profile. Different from the map list: it shows
- * every report you have filed, including ones that have aged off the map, and
- * says plainly how long each has left.
+ * every report you have filed, including ones that have aged off the map,
+ * says plainly how long each has left, and lets you fix what you wrote.
+ *
+ * Tapping the headline takes you to it on the map. Withdrawing asks first,
+ * in the page rather than through a browser confirm box, which on a phone is
+ * easy to dismiss without reading.
  */
-export function renderProfileReports(host, reports, categories, windowDays) {
+export function renderProfileReports(host, reports, categories, windowDays, { mine = true } = {}) {
   if (!reports.length) {
-    host.innerHTML = `<p class="empty-note">You have not filed a report yet.
-      When you do, it will live here — with what it collected, and how long it has left.</p>`;
+    host.innerHTML = `<p class="empty-note">${mine
+      ? 'You have not filed a report yet. When you do, it will live here — with what it collected, and how long it has left.'
+      : 'Nothing here yet.'}</p>`;
     return;
   }
   const byslug = new Map(categories.map(c => [c.slug, c]));
@@ -194,12 +206,44 @@ export function renderProfileReports(host, reports, categories, windowDays) {
     const daysLeft = Math.ceil((windowDays * 86400000 - ageMs) / 86400000);
     const live = daysLeft > 0;
     const flagged = Number(r.flag_count) > 0;
+    const when = localParts(r.happened_at);
+    const id = esc(r.id);
+
+    const actions = r.is_mine ? `
+      <div class="report-actions">
+        <button class="chip-action" data-edit="${id}">Edit</button>
+        <button class="chip-action" data-withdraw="${id}">Withdraw</button>
+      </div>
+      <div class="withdraw-confirm" data-confirm="${id}" hidden>
+        <span>Remove this from the map? It cannot be undone.</span>
+        <button class="chip-action is-danger" data-withdraw-yes="${id}">Yes, remove it</button>
+        <button class="chip-action" data-withdraw-no="${id}">Keep it</button>
+      </div>
+      <form class="edit-form" data-edit-form="${id}" hidden>
+        <label for="edit-headline-${id}">Headline</label>
+        <input id="edit-headline-${id}" name="headline" required minlength="8" maxlength="90"
+               value="${esc(r.headline)}" />
+        <label for="edit-description-${id}">What others should know</label>
+        <textarea id="edit-description-${id}" name="description" required rows="3"
+                  maxlength="1200">${esc(r.description ?? '')}</textarea>
+        <label class="edit-when-toggle">
+          <input type="checkbox" name="retime" /> Also correct when it happened
+        </label>
+        <div class="when-row" data-when hidden>
+          <input type="date" name="date" value="${esc(when.date)}" aria-label="Date it happened" />
+          <input type="time" name="time" value="${esc(when.time)}" aria-label="Time it happened" />
+        </div>
+        <div class="report-actions">
+          <button class="chip-action is-primary" type="submit">Save changes</button>
+          <button class="chip-action" type="button" data-edit-cancel="${id}">Cancel</button>
+        </div>
+      </form>` : '';
 
     return `
-      <article class="profile-report${live ? '' : ' is-expired'}" data-report="${esc(r.id)}">
+      <article class="profile-report${live ? '' : ' is-expired'}" data-report="${id}">
         <span class="report-glyph" aria-hidden="true">${esc(cat?.glyph ?? '⚠')}</span>
         <div class="report-copy">
-          <b>${esc(r.headline)}</b>
+          <button type="button" class="report-open" data-show="${id}">${esc(r.headline)}</button>
           <span class="report-meta">
             ${r.city ? esc(r.city) + ' · ' : ''}${esc(cat?.label ?? r.category)} · ${timeAgo(r.happened_at)}
           </span>
@@ -211,23 +255,34 @@ export function renderProfileReports(host, reports, categories, windowDays) {
             ${confirms ? `<span class="is-confirms">✓ ${confirms} confirmed</span>` : ''}
             ${flagged ? `<span class="is-flagged">⚑ ${r.flag_count} flagged</span>` : ''}
           </span>
-          <div class="report-actions">
-            <button class="chip-action" data-withdraw="${esc(r.id)}">Withdraw</button>
-          </div>
+          ${actions}
         </div>
       </article>`;
   }).join('');
 }
 
-export function renderProfileStats(host, { filed, live, received, given }) {
-  const tile = (n, label) =>
-    `<div class="stat-tile"><b>${n}</b><span>${esc(label)}</span></div>`;
+/** The four counts, each a button that filters the list below it. A number
+ *  you cannot act on is trivia; a number that shows you what it counted is a
+ *  way around your own reports. */
+export function renderProfileStats(host, { filed, live, received, given }, active = 'filed') {
+  const tile = (key, n, label) =>
+    `<button type="button" class="stat-tile${key === active ? ' is-active' : ''}"
+             data-stat="${key}" aria-pressed="${key === active}">
+       <b>${n}</b><span>${esc(label)}</span>
+     </button>`;
   host.innerHTML =
-    tile(filed, filed === 1 ? 'report filed' : 'reports filed') +
-    tile(live, 'on the map now') +
-    tile(received, 'confirmations received') +
-    tile(given, 'you have confirmed');
+    tile('filed', filed, filed === 1 ? 'report filed' : 'reports filed') +
+    tile('live', live, 'on the map now') +
+    tile('received', received, 'confirmations received') +
+    tile('given', given, 'you have confirmed');
 }
+
+export const STAT_TITLES = {
+  filed: 'Your reports',
+  live: 'Still on the map',
+  received: 'Reports others confirmed',
+  given: 'Reports you confirmed',
+};
 
 export function setGateNote(host, { mode, shown = 0, hiddenCount = 0, signedIn }) {
   if (signedIn) { host.hidden = true; return; }

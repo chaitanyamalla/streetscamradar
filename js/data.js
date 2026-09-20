@@ -180,6 +180,44 @@ export async function myReports() {
   return data ?? [];
 }
 
+/**
+ * Change the wording of your own report. Goes through a function because
+ * members have no UPDATE on the table — the same shape as withdrawing.
+ * happenedAt left out keeps the original time, which is the point: fixing a
+ * typo should not quietly move when the scam happened.
+ */
+export async function editMyReport(id, { headline, description, happenedAt = null }) {
+  need();
+  const { data, error } = await supabase.rpc('edit_my_report', {
+    p_report_id: id,
+    p_headline: headline.trim(),
+    p_description: description.trim(),
+    p_happened_at: happenedAt,
+  });
+  if (error) throw error;
+  if (data !== true) throw new Error('That report could not be edited.');
+  return true;
+}
+
+/** The reports you have confirmed, as far as you can still see them — one
+ *  that has aged off the map is gone for everyone but its author. */
+export async function myConfirmedReports() {
+  need();
+  const { data: supports, error } = await supabase
+    .from('report_supports').select('report_id');
+  if (error) throw error;
+  const ids = (supports ?? []).map(s => s.report_id);
+  if (!ids.length) return [];
+
+  const { data, error: err2 } = await supabase
+    .from('reports_feed')
+    .select('id,category,impacts,headline,description,lat,lng,address,city,country_code,happened_at,support_count,flag_count,is_mine')
+    .in('id', ids)
+    .order('happened_at', { ascending: false });
+  if (err2) throw err2;
+  return data ?? [];
+}
+
 /** How many other people's reports you have confirmed. RLS limits the rows
  *  here to your own, so no filter is needed — or possible. */
 export async function myConfirmationCount() {

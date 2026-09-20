@@ -331,14 +331,29 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   font-size:11px; font-weight:500; }
 
 .stat-row { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
+/* Each tile is a button: a number you cannot act on is trivia, a number that
+   shows you what it counted is a way around your own reports. */
 .stat-tile { padding:11px 9px; border:1px solid var(--line); border-radius:var(--radius);
-  background:var(--paper); text-align:center; }
+  background:var(--paper); text-align:center; cursor:pointer; font:inherit;
+  transition:border-color .12s, background .12s; }
+.stat-tile:hover { border-color:var(--brand); }
+.stat-tile.is-active { border-color:var(--brand); background:#f2f8f7; }
 .stat-tile b { display:block; font-size:19px; line-height:1.1; color:var(--brand); }
 .stat-tile span { display:block; margin-top:4px; color:var(--muted);
   font-size:10.5px; line-height:1.3; }
 
 #profile-signout { margin-top:10px; }
 .profile-section { margin-top:22px; padding-top:18px; border-top:1px solid var(--line); }
+.section-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+
+/* Click-to-open, so a form you rarely touch is one line until you want it. */
+.disclosure > summary { cursor:pointer; list-style:none; display:flex;
+  align-items:center; justify-content:space-between; gap:8px; }
+.disclosure > summary::-webkit-details-marker { display:none; }
+.disclosure > summary::after { content:"▾"; color:var(--muted); font-size:11px;
+  transition:transform .15s; }
+.disclosure[open] > summary::after { transform:rotate(180deg); }
+.disclosure > summary:hover { color:var(--brand); }
 .profile-section .block-title { margin:0 0 10px; }
 .inline-row { display:flex; gap:8px; align-items:stretch; }
 .inline-row input { flex:1; min-width:0; }
@@ -348,6 +363,39 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 .profile-report { display:flex; gap:11px; padding:11px 0; border-top:1px solid var(--line); }
 .profile-report:first-child { border-top:0; padding-top:0; }
 .profile-report.is-expired { opacity:0.66; }
+
+/* The headline takes you to it on the map. */
+.report-open { display:block; width:100%; padding:0; border:0; background:none;
+  color:inherit; font:800 13px/1.35 inherit; text-align:left; cursor:pointer; }
+.report-open:hover, .report-open:focus { color:var(--brand); text-decoration:underline; }
+
+.withdraw-confirm { display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+  margin-top:8px; padding:9px 10px; border:1px solid var(--line-strong);
+  border-radius:var(--radius); background:var(--paper); }
+.withdraw-confirm[hidden] { display:none; }
+.withdraw-confirm span { flex:1; min-width:150px; font-size:11.5px; font-weight:600; }
+.chip-action.is-danger { border-color:var(--danger); color:var(--danger); }
+.chip-action.is-danger:hover { background:var(--danger); color:#fff; }
+.chip-action.is-primary { border-color:var(--brand); background:var(--brand); color:#fff; }
+
+.edit-form { margin-top:9px; padding:11px; border:1px solid var(--line-strong);
+  border-radius:var(--radius); background:var(--paper); }
+.edit-form[hidden] { display:none; }
+.edit-form label { display:block; margin-top:9px; font-size:11px; font-weight:800;
+  color:var(--ink-2); }
+.edit-form label:first-child { margin-top:0; }
+.edit-form input[type="text"], .edit-form input:not([type]), .edit-form textarea,
+.edit-form input[type="date"], .edit-form input[type="time"] {
+  width:100%; margin-top:5px; padding:9px; border:1px solid var(--line-strong);
+  border-radius:4px; background:var(--surface); font-size:12.5px; font-family:inherit; }
+.edit-form textarea { resize:vertical; }
+.edit-when-toggle { display:flex; align-items:center; gap:7px; margin-top:11px;
+  font-size:11.5px; font-weight:600; color:var(--ink-2); cursor:pointer; }
+.edit-when-toggle input { accent-color:var(--brand); }
+.edit-form .when-row[hidden] { display:none; }
+.edit-form .when-row { margin-top:7px; }
+.edit-form .report-actions { margin-top:11px; }
+.report-actions[hidden] { display:none; }
 .profile-status { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;
   font-size:10.5px; font-weight:700; }
 .profile-status .is-live { color:var(--safe); }

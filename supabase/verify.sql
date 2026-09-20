@@ -11,7 +11,7 @@ with expected_tables(t) as (
 expected_funcs(f) as (
   values ('public_area_summary'),('public_sample_reports'),('delete_my_report'),
          ('setting_int'),('setting_num'),('report_window'),('handle_new_user'),
-         ('is_own_report')
+         ('is_own_report'),('edit_my_report')
 )
 select * from (
   select 1 as ord, 'tables created' as check,
@@ -37,8 +37,8 @@ select * from (
     from pg_policies where schemaname = 'public'
 
   union all
-  select 4, 'functions created', count(distinct p.proname) || ' of 8',
-         case when count(distinct p.proname) = 8 then 'PASS' else 'MISSING' end
+  select 4, 'functions created', count(distinct p.proname) || ' of 9',
+         case when count(distinct p.proname) = 9 then 'PASS' else 'MISSING' end
     from expected_funcs e
     join pg_proc p on p.proname = e.f
     join pg_namespace n on n.oid = p.pronamespace and n.nspname = 'public'

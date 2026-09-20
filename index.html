@@ -241,14 +241,18 @@
         </form>
 
         <section class="profile-section">
-          <p class="block-title">Your reports</p>
+          <div class="section-head">
+            <p class="block-title" id="reports-heading">Your reports</p>
+            <button type="button" class="chip-action" id="stat-back" hidden>← All reports</button>
+          </div>
           <div id="profile-reports" class="profile-reports">
             <p class="empty-note">Loading…</p>
           </div>
         </section>
 
-        <form id="profile-password-form" class="profile-section" method="dialog">
-          <p class="block-title">Change password</p>
+        <details class="profile-section disclosure" id="password-disclosure">
+          <summary class="block-title">Change password</summary>
+          <form id="profile-password-form" method="dialog">
           <label for="new-password">New password</label>
           <input id="new-password" type="password" required minlength="6"
                  autocomplete="new-password" placeholder="At least 6 characters" />
@@ -256,7 +260,8 @@
           <input id="new-password-again" type="password" required minlength="6"
                  autocomplete="new-password" placeholder="The same again" />
           <button class="primary-button wide" type="submit" id="save-password">Change password</button>
-        </form>
+          </form>
+        </details>
 
         <button class="ghost-button wide" type="button" id="profile-signout">Sign out</button>
       </div>

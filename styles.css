@@ -273,6 +273,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 .dialog-body input[type="email"], .dialog-body input[type="search"],
 .dialog-body input[type="text"], .dialog-body input:not([type]),
 .dialog-body input[type="date"], .dialog-body input[type="time"],
+.dialog-body input[type="password"],
 .dialog-body select, .dialog-body textarea {
   width:100%; margin-top:6px; padding:11px; border:1px solid var(--line-strong);
   border-radius:4px; background:var(--surface); font-size:13px; }
@@ -301,6 +302,38 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
    pickers and the 7-day range is enforced by the field itself. */
 .when-row { display:flex; gap:8px; }
 .when-row input { flex:1; min-width:0; }
+
+/* --- Profile dashboard ---------------------------------------------------
+   Your own corner of the site: what you filed, what it collected, and the two
+   settings that are actually yours to change. */
+.profile-identity { margin:0 0 16px; font-size:13px; font-weight:700; }
+.profile-since { display:block; margin-top:2px; color:var(--muted);
+  font-size:11px; font-weight:500; }
+
+.stat-row { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
+.stat-tile { padding:11px 9px; border:1px solid var(--line); border-radius:var(--radius);
+  background:var(--paper); text-align:center; }
+.stat-tile b { display:block; font-size:19px; line-height:1.1; color:var(--brand); }
+.stat-tile span { display:block; margin-top:4px; color:var(--muted);
+  font-size:10.5px; line-height:1.3; }
+
+#profile-signout { margin-top:10px; }
+.profile-section { margin-top:22px; padding-top:18px; border-top:1px solid var(--line); }
+.profile-section .block-title { margin:0 0 10px; }
+.inline-row { display:flex; gap:8px; align-items:stretch; }
+.inline-row input { flex:1; min-width:0; }
+.inline-row .ghost-button { flex:none; margin-top:6px; }
+
+.profile-reports { max-height:320px; overflow:auto; }
+.profile-report { display:flex; gap:11px; padding:11px 0; border-top:1px solid var(--line); }
+.profile-report:first-child { border-top:0; padding-top:0; }
+.profile-report.is-expired { opacity:0.66; }
+.profile-status { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;
+  font-size:10.5px; font-weight:700; }
+.profile-status .is-live { color:var(--safe); }
+.profile-status .is-gone { color:var(--muted); }
+.profile-status .is-confirms { color:var(--pin-deep); }
+.profile-status .is-flagged { color:var(--danger); }
 
 .location-block { margin-top:18px; padding:13px; border:1px solid var(--line);
   border-radius:var(--radius); background:var(--paper); }
@@ -407,6 +440,10 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   .cat-chip { padding:8px 12px 8px 9px; font-size:12px; }
   .chip-action { padding:6px 12px; font-size:11.5px; }
   .close-button { width:44px; height:44px; }
+
+  /* Four stat tiles will not fit a phone; two rows of two read fine. */
+  .stat-row { grid-template-columns:repeat(2, 1fr); }
+  .profile-reports { max-height:none; }
 
   /* 16px keeps iOS Safari from zooming the page when a field is focused. */
   .place-search input, .dialog-body input, .dialog-body select,

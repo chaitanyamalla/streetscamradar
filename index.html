@@ -39,6 +39,7 @@
       </nav>
 
       <div class="top-actions">
+        <button class="ghost-button" id="profile-button" type="button" hidden>My profile</button>
         <button class="ghost-button" id="auth-button" type="button">Sign in</button>
         <button class="primary-button" id="open-report" type="button">
           <span aria-hidden="true">＋</span> Report a scam
@@ -203,6 +204,54 @@
           We store your email address and the reports you file. Your name is never
           attached to a report shown on the map.
         </p>
+      </div>
+    </dialog>
+
+    <!-- ---------------------------------------------------------------- -->
+    <dialog id="profile-dialog" aria-labelledby="profile-title">
+      <div class="dialog-body">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">Your account</p>
+            <h2 id="profile-title">Your profile</h2>
+          </div>
+          <button class="close-button" data-close="profile-dialog" type="button" aria-label="Close">×</button>
+        </div>
+
+        <p class="profile-identity">
+          <span id="profile-email">—</span>
+          <span class="profile-since" id="profile-since"></span>
+        </p>
+
+        <div class="stat-row" id="profile-stats"></div>
+
+        <form id="name-form" class="profile-section" method="dialog">
+          <label for="profile-name">Display name</label>
+          <div class="inline-row">
+            <input id="profile-name" maxlength="40" placeholder="Optional — only you see this for now" />
+            <button class="ghost-button small" type="submit">Save</button>
+          </div>
+        </form>
+
+        <section class="profile-section">
+          <p class="block-title">Your reports</p>
+          <div id="profile-reports" class="profile-reports">
+            <p class="empty-note">Loading…</p>
+          </div>
+        </section>
+
+        <form id="profile-password-form" class="profile-section" method="dialog">
+          <p class="block-title">Change password</p>
+          <label for="new-password">New password</label>
+          <input id="new-password" type="password" required minlength="6"
+                 autocomplete="new-password" placeholder="At least 6 characters" />
+          <label for="new-password-again">Repeat it</label>
+          <input id="new-password-again" type="password" required minlength="6"
+                 autocomplete="new-password" placeholder="The same again" />
+          <button class="primary-button wide" type="submit" id="save-password">Change password</button>
+        </form>
+
+        <button class="ghost-button wide" type="button" id="profile-signout">Sign out</button>
       </div>
     </dialog>
 

@@ -154,6 +154,43 @@ export async function getProfile() {
   return data ?? null;
 }
 
+export async function saveDisplayName(name) {
+  need();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('You need to be signed in.');
+  const { error } = await supabase.from('profiles')
+    .update({ display_name: name || null }).eq('id', user.id);
+  if (error) throw error;
+}
+
+/**
+ * Everything you have filed, newest first — including reports that have aged
+ * past the 7-day window. reports_feed keeps your own rows visible to you
+ * whatever their age, which is the whole reason you can still find them here
+ * after they have come off the map.
+ */
+export async function myReports() {
+  need();
+  const { data, error } = await supabase
+    .from('reports_feed')
+    .select('id,category,impacts,headline,description,lat,lng,address,city,country_code,happened_at,created_at,support_count,flag_count,is_mine')
+    .eq('is_mine', true)
+    .order('happened_at', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** How many other people's reports you have confirmed. RLS limits the rows
+ *  here to your own, so no filter is needed — or possible. */
+export async function myConfirmationCount() {
+  need();
+  const { count, error } = await supabase
+    .from('report_supports')
+    .select('report_id', { count: 'exact', head: true });
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function saveHomeArea({ label, lat, lng }) {
   need();
   const { data: { user } } = await supabase.auth.getUser();

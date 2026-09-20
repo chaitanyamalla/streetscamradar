@@ -174,6 +174,61 @@ export function safetyPopupHTML(props) {
     <p class="popup-meta">via OpenStreetMap</p>`;
 }
 
+/**
+ * Your own reports, in your profile. Different from the map list: it shows
+ * every report you have filed, including ones that have aged off the map, and
+ * says plainly how long each has left.
+ */
+export function renderProfileReports(host, reports, categories, windowDays) {
+  if (!reports.length) {
+    host.innerHTML = `<p class="empty-note">You have not filed a report yet.
+      When you do, it will live here — with what it collected, and how long it has left.</p>`;
+    return;
+  }
+  const byslug = new Map(categories.map(c => [c.slug, c]));
+
+  host.innerHTML = reports.map(r => {
+    const cat = byslug.get(r.category);
+    const confirms = Number(r.support_count) || 0;
+    const ageMs = Date.now() - new Date(r.happened_at).getTime();
+    const daysLeft = Math.ceil((windowDays * 86400000 - ageMs) / 86400000);
+    const live = daysLeft > 0;
+    const flagged = Number(r.flag_count) > 0;
+
+    return `
+      <article class="profile-report${live ? '' : ' is-expired'}" data-report="${esc(r.id)}">
+        <span class="report-glyph" aria-hidden="true">${esc(cat?.glyph ?? '⚠')}</span>
+        <div class="report-copy">
+          <b>${esc(r.headline)}</b>
+          <span class="report-meta">
+            ${r.city ? esc(r.city) + ' · ' : ''}${esc(cat?.label ?? r.category)} · ${timeAgo(r.happened_at)}
+          </span>
+          ${impactTags(r.impacts)}
+          <span class="profile-status">
+            <span class="${live ? 'is-live' : 'is-gone'}">${live
+              ? `On the map · ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left`
+              : 'Off the map — older than ' + windowDays + ' days'}</span>
+            ${confirms ? `<span class="is-confirms">✓ ${confirms} confirmed</span>` : ''}
+            ${flagged ? `<span class="is-flagged">⚑ ${r.flag_count} flagged</span>` : ''}
+          </span>
+          <div class="report-actions">
+            <button class="chip-action" data-withdraw="${esc(r.id)}">Withdraw</button>
+          </div>
+        </div>
+      </article>`;
+  }).join('');
+}
+
+export function renderProfileStats(host, { filed, live, received, given }) {
+  const tile = (n, label) =>
+    `<div class="stat-tile"><b>${n}</b><span>${esc(label)}</span></div>`;
+  host.innerHTML =
+    tile(filed, filed === 1 ? 'report filed' : 'reports filed') +
+    tile(live, 'on the map now') +
+    tile(received, 'confirmations received') +
+    tile(given, 'you have confirmed');
+}
+
 export function setGateNote(host, { mode, shown = 0, hiddenCount = 0, signedIn }) {
   if (signedIn) { host.hidden = true; return; }
   host.hidden = false;

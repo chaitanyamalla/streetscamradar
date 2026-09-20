@@ -9,14 +9,16 @@
 import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS, SAFETY_MIN_ZOOM } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
+         myReports, myConfirmationCount, getProfile, saveDisplayName,
          supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
-         signInWithGoogle, signOut, enabledProviders } from './js/auth.js';
+         signInWithGoogle, signOut, enabledProviders, changePassword } from './js/auth.js';
 import { searchPlaces, describePoint, locateMe } from './js/geo.js';
 import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
          maplibregl } from './js/map.js';
-import { esc, toast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML, setGateNote } from './js/ui.js';
+import { esc, toast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
+         setGateNote, renderProfileReports, renderProfileStats } from './js/ui.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -113,6 +115,50 @@ function paintAuthState() {
   const btn = $('#auth-button');
   btn.textContent = signedIn() ? 'Sign out' : 'Sign in';
   btn.setAttribute('title', signedIn() ? state.user.email ?? 'Signed in' : 'Sign in or create an account');
+  $('#profile-button').hidden = !signedIn();
+}
+
+// ---------------------------------------------------------------------------
+// Profile
+//
+// Your own corner of the site: what you have filed, what it collected, and the
+// two settings that are actually yours to change. It reads reports_feed the
+// same way the map does — which is why reports that have aged off the map are
+// still here, since that view keeps your own rows visible to you whatever
+// their age.
+// ---------------------------------------------------------------------------
+async function openProfile() {
+  const dialog = $('#profile-dialog');
+  $('#profile-email').textContent = state.user?.email ?? 'Signed in';
+  $('#profile-reports').innerHTML = '<p class="empty-note">Loading…</p>';
+  $('#profile-stats').innerHTML = '';
+  dialog.showModal();
+  await loadProfile();
+}
+
+async function loadProfile() {
+  try {
+    const [reports, given, profile] = await Promise.all([
+      myReports(), myConfirmationCount(), getProfile(),
+    ]);
+
+    const cutoff = Date.now() - REPORT_WINDOW_DAYS * 86400000;
+    const live = reports.filter(r => new Date(r.happened_at).getTime() > cutoff).length;
+    const received = reports.reduce((sum, r) => sum + (Number(r.support_count) || 0), 0);
+
+    renderProfileStats($('#profile-stats'), { filed: reports.length, live, received, given });
+    renderProfileReports($('#profile-reports'), reports, state.categories, REPORT_WINDOW_DAYS);
+
+    $('#profile-name').value = profile?.display_name ?? '';
+    const since = profile?.created_at ?? state.user?.created_at;
+    $('#profile-since').textContent = since
+      ? `Member since ${new Date(since).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`
+      : '';
+  } catch (err) {
+    console.error(err);
+    $('#profile-reports').innerHTML =
+      '<p class="empty-note">Could not load your reports right now.</p>';
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -449,6 +495,64 @@ function wireUI() {
   $('#auth-button').addEventListener('click', async () => {
     if (signedIn()) { await signOut(); toast('Signed out.'); }
     else $('#auth-dialog').showModal();
+  });
+
+  // --- profile
+  $('#profile-button').addEventListener('click', openProfile);
+
+  $('#profile-signout').addEventListener('click', async () => {
+    $('#profile-dialog').close();
+    await signOut();
+    toast('Signed out.');
+  });
+
+  // Withdrawing from the profile has to refresh both the list you are looking
+  // at and the map behind it.
+  $('#profile-reports').addEventListener('click', async e => {
+    const button = e.target.closest('[data-withdraw]');
+    if (!button) return;
+    if (!confirm('Remove this report from the map? This cannot be undone.')) return;
+    button.disabled = true;
+    try {
+      await withdrawReport(button.dataset.withdraw);
+      toast('Your report has been withdrawn.');
+      await Promise.all([loadProfile(), refresh()]);
+    } catch (err) {
+      button.disabled = false;
+      toast(err.message, { error: true });
+    }
+  });
+
+  $('#name-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    try {
+      await saveDisplayName($('#profile-name').value.trim());
+      toast('Name saved.');
+    } catch (err) {
+      toast(err.message, { error: true });
+    }
+  });
+
+  // Not '#password-form': the sign-in dialog already owns that id, and
+  // querySelector would hand back its form instead of this one.
+  $('#profile-password-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const first = $('#new-password').value;
+    const again = $('#new-password-again').value;
+    if (first !== again) { toast('Those two do not match.', { error: true }); return; }
+
+    const button = $('#save-password');
+    button.disabled = true; button.textContent = 'Saving…';
+    try {
+      await changePassword(first);
+      $('#new-password').value = '';
+      $('#new-password-again').value = '';
+      toast('Password changed. It works from your next sign-in.');
+    } catch (err) {
+      toast(err.message, { error: true });
+    } finally {
+      button.disabled = false; button.textContent = 'Change password';
+    }
   });
 
   // Password sign-in sends no email, so it works regardless of the project's

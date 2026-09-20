@@ -122,6 +122,16 @@ export async function signInWithGoogle() {
   if (error) throw friendly(error);
 }
 
+/**
+ * Change the password on the signed-in account. Supabase checks the session,
+ * not the old password, so this only ever works for whoever is already here.
+ */
+export async function changePassword(password) {
+  if (!supabase) throw new Error('Supabase is not configured yet.');
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw friendly(error);
+}
+
 export async function signOut() {
   if (!supabase) return;
   await supabase.auth.signOut();

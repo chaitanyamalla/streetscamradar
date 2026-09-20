@@ -268,11 +268,7 @@ function showReportOnMap(id) {
   if (!report) return;
   leaveDialogForPage('#profile-dialog');
   map.flyTo({ center: [report.lng, report.lat], zoom: Math.max(map.getZoom(), 15), duration: 700 });
-  openPopup?.remove();
-  openPopup = new maplibregl.Popup({ offset: 16, closeButton: true, maxWidth: '300px', className: 'report-popup' })
-    .setLngLat([report.lng, report.lat])
-    .setHTML(popupHTML(report, state.categories))
-    .addTo(map);
+  showPopup([report.lng, report.lat], popupHTML(report, state.categories));
 }
 
 // ---------------------------------------------------------------------------
@@ -345,6 +341,38 @@ async function refreshSafety() {
     status.textContent = 'Could not load these right now';
     status.classList.add('is-warning');
   }
+}
+
+/**
+ * Open an info window on the map.
+ *
+ * On a phone the window kept opening past the edge of the map, so you had to
+ * drag before you could read it. MapLibre picks which side to open on from the
+ * room available at that instant, and a pin near an edge has room on neither.
+ * So on a narrow screen the map moves the pin into view first — a little below
+ * centre, which leaves the taller half of the map above it for the window —
+ * and the window is narrower there too, because a phone has less to spare.
+ *
+ * On a wide screen nothing moves: there is room wherever it opens, and moving
+ * the map under someone who did not ask is its own annoyance.
+ */
+const narrowScreen = () => window.matchMedia('(max-width: 900px)').matches;
+
+function showPopup(lngLat, html) {
+  openPopup?.remove();
+  const narrow = narrowScreen();
+  if (narrow) map.easeTo({ center: lngLat, offset: [0, 60], duration: 320 });
+
+  openPopup = new maplibregl.Popup({
+    offset: 16,
+    closeButton: true,
+    maxWidth: narrow ? '248px' : '300px',
+    className: 'report-popup',
+  })
+    .setLngLat(lngLat)
+    .setHTML(html)
+    .addTo(map);
+  return openPopup;
 }
 
 // ---------------------------------------------------------------------------
@@ -495,11 +523,7 @@ function onMapClick(e) {
     ? safetyPopupHTML(hit.properties)
     : popupHTML(hit.properties, state.categories);
 
-  openPopup?.remove();
-  openPopup = new maplibregl.Popup({ offset: 16, closeButton: true, maxWidth: '300px', className: 'report-popup' })
-    .setLngLat(hit.geometry.coordinates)
-    .setHTML(html)
-    .addTo(map);
+  showPopup(hit.geometry.coordinates, html);
 }
 
 function startPicking() {
@@ -642,11 +666,7 @@ function wireUI() {
       const report = state.lastFetch.reports.find(x => String(x.id) === entry.dataset.report);
       if (report) {
         map.flyTo({ center: [report.lng, report.lat], zoom: Math.max(map.getZoom(), 15), duration: 700 });
-        openPopup?.remove();
-        openPopup = new maplibregl.Popup({ offset: 16, closeButton: true, maxWidth: '300px', className: 'report-popup' })
-          .setLngLat([report.lng, report.lat])
-          .setHTML(popupHTML(report, state.categories))
-          .addTo(map);
+        showPopup([report.lng, report.lat], popupHTML(report, state.categories));
       }
       return;
     }

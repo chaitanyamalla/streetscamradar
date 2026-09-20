@@ -527,6 +527,19 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   .chip-action { padding:6px 12px; font-size:11.5px; }
   .close-button { width:44px; height:44px; }
 
+  /* Info windows: smaller, and capped so a long one scrolls inside itself
+     rather than running off the map. The map also centres the pin before
+     opening one — see showPopup in app.js — so it has room either side. */
+  .maplibregl-popup-content { padding:11px 12px; max-height:48vh; overflow:auto; }
+  .popup-title { font-size:13px; }
+  .popup-kicker { font-size:9.5px; }
+  .popup-glyph { width:30px; height:30px; font-size:14px; }
+  .popup-body { margin-top:8px; font-size:11.5px; line-height:1.5; }
+  .popup-meta { margin-top:8px; padding-top:7px; font-size:10.5px; }
+  .popup-actions { margin-top:9px; gap:6px; }
+  .popup-action { padding:6px 10px; font-size:11px; }
+  .impact-tag { font-size:10px; }
+
   /* On a phone the bar spans the width and drops the lead-in, so the numbers
      themselves get the room. */
   .emergency-bar { left:8px; right:8px; bottom:8px; max-width:none;

@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       extra_areas:
-        description: 'Optional extra "lat,lng" centres, semicolon separated'
+        description: 'Optional extra areas: "lat,lng" or "City,cc,lat,lng", semicolon separated'
         required: false
         default: ''
         type: string
@@ -88,18 +88,22 @@ jobs:
           cat resolved.env >> "$GITHUB_ENV"
           rm -f resolved.env
 
-      # One centre per ~11km cell that has reports, so overlapping reports in
-      # one city do not each trigger their own Overpass query.
+      # One row per city that has reports. Coordinates are the average of its
+      # reports and are only used to sanity-check the city lookup, or as a
+      # fallback centre when the name cannot be resolved — they are no longer
+      # the search centre, which is what made coverage a small offset disc.
       - name: Work out which areas need data
         env:
           PGURL: ${{ env.PGURL_FINAL }}
           EXTRA: ${{ inputs.extra_areas }}
         run: |
           psql "$PGURL" -tAF',' -v ON_ERROR_STOP=1 -c "
-            select distinct round(lat::numeric, 1), round(lng::numeric, 1)
+            select coalesce(city, ''), coalesce(country_code, ''),
+                   round(avg(lat)::numeric, 4), round(avg(lng)::numeric, 4)
               from public.reports
              where status = 'published'
-             order by 1, 2;" > areas.csv
+             group by city, country_code
+             order by 1;" > areas.csv
           if [ -n "$EXTRA" ]; then
             echo "$EXTRA" | tr ';' '\n' >> areas.csv
           fi

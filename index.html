@@ -78,14 +78,20 @@
           <button id="zoom-out" class="icon-button" type="button" aria-label="Zoom out">−</button>
         </div>
 
-        <section class="filter-panel" aria-label="Filter the map">
-          <div class="panel-heading">
-            <span>Filter by type</span>
-            <button id="reset-filters" type="button">Reset</button>
-          </div>
+        <!-- A details element so it collapses to a single row on a phone,
+             where the map matters more than the controls. Kept open on wider
+             screens by a media-query listener in app.js. -->
+        <details class="filter-panel" id="filter-panel">
+          <summary class="panel-heading">
+            <span>Filter the map</span>
+            <span class="panel-chevron" aria-hidden="true">⌄</span>
+          </summary>
 
           <div class="filter-section category-section">
-            <p class="filter-title">Kind of scam</p>
+            <p class="filter-title">
+              Kind of scam
+              <button id="reset-filters" type="button">Reset</button>
+            </p>
             <div id="category-filters" class="category-filters"><p class="muted-note">Loading…</p></div>
           </div>
 
@@ -98,7 +104,7 @@
             </label>
             <p class="muted-note" id="safety-status">Zoom into a city to see these</p>
           </div>
-        </section>
+        </details>
 
         <aside class="reports-card" aria-label="Reports in view">
           <div class="reports-head">

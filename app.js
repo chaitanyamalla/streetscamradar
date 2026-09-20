@@ -349,6 +349,14 @@ function wireUI() {
     chip.setAttribute('aria-pressed', String(!on));
     draw();
   });
+  // The filter panel is a <details>: collapsed on a phone so the map gets the
+  // room, always open on a wider screen where there is space for both.
+  const filterPanel = $('#filter-panel');
+  const roomForFilters = window.matchMedia('(min-width: 901px)');
+  const syncFilterPanel = () => { filterPanel.open = roomForFilters.matches; };
+  syncFilterPanel();
+  roomForFilters.addEventListener('change', syncFilterPanel);
+
   $('#safety-toggle').addEventListener('change', e => {
     state.safetyOn = e.target.checked;
     setSafetyVisible(map, state.safetyOn);

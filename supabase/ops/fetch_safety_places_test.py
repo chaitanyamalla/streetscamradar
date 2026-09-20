@@ -160,6 +160,22 @@ check("a country with no subdivisions falls back to one country-wide query",
 check("the fallback is still an area query", "map_to_area" in country_query)
 check("the fallback still returns places", "Politiebureau Amsterdam-Centrum" in sql)
 
+# One subdivision at a time, so a country can go in chunks.
+def one_state(query):
+    if '"DE-BY"' in query:
+        return {"elements": [bounds_of(1),
+                             place(1, "police", "Polizeiinspektion Muenchen", 48.1, 11.6)]}
+    return {"elements": []}
+
+
+install_overpass(one_state)
+sql, log, code = run(["country:DE-BY"], prune=True)
+check("a subdivision can be asked for on its own, with no discovery query",
+      len(QUERIES) == 1 and '"ISO3166-2"="DE-BY"' in QUERIES[0][0], str(len(QUERIES)))
+check("and it prunes its own ground like any other area",
+      "delete from public.safety_places" in sql and "country_code = 'DE'" in sql, sql)
+check("its places load", "Polizeiinspektion Muenchen" in sql)
+
 install_overpass(german_handler)
 sql, log, code = run(["country:XYZ", "country:D", "country:12"])
 check("a malformed country code is skipped, not queried",

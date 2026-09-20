@@ -7,11 +7,11 @@
 // not this file's.
 // ---------------------------------------------------------------------------
 import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS,
-         SAFETY_MIN_ZOOM, EMERGENCY_MIN_ZOOM } from './js/config.js';
+         REPORT_MOVE_WINDOW_HOURS, SAFETY_MIN_ZOOM, EMERGENCY_MIN_ZOOM } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, myConfirmedReports, editMyReport,
-         getProfile, saveDisplayName, supabase } from './js/data.js';
+         deleteMyAccount, getProfile, saveDisplayName, supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
          signInWithGoogle, signOut, enabledProviders, changePassword } from './js/auth.js';
 import { searchPlaces, describePoint, locateMe } from './js/geo.js';
@@ -243,7 +243,8 @@ function paintProfileList() {
   $('#reports-heading').textContent = STAT_TITLES[profile.filter];
   $('#stat-back').hidden = profile.filter === 'filed';
   renderProfileReports($('#profile-reports'), reportsForFilter(),
-    state.categories, REPORT_WINDOW_DAYS, { mine: profile.filter !== 'given' });
+    state.categories, REPORT_WINDOW_DAYS,
+    { mine: profile.filter !== 'given', moveWindowHours: REPORT_MOVE_WINDOW_HOURS });
 }
 
 async function showStat(key) {
@@ -686,6 +687,32 @@ function wireUI() {
   // --- profile
   $('#profile-button').addEventListener('click', openProfile);
 
+  // Typing DELETE is the guard. A button this final should take more than a
+  // mis-tap, and a second "are you sure" is just another thing to tap through.
+  const deleteButton = $('#delete-account');
+  const deleteField = $('#delete-confirm');
+  const syncDeleteButton = () => {
+    deleteButton.disabled = deleteField.value.trim().toUpperCase() !== 'DELETE';
+  };
+  syncDeleteButton();
+  deleteField.addEventListener('input', syncDeleteButton);
+
+  deleteButton.addEventListener('click', async () => {
+    if (deleteField.value.trim().toUpperCase() !== 'DELETE') return;
+    deleteButton.disabled = true; deleteButton.textContent = 'Closing…';
+    try {
+      await deleteMyAccount();
+      $('#profile-dialog').close();
+      await signOut();
+      toast('Your account and reports have been removed.');
+      await refresh();
+    } catch (err) {
+      deleteButton.textContent = 'Close my account permanently';
+      syncDeleteButton();
+      toast(err.message, { error: true });
+    }
+  });
+
   $('#profile-signout').addEventListener('click', async () => {
     $('#profile-dialog').close();
     await signOut();
@@ -735,6 +762,49 @@ function wireUI() {
       return;
     }
 
+    // Your confirmation on somebody else's report is the one thing there that
+    // is yours, so it is the one thing you can take back.
+    const unconfirm = e.target.closest('[data-unconfirm]');
+    if (unconfirm) {
+      unconfirm.disabled = true;
+      try {
+        const id = unconfirm.dataset.unconfirm;
+        await removeSupport(id);
+        state.supported.delete(id);
+        profile.confirmed = null;
+        await Promise.all([loadProfile().then(() => showStat('given')), refresh()]);
+        toast('Confirmation removed.');
+      } catch (err) {
+        unconfirm.disabled = false;
+        toast(err.message, { error: true });
+      }
+      return;
+    }
+
+    const find = e.target.closest('[data-find]');
+    if (find) {
+      const form = entryOf(find.dataset.find).querySelector('[data-edit-form]');
+      const status = form.querySelector('[data-pin-status]');
+      const query = form.querySelector('input[name="address"]').value.trim();
+      if (!query) { toast('Type an address first.', { error: true }); return; }
+      status.textContent = 'Looking…';
+      try {
+        const [place] = await searchPlaces(query, 1);
+        if (!place) { status.textContent = 'Could not find that address.'; return; }
+        const detail = await describePoint(place.lat, place.lng);
+        form.dataset.lat = place.lat;
+        form.dataset.lng = place.lng;
+        form.dataset.city = detail.city ?? '';
+        form.dataset.country = detail.countryCode ?? '';
+        form.dataset.label = detail.address ?? place.label ?? query;
+        status.textContent = `Will move to ${form.dataset.label}`;
+        status.classList.add('is-set');
+      } catch (err) {
+        status.textContent = err.message;
+      }
+      return;
+    }
+
     const edit = e.target.closest('[data-edit]');
     if (edit) {
       const entry = entryOf(edit.dataset.edit);
@@ -754,6 +824,8 @@ function wireUI() {
   $('#profile-reports').addEventListener('change', e => {
     const retime = e.target.closest('input[name="retime"]');
     if (retime) retime.closest('form').querySelector('[data-when]').hidden = !retime.checked;
+    const remove = e.target.closest('input[name="remove"]');
+    if (remove) remove.closest('form').querySelector('[data-where]').hidden = !remove.checked;
   });
 
   $('#profile-reports').addEventListener('submit', async e => {
@@ -779,6 +851,21 @@ function wireUI() {
       happenedAt = when.toISOString();
     }
 
+    // Only moves if you ticked the box and actually found somewhere.
+    let place = null;
+    if (data.get('remove')) {
+      if (!form.dataset.lat) {
+        toast('Press Find to choose the new place first.', { error: true });
+        return;
+      }
+      place = {
+        lat: Number(form.dataset.lat), lng: Number(form.dataset.lng),
+        address: form.dataset.label || null,
+        city: form.dataset.city || null,
+        countryCode: form.dataset.country || null,
+      };
+    }
+
     const button = form.querySelector('button[type="submit"]');
     button.disabled = true; button.textContent = 'Saving…';
     try {
@@ -786,6 +873,7 @@ function wireUI() {
         headline: data.get('headline'),
         description: data.get('description'),
         happenedAt,
+        place,
       });
       toast('Report updated.');
       await Promise.all([loadProfile(), refresh()]);

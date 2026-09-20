@@ -8,11 +8,12 @@ network access to reach Overpass. Reads areas on stdin and writes SQL to
 stdout, so the exact statements can be read in the job log before they touch
 the database. Nothing here talks to the database.
 
-Three kinds of line are understood:
+Four kinds of line are understood:
 
   city,country_code,lat,lng   one city that has scam reports
   lat,lng                     an ad-hoc point, covered by a radius
   country:DE                  an entire country
+  country:DE-BY               one subdivision of it, for running in chunks
 
 Cities are covered per CITY, not per point. An earlier version searched a 5km
 radius around report coordinates rounded to 0.1 degrees, which displaced the
@@ -219,6 +220,24 @@ def subdivision_codes(cc):
     return sorted(codes)
 
 
+def subdivision_area(code):
+    """One named subdivision, e.g. country:DE-BY.
+
+    A whole country is sixteen heavy queries in one job, and against a
+    congested Overpass that is a long run with plenty of chances to lose an
+    area. Naming subdivisions lets the same work go in chunks, each pruning its
+    own ground as it lands.
+    """
+    cc = code.split("-")[0].upper()
+    query = (f"[out:json][timeout:{REGION['timeout']}];"
+             + f'rel["ISO3166-2"="{code.upper()}"]["admin_level"="4"]->.r;'
+             + '.r out ids bb;'
+             + '.r map_to_area->.a;'
+             + AMENITY.replace("{scope}", "(area.a)")
+             + f"out center {REGION['cap']};")
+    return Area(code.upper(), query, REGION, cc)
+
+
 def country_areas(cc):
     """
     One Area per subdivision, or a single country-wide Area as a fallback.
@@ -262,11 +281,14 @@ def plan(lines):
         if not line or line.startswith("#"):
             continue
         if line.lower().startswith("country:"):
-            cc = line.split(":", 1)[1].strip()
-            if len(cc) != 2 or not cc.isalpha():
+            code = line.split(":", 1)[1].strip()
+            if re.fullmatch(r"[A-Za-z]{2}-[A-Za-z0-9]{1,3}", code):
+                areas.append(subdivision_area(code))
+                continue
+            if len(code) != 2 or not code.isalpha():
                 print(f"-- skipping bad country code: {line!r}", file=sys.stderr)
                 continue
-            areas.extend(country_areas(cc))
+            areas.extend(country_areas(code))
             continue
         parts = line.split(",")
         try:

@@ -36,6 +36,7 @@ create table if not exists public.app_settings (
 insert into public.app_settings (key, value, note) values
   ('report_window_days',       '7',      'How many days back a report stays visible.'),
   ('auto_hide_flag_threshold', '999999', 'Flags before a report auto-hides. Set to 2 to switch community moderation on.'),
+  ('report_move_window_hours', '24',     'How long after filing a report its author may still move it.'),
   ('public_sample_limit',      '5',      'Max reports a signed-out visitor sees when zoomed in.'),
   ('public_detail_max_span',   '0.35',   'Signed-out visitors see individual reports only when the map spans fewer degrees than this.')
 on conflict (key) do nothing;
@@ -244,13 +245,31 @@ grant execute on function public.delete_my_report(uuid) to authenticated;
 -- correcting a typo should not quietly move when the scam happened. Given, it
 -- must still be a time the report could have been filed with in the first
 -- place: not in the future, and not older than the window.
+-- Where it happened can be corrected too, but only for a day. Somebody who
+-- mis-tapped the map should be able to fix it; a report that could still be
+-- moved a week later, after people had confirmed it, would let a confirmed
+-- warning be relocated to somewhere nobody had ever confirmed.
+create or replace function public.report_move_window()
+returns interval language sql stable as $$
+  select make_interval(hours => public.setting_int('report_move_window_hours', 24));
+$$;
+
+drop function if exists public.edit_my_report(uuid, text, text, timestamptz);
 create or replace function public.edit_my_report(
-  p_report_id   uuid,
-  p_headline    text,
-  p_description text,
-  p_happened_at timestamptz default null
+  p_report_id    uuid,
+  p_headline     text,
+  p_description  text,
+  p_happened_at  timestamptz default null,
+  p_lat          double precision default null,
+  p_lng          double precision default null,
+  p_address      text default null,
+  p_city         text default null,
+  p_country_code text default null
 ) returns boolean language plpgsql security definer set search_path = public as $$
-declare changed int;
+declare
+  changed int;
+  filed   timestamptz;
+  moving  boolean := p_lat is not null and p_lng is not null;
 begin
   if auth.uid() is null then
     raise exception 'sign in required';
@@ -264,10 +283,33 @@ begin
     end if;
   end if;
 
+  select created_at into filed
+    from public.reports
+   where id = p_report_id and reporter_id = auth.uid();
+  if filed is null then
+    return false;                       -- not yours, or not there
+  end if;
+
+  if moving then
+    if filed <= now() - public.report_move_window() then
+      raise exception 'a report can only be moved in its first %',
+        public.report_move_window();
+    end if;
+    if p_lat not between -90 and 90 or p_lng not between -180 and 180 then
+      raise exception 'that is not a place';
+    end if;
+  end if;
+
   update public.reports r
-     set headline    = btrim(p_headline),
-         description = btrim(p_description),
-         happened_at = coalesce(p_happened_at, r.happened_at)
+     set headline     = btrim(p_headline),
+         description  = btrim(p_description),
+         happened_at  = coalesce(p_happened_at, r.happened_at),
+         lat          = case when moving then p_lat else r.lat end,
+         lng          = case when moving then p_lng else r.lng end,
+         address      = case when moving then p_address else r.address end,
+         city         = case when moving then p_city else r.city end,
+         country_code = case when moving then upper(nullif(btrim(p_country_code), ''))
+                             else r.country_code end
    where r.id = p_report_id
      and r.reporter_id = auth.uid();
   get diagnostics changed = row_count;
@@ -275,8 +317,34 @@ begin
 end;
 $$;
 
-revoke all on function public.edit_my_report(uuid, text, text, timestamptz) from public, anon;
-grant execute on function public.edit_my_report(uuid, text, text, timestamptz) to authenticated;
+revoke all on function public.edit_my_report(uuid, text, text, timestamptz, double precision, double precision, text, text, text) from public, anon;
+grant execute on function public.edit_my_report(uuid, text, text, timestamptz, double precision, double precision, text, text, text) to authenticated;
+
+-- Close your account. SECURITY DEFINER because nothing the browser holds may
+-- touch auth.users.
+--
+-- Your reports go with it. The alternative — auth.users' ON DELETE SET NULL
+-- leaving them behind — would both keep your words on the map after you asked
+-- to leave and collide with the one thing reporter_id IS NULL means here,
+-- which is seeded demo data that ops scripts delete on sight.
+--
+-- Confirmations and flags you left on other people's reports cascade from
+-- auth.users, and the counters correct themselves through their triggers.
+create or replace function public.delete_my_account()
+returns boolean language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+  if uid is null then
+    raise exception 'sign in required';
+  end if;
+  delete from public.reports where reporter_id = uid;
+  delete from auth.users where id = uid;
+  return true;
+end;
+$$;
+
+revoke all on function public.delete_my_account() from public, anon;
+grant execute on function public.delete_my_account() to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Support ("I saw this too") and flags. One of each per member per report.

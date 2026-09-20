@@ -52,6 +52,13 @@ export const PUBLIC_SAMPLE_LIMIT = 5;
 // or that would never appear on the map.
 export const REPORT_WINDOW_DAYS = 7;
 
+// How long after filing a report its author may still move it. Mirrors
+// app_settings.report_move_window_hours. Somebody who mis-tapped the map
+// should be able to fix it; a report still movable a week later, after people
+// had confirmed it, would let a confirmed warning be relocated to somewhere
+// nobody ever confirmed.
+export const REPORT_MOVE_WINDOW_HOURS = 24;
+
 // Every report pin is the same colour. What differs is size: a report several
 // people confirmed is drawn larger, because that is the one signal here that
 // more than one person met the same thing in the same place. The form no

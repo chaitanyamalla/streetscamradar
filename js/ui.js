@@ -190,7 +190,8 @@ const localParts = (iso) => {
  * in the page rather than through a browser confirm box, which on a phone is
  * easy to dismiss without reading.
  */
-export function renderProfileReports(host, reports, categories, windowDays, { mine = true } = {}) {
+export function renderProfileReports(host, reports, categories, windowDays,
+                                     { mine = true, moveWindowHours = 24 } = {}) {
   if (!reports.length) {
     host.innerHTML = `<p class="empty-note">${mine
       ? 'You have not filed a report yet. When you do, it will live here — with what it collected, and how long it has left.'
@@ -208,6 +209,27 @@ export function renderProfileReports(host, reports, categories, windowDays, { mi
     const flagged = Number(r.flag_count) > 0;
     const when = localParts(r.happened_at);
     const id = esc(r.id);
+    const filedAgo = Date.now() - new Date(r.created_at ?? r.happened_at).getTime();
+    const movable = filedAgo < moveWindowHours * 3600000;
+
+    // Somebody else's report you confirmed: the only thing that is yours here
+    // is the confirmation, so that is the only thing you can take back.
+    if (!mine) {
+      return `
+      <article class="profile-report" data-report="${id}">
+        <span class="report-glyph" aria-hidden="true">${esc(cat?.glyph ?? '⚠')}</span>
+        <div class="report-copy">
+          <button type="button" class="report-open" data-show="${id}">${esc(r.headline)}</button>
+          <span class="report-meta">
+            ${r.city ? esc(r.city) + ' · ' : ''}${esc(cat?.label ?? r.category)} · ${timeAgo(r.happened_at)}
+          </span>
+          ${impactTags(r.impacts)}
+          <div class="report-actions">
+            <button class="chip-action" data-unconfirm="${id}">Undo my confirmation</button>
+          </div>
+        </div>
+      </article>`;
+    }
 
     const actions = r.is_mine ? `
       <div class="report-actions">
@@ -233,6 +255,20 @@ export function renderProfileReports(host, reports, categories, windowDays, { mi
           <input type="date" name="date" value="${esc(when.date)}" aria-label="Date it happened" />
           <input type="time" name="time" value="${esc(when.time)}" aria-label="Time it happened" />
         </div>
+        ${movable ? `
+        <label class="edit-when-toggle">
+          <input type="checkbox" name="remove" /> Also correct where it happened
+        </label>
+        <div data-where hidden>
+          <div class="address-row">
+            <input name="address" placeholder="Street, landmark or postcode"
+                   value="${esc(r.address ?? '')}" autocomplete="off" />
+            <button type="button" class="ghost-button small" data-find="${id}">Find</button>
+          </div>
+          <p class="pin-status" data-pin-status>Currently ${esc(r.address || r.city || 'the pin you dropped')}.</p>
+        </div>` : `
+        <p class="field-hint">Where it happened can only be corrected in the first
+          ${moveWindowHours} hours, and this one is past that.</p>`}
         <div class="report-actions">
           <button class="chip-action is-primary" type="submit">Save changes</button>
           <button class="chip-action" type="button" data-edit-cancel="${id}">Cancel</button>

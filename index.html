@@ -263,6 +263,20 @@
           </form>
         </details>
 
+        <details class="profile-section disclosure" id="danger-disclosure">
+          <summary class="block-title is-danger">Close my account</summary>
+          <p class="field-hint">
+            This removes your account and every report you have filed. Reports
+            other people confirmed will disappear from the map with them. It
+            cannot be undone.
+          </p>
+          <label for="delete-confirm">Type <b>DELETE</b> to confirm</label>
+          <input id="delete-confirm" autocomplete="off" placeholder="DELETE" />
+          <button class="ghost-button wide is-danger" type="button" id="delete-account">
+            Close my account permanently
+          </button>
+        </details>
+
         <button class="ghost-button wide" type="button" id="profile-signout">Sign out</button>
       </div>
     </dialog>

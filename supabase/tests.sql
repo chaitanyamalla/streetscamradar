@@ -216,6 +216,50 @@ select ssr_test.ok((select support_count from public.reports_feed where id='aaaa
                    'editing does not disturb what a report collected');
 rollback;
 
+-- Moving a report, and the day you have to do it in.
+begin;
+set local role authenticated;
+set local "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select ssr_test.ok(public.edit_my_report('aaaaaaaa-0000-0000-0000-000000000001','TEST moved headline here','Now in the right place.',null, 48.8700, 2.3500, 'Rue de Rivoli', 'Paris', 'fr') = true,
+                   'a fresh report can be moved');
+select ssr_test.ok((select round(lat::numeric,4) from public.reports_feed where id='aaaaaaaa-0000-0000-0000-000000000001') = 48.8700,
+                   'and it really moves');
+select ssr_test.ok((select country_code from public.reports_feed where id='aaaaaaaa-0000-0000-0000-000000000001') = 'FR',
+                   'the country code is stored upper-case whatever was sent');
+select ssr_test.ok((select address from public.reports_feed where id='aaaaaaaa-0000-0000-0000-000000000001') = 'Rue de Rivoli',
+                   'the address comes with it');
+rollback;
+
+-- The same report, filed a week ago, may no longer be moved.
+begin;
+update public.reports set created_at = now() - interval '8 days'
+ where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+set local role authenticated;
+set local "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
+select ssr_test.ok(ssr_test.denied($$select public.edit_my_report('aaaaaaaa-0000-0000-0000-000000000001','TEST still fine headline','text',null,1.0,1.0,null,null,null)$$),
+                   'an older report cannot be moved');
+select ssr_test.ok(public.edit_my_report('aaaaaaaa-0000-0000-0000-000000000001','TEST reworded not moved','Still just words.') = true,
+                   'but its words can still be fixed');
+rollback;
+
+-- Closing your account.
+begin;
+set local role authenticated;
+set local "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
+select ssr_test.ok(public.delete_my_account() = true, 'delete_my_account closes your own account');
+-- The checks below read auth.users and the reports table, which the member
+-- role cannot do — that is the whole reason the function is SECURITY DEFINER.
+reset role;
+select ssr_test.ok(not exists (select 1 from auth.users where id='22222222-2222-2222-2222-222222222222'),
+                   'and you are gone');
+select ssr_test.ok(not exists (select 1 from public.reports where reporter_id='22222222-2222-2222-2222-222222222222'),
+                   'your reports go with you');
+select ssr_test.ok(exists (select 1 from auth.users where id='11111111-1111-1111-1111-111111111111'),
+                   'and nobody else is touched');
+select ssr_test.ok(not exists (select 1 from public.reports where reporter_id is null and headline like 'TEST %'),
+                   'no report is left orphaned as if it were demo data');
+rollback;
+
 -- Community moderation, once you switch it on.
 update public.app_settings set value='2' where key='auto_hide_flag_threshold';
 begin;

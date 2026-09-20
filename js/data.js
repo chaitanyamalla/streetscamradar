@@ -186,16 +186,29 @@ export async function myReports() {
  * happenedAt left out keeps the original time, which is the point: fixing a
  * typo should not quietly move when the scam happened.
  */
-export async function editMyReport(id, { headline, description, happenedAt = null }) {
+export async function editMyReport(id, { headline, description, happenedAt = null, place = null }) {
   need();
   const { data, error } = await supabase.rpc('edit_my_report', {
     p_report_id: id,
     p_headline: headline.trim(),
     p_description: description.trim(),
     p_happened_at: happenedAt,
+    p_lat: place?.lat ?? null,
+    p_lng: place?.lng ?? null,
+    p_address: place?.address ?? null,
+    p_city: place?.city ?? null,
+    p_country_code: place?.countryCode ?? null,
   });
   if (error) throw error;
   if (data !== true) throw new Error('That report could not be edited.');
+  return true;
+}
+
+/** Close the account and take its reports with it. Irreversible. */
+export async function deleteMyAccount() {
+  need();
+  const { error } = await supabase.rpc('delete_my_account');
+  if (error) throw error;
   return true;
 }
 
@@ -211,7 +224,7 @@ export async function myConfirmedReports() {
 
   const { data, error: err2 } = await supabase
     .from('reports_feed')
-    .select('id,category,impacts,headline,description,lat,lng,address,city,country_code,happened_at,support_count,flag_count,is_mine')
+    .select('id,category,impacts,headline,description,lat,lng,address,city,country_code,happened_at,created_at,support_count,flag_count,is_mine')
     .in('id', ids)
     .order('happened_at', { ascending: false });
   if (err2) throw err2;

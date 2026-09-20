@@ -415,7 +415,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   .top-actions .ghost-button { flex:1; }
   .top-actions .primary-button { flex:2; }
   .map-intro h1 { font-size:28px; }
-  .city-map { height:clamp(260px,44vh,380px); }
+  .city-map { height:clamp(380px,62vh,600px); }
   .setup-banner { font-size:11.5px; }
 
   /* Full-width sheet, so the whole form is reachable on a small screen. */

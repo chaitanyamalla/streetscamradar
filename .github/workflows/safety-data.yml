@@ -27,21 +27,24 @@ on:
         required: false
         default: ''
         type: string
+      city_list:
+        description: 'Optional file of cities under supabase/ops/, e.g. cities_europe.txt'
+        required: false
+        default: ''
+        type: string
       prune:
         description: 'Delete places this run did not find. ONLY for a run that covers everything.'
         required: false
         default: false
         type: boolean
   schedule:
-    # Daily, not weekly: a city only gets covered once it has a report, so a
-    # new city would otherwise sit blank for up to a week. Cities already
-    # fetched cost one Overpass call each to re-check, which is acceptable.
-    #
-    # The schedule covers cities only. A whole country is a dispatch-only job:
-    # it is sixteen or so heavy Overpass queries, and police stations and
-    # hospitals do not move often enough to earn that every night. Loaded
-    # countries stay loaded — nothing here ever deletes.
-    - cron: '17 4 * * *'
+    # Monthly, on the 1st. Police stations and hospitals do not move, and a
+    # nightly run spent almost all of its time re-confirming what it confirmed
+    # the night before — while leaning on Overpass, a free volunteer service,
+    # for no gain. The reason it was ever daily was to cover a newly reported
+    # city quickly; Europe's tourist cities are now covered up front by
+    # cities_europe.txt instead, which is the better answer to that problem.
+    - cron: '17 4 1 * *'
 
 concurrency:
   group: safety-data
@@ -115,8 +118,17 @@ jobs:
           PGURL: ${{ env.PGURL_FINAL }}
           EXTRA: ${{ inputs.extra_areas }}
           COUNTRIES: ${{ inputs.countries }}
+          CITY_LIST: ${{ inputs.city_list }}
         run: |
           : > areas.csv
+          # A curated list of cities, covered whether or not anybody has
+          # reported a scam there yet.
+          if [ -n "$CITY_LIST" ]; then
+            if [ ! -f "supabase/ops/$CITY_LIST" ]; then
+              echo "::error::No such city list: supabase/ops/$CITY_LIST"; exit 1
+            fi
+            grep -v '^#' "supabase/ops/$CITY_LIST" | grep . >> areas.csv
+          fi
           # Whole countries first: they are the big, slow queries, and every
           # city inside one is covered by them anyway.
           if [ -n "$COUNTRIES" ]; then

@@ -553,8 +553,16 @@ create table if not exists public.safety_places (
   lat          double precision not null check (lat between -90 and 90),
   lng          double precision not null check (lng between -180 and 180),
   country_code char(2),
+  opening_hours text,                            -- as OSM records it, e.g. "24/7"
+  phone         text,
+  emergency     boolean not null default false,  -- a hospital with an A&E
   updated_at   timestamptz not null default now()
 );
+
+-- Added after the table already existed on live projects.
+alter table public.safety_places add column if not exists opening_hours text;
+alter table public.safety_places add column if not exists phone text;
+alter table public.safety_places add column if not exists emergency boolean not null default false;
 
 create index if not exists safety_places_lat_idx on public.safety_places (lat);
 create index if not exists safety_places_lng_idx on public.safety_places (lng);

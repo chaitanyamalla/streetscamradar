@@ -162,15 +162,26 @@ export function popupHTML(props, categories) {
  * source we do not control. */
 export function safetyPopupHTML(props) {
   const isHospital = props.kind === 'hospital';
+  // MapLibre serialises feature properties, so a boolean arrives as a string.
+  const hasER = props.emergency === true || props.emergency === 'true';
+  const kicker = isHospital
+    ? (hasER ? 'Hospital &middot; emergency department' : 'Hospital')
+    : 'Police station';
+
+  const lines = [];
+  if (props.address) lines.push(esc(props.address));
+  if (props.opening_hours) lines.push(`Open ${esc(props.opening_hours)}`);
+
   return `
     <div class="popup-head">
       <span class="popup-glyph ${isHospital ? 'is-hospital' : 'is-police'}" aria-hidden="true">${isHospital ? '\u{1F3E5}' : '\u{1F693}'}</span>
       <div>
-        <p class="popup-kicker">${isHospital ? 'Hospital' : 'Police station'}</p>
+        <p class="popup-kicker">${kicker}</p>
         <p class="popup-title">${esc(props.name)}</p>
       </div>
     </div>
-    ${props.address ? `<p class="popup-body">${esc(props.address)}</p>` : ''}
+    ${lines.length ? `<p class="popup-body">${lines.join('<br />')}</p>` : ''}
+    ${props.phone ? `<p class="popup-body"><a class="popup-phone" href="tel:${esc(String(props.phone).replace(/[^+0-9]/g, ''))}">${esc(props.phone)}</a></p>` : ''}
     <p class="popup-meta">via OpenStreetMap</p>`;
 }
 

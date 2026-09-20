@@ -1,0 +1,80 @@
+# Europe's main tourist cities, covered whether or not anybody has reported a
+# scam there yet.
+#
+# Coverage used to follow reports, which meant a traveller looking up a city
+# before their trip saw nothing until somebody had already been scammed there.
+# For the places people actually go, that is backwards: the map should already
+# know where the police and the hospitals are.
+#
+# Coordinates are only a sanity check on the Nominatim lookup — a name that
+# resolves to the wrong continent is discarded — and a fallback centre if the
+# name cannot be resolved at all. The real search area is the city's bounding
+# box.
+#
+# Format: City,country_code,lat,lng
+London,gb,51.5074,-0.1278
+Paris,fr,48.8566,2.3522
+Nice,fr,43.7102,7.2620
+Lyon,fr,45.7640,4.8357
+Marseille,fr,43.2965,5.3698
+Rome,it,41.9028,12.4964
+Venice,it,45.4408,12.3155
+Florence,it,43.7696,11.2558
+Milan,it,45.4642,9.1900
+Naples,it,40.8518,14.2681
+Verona,it,45.4384,10.9916
+Bologna,it,44.4949,11.3426
+Turin,it,45.0703,7.6869
+Barcelona,es,41.3851,2.1734
+Madrid,es,40.4168,-3.7038
+Seville,es,37.3891,-5.9845
+Valencia,es,39.4699,-0.3763
+Granada,es,37.1773,-3.5986
+Palma,es,39.5696,2.6502
+Bilbao,es,43.2630,-2.9350
+Lisbon,pt,38.7223,-9.1393
+Porto,pt,41.1579,-8.6291
+Amsterdam,nl,52.3676,4.9041
+Rotterdam,nl,51.9244,4.4777
+Brussels,be,50.8503,4.3517
+Bruges,be,51.2093,3.2247
+Antwerp,be,51.2194,4.4025
+Berlin,de,52.5200,13.4050
+Munich,de,48.1374,11.5755
+Hamburg,de,53.5511,9.9937
+Cologne,de,50.9375,6.9603
+Frankfurt,de,50.1109,8.6821
+Dresden,de,51.0504,13.7373
+Leipzig,de,51.3397,12.3731
+Stuttgart,de,48.7758,9.1829
+Nuremberg,de,49.4521,11.0767
+Vienna,at,48.2082,16.3738
+Salzburg,at,47.8095,13.0550
+Innsbruck,at,47.2692,11.4041
+Zurich,ch,47.3769,8.5417
+Geneva,ch,46.2044,6.1432
+Prague,cz,50.0755,14.4378
+Budapest,hu,47.4979,19.0402
+Krakow,pl,50.0647,19.9450
+Warsaw,pl,52.2297,21.0122
+Bratislava,sk,48.1486,17.1077
+Ljubljana,si,46.0569,14.5058
+Zagreb,hr,45.8150,15.9819
+Split,hr,43.5081,16.4402
+Dubrovnik,hr,42.6507,18.0944
+Athens,gr,37.9838,23.7275
+Thessaloniki,gr,40.6401,22.9444
+Istanbul,tr,41.0082,28.9784
+Dublin,ie,53.3498,-6.2603
+Edinburgh,gb,55.9533,-3.1883
+Copenhagen,dk,55.6761,12.5683
+Stockholm,se,59.3293,18.0686
+Oslo,no,59.9139,10.7522
+Helsinki,fi,60.1699,24.9384
+Reykjavik,is,64.1466,-21.9426
+Tallinn,ee,59.4370,24.7536
+Riga,lv,56.9496,24.1052
+Vilnius,lt,54.6872,25.2797
+Bucharest,ro,44.4268,26.1025
+Sofia,bg,42.6977,23.3219
+Valletta,mt,35.8989,14.5146

@@ -303,6 +303,28 @@ def plan(lines):
     return areas
 
 
+# Is this somewhere a stranger could actually walk in and be helped?
+#
+# OpenStreetMap says what a thing IS, not how significant it is, so
+# amenity=police covers a staffed city station and a locked door with a sign,
+# and amenity=hospital covers a university clinic and a two-room private
+# practice. The tags that separate them are the ones a surveyor only bothers
+# to add for a real institution.
+#
+# For a police station: some contact with the outside world — who operates it,
+# where it is, when it opens, a phone number. A node with a name and nothing
+# else is almost always somebody marking a building in passing.
+POLICE_EVIDENCE = ("operator", "addr:street", "opening_hours", "phone",
+                   "contact:phone", "website", "contact:website", "ref")
+
+# For a hospital: an emergency department, a bed count, or a named operator.
+# Any one of those means somebody recorded it as an institution rather than
+# noticing a building. healthcare=clinic is excluded outright — a clinic
+# mapped as amenity=hospital is the private practice we do not want to send
+# anyone to at two in the morning.
+HOSPITAL_EVIDENCE = ("emergency", "beds", "capacity:beds", "operator",
+                     "healthcare:speciality", "ref")
+
 GENERIC_NAME = re.compile(
     r"^(police|police station|polizei|polizia|politie|politi|gendarmerie|"
     r"hospital|hospital building|krankenhaus|ospedale|h[oô]pital|clinic)$", re.I)
@@ -340,9 +362,11 @@ def dedupe(rows):
         twin = next((k for k in by_name.get(key, [])
                      if metres_apart(k, row) <= SAME_PLACE_M), None)
         if twin:
-            # Prefer whichever mapping carries a street address.
-            if row["address"] and not twin["address"]:
-                twin["address"] = row["address"]
+            # Keep whatever detail either mapping carried.
+            for field in ("address", "opening_hours", "phone"):
+                if row.get(field) and not twin.get(field):
+                    twin[field] = row[field]
+            twin["emergency"] = twin.get("emergency") or row.get("emergency")
             dropped += 1
             continue
         by_name.setdefault(key, []).append(row)
@@ -369,8 +393,21 @@ def to_row(el, country):
     if not name or GENERIC_NAME.match(name):
         return None
 
+    if kind == "police":
+        if not any(tags.get(k) for k in POLICE_EVIDENCE):
+            return None
+    else:
+        if tags.get("healthcare") == "clinic":
+            return None
+        if tags.get("emergency") == "no" and not any(
+                tags.get(k) for k in ("beds", "capacity:beds")):
+            return None
+        if not any(tags.get(k) for k in HOSPITAL_EVIDENCE):
+            return None
+
     street = " ".join(x for x in (tags.get("addr:street"), tags.get("addr:housenumber")) if x)
     cc = (tags.get("addr:country") or country or "").strip().upper() or None
+    phone = tags.get("phone") or tags.get("contact:phone")
     return {
         "id": f"{el.get('type')}/{el.get('id')}",
         "kind": kind,
@@ -379,6 +416,12 @@ def to_row(el, country):
         "lat": float(lat),
         "lng": float(lng),
         "country_code": cc if cc and len(cc) == 2 else None,
+        # Worth storing because they are worth showing: a station's hours and
+        # number are exactly what somebody standing in the street needs, and
+        # having them at all is part of why we believe the place is real.
+        "opening_hours": (tags.get("opening_hours") or "").strip() or None,
+        "phone": (phone or "").strip() or None,
+        "emergency": tags.get("emergency") == "yes",
     }
 
 
@@ -424,11 +467,14 @@ def emit_sql(rows, prune_before=None, areas=()):
     Rows are already deduped by OSM id, so no batch can hit the same id twice,
     which is the one thing a multi-row ON CONFLICT cannot survive.
     """
-    columns = ("id", "kind", "name", "address", "lat", "lng", "country_code")
+    columns = ("id", "kind", "name", "address", "lat", "lng", "country_code",
+               "opening_hours", "phone", "emergency")
     values = [
-        "  ({}, {}, {}, {}, {}, {}, {}, now())".format(
+        "  ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, now())".format(
             sql_str(r["id"]), sql_str(r["kind"]), sql_str(r["name"]),
-            sql_str(r["address"]), r["lat"], r["lng"], sql_str(r["country_code"]))
+            sql_str(r["address"]), r["lat"], r["lng"], sql_str(r["country_code"]),
+            sql_str(r["opening_hours"]), sql_str(r["phone"]),
+            "true" if r["emergency"] else "false")
         for r in rows
     ]
     print("begin;")
@@ -441,7 +487,9 @@ def emit_sql(rows, prune_before=None, areas=()):
               "kind = excluded.kind, name = excluded.name, "
               "address = excluded.address, lat = excluded.lat, lng = excluded.lng, "
               "country_code = coalesce(excluded.country_code, "
-              "public.safety_places.country_code), updated_at = now();")
+              "public.safety_places.country_code), "
+              "opening_hours = excluded.opening_hours, phone = excluded.phone, "
+              "emergency = excluded.emergency, updated_at = now();")
     # Pruning is how a place that no longer qualifies actually leaves the map.
     # Tightening the filters only changes what comes back; without this, every
     # unnamed node and duplicate building ever loaded would sit there forever.

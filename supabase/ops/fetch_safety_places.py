@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
-Fetch police stations and hospitals from OpenStreetMap and emit SQL to load
-them into public.safety_places.
+Fetch hospitals from OpenStreetMap and emit SQL to load them into
+public.safety_places.
+
+Police stations were dropped on purpose: police come to you when you call the
+emergency number the map already shows, so a map of stations answered a
+question nobody had. The kind column keeps its check constraint, so bringing
+them back later is a change here and nowhere else.
 
 Run from .github/workflows/safety-data.yml, where a GitHub runner has the
 network access to reach Overpass. Reads areas on stdin and writes SQL to
@@ -49,30 +54,20 @@ RADIUS_M = 15000       # fallback only, when a city cannot be resolved
 PAUSE_S = 3            # between areas, to stay a good citizen
 RETRIES = 3            # per area, across all mirrors, before giving up on it
 
-# What counts as a place somebody can actually walk into.
+# Hospitals only.
 #
-# Reported from Rome: far more police stations on the map than exist. OSM tags
-# amenity=police on a great deal that is not a station you can visit — barracks,
-# vehicle pounds, traffic-police offices, training grounds, checkpoints — and
-# in Italy a single station is often mapped twice, once as the building and
-# once as a node inside it. Asking for "amenity=police" and drawing whatever
-# came back is how a handful of real stations became a dozen pins.
+# Police stations used to be here too, and were dropped on purpose: police come
+# to you when you call the emergency number the map already shows, so a map of
+# stations answered a question nobody had. A hospital is the opposite — it is
+# somewhere you take yourself, for the sprained wrist or the stitches that do
+# not warrant an ambulance.
 #
-# So: it must be named, it must not be one of the sub-types below, and it must
-# not be tagged as closed to the public. Named is the single most effective
-# filter — an unnamed police node is almost always somebody marking a building
-# they walked past, not a station with a front desk.
-NOT_A_STATION = ("barracks|car_pound|checkpoint|naval_base|offices|storage|"
-                 "training_facility|range|academy|detention|dog_unit|mounted_unit")
+# It must be named and not tagged as closed to the public. Named is the single
+# most effective filter: an unnamed node is almost always somebody marking a
+# building they walked past.
 CLOSED = "private|no|military|employees|permit"
 
 AMENITY = (
-    f'nwr["amenity"="police"]["name"]'
-    f'["police"!~"^({NOT_A_STATION})$"]'
-    f'["access"!~"^({CLOSED})$"]'
-    f'["operator:type"!~"^(military)$"]'
-    f'["military"!~"."]'
-    f'{{scope}};'
     f'nwr["amenity"="hospital"]["name"]'
     f'["access"!~"^({CLOSED})$"]'
     f'["hospital"!~"^(construction|disused)$"]'
@@ -243,7 +238,7 @@ def country_areas(cc):
     One Area per subdivision, or a single country-wide Area as a fallback.
 
     Splitting is not an optimisation, it is what makes the query answerable:
-    every police station and hospital in Germany at once exceeds what the free
+    every hospital in Germany at once exceeds what the free
     Overpass instances will return, and a partial answer that looks complete is
     worse than no answer.
     """
@@ -306,17 +301,10 @@ def plan(lines):
 # Is this somewhere a stranger could actually walk in and be helped?
 #
 # OpenStreetMap says what a thing IS, not how significant it is, so
-# amenity=police covers a staffed city station and a locked door with a sign,
-# and amenity=hospital covers a university clinic and a two-room private
-# practice. The tags that separate them are the ones a surveyor only bothers
-# to add for a real institution.
+# amenity=hospital covers a university clinic and a two-room private practice
+# alike. The tags that separate them are the ones a surveyor only bothers to
+# add for a real institution.
 #
-# For a police station: some contact with the outside world — who operates it,
-# where it is, when it opens, a phone number. A node with a name and nothing
-# else is almost always somebody marking a building in passing.
-POLICE_EVIDENCE = ("operator", "addr:street", "opening_hours", "phone",
-                   "contact:phone", "website", "contact:website", "ref")
-
 # For a hospital: an emergency department, a bed count, or a named operator.
 # Any one of those means somebody recorded it as an institution rather than
 # noticing a building. healthcare=clinic is excluded outright — a clinic
@@ -384,26 +372,23 @@ def to_row(el, country):
     if lat is None or lng is None:
         return None
 
-    kind = "hospital" if tags.get("amenity") == "hospital" else "police"
+    if tags.get("amenity") != "hospital":
+        return None
+    kind = "hospital"
 
-    # Unnamed places no longer come back from Overpass, and a name that is just
-    # the word "police" tells a visitor nothing and is usually somebody marking
-    # a building in passing. Either way it is not a place to send someone.
+    # A name that is just the word "hospital" tells a visitor nothing and is
+    # usually somebody marking a building in passing.
     name = (tags.get("name") or "").strip()
     if not name or GENERIC_NAME.match(name):
         return None
 
-    if kind == "police":
-        if not any(tags.get(k) for k in POLICE_EVIDENCE):
-            return None
-    else:
-        if tags.get("healthcare") == "clinic":
-            return None
-        if tags.get("emergency") == "no" and not any(
-                tags.get(k) for k in ("beds", "capacity:beds")):
-            return None
-        if not any(tags.get(k) for k in HOSPITAL_EVIDENCE):
-            return None
+    if tags.get("healthcare") == "clinic":
+        return None
+    if tags.get("emergency") == "no" and not any(
+            tags.get(k) for k in ("beds", "capacity:beds")):
+        return None
+    if not any(tags.get(k) for k in HOSPITAL_EVIDENCE):
+        return None
 
     street = " ".join(x for x in (tags.get("addr:street"), tags.get("addr:housenumber")) if x)
     cc = (tags.get("addr:country") or country or "").strip().upper() or None

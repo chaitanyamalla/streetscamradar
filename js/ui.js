@@ -157,13 +157,13 @@ export function popupHTML(props, categories) {
     </p>`;
 }
 
-/** A police station or hospital, clicked on the map. Not user content, but
+/** A hospital, clicked on the map. Not user content, but
  * routed through esc() anyway — an OSM name field is still text from a
  * source we do not control. */
 /**
  * Getting there, and calling ahead.
  *
- * Knowing a police station is 400m away is only half of it — the other half is
+ * Knowing a hospital is 400m away is only half of it — the other half is
  * which way to walk. The link hands the coordinates to Google Maps, which on a
  * phone opens the app itself and starts navigation; on a desktop it opens the
  * website. Coordinates rather than the name, because a name can resolve to the
@@ -191,12 +191,9 @@ function directionsHTML(props) {
 }
 
 export function safetyPopupHTML(props) {
-  const isHospital = props.kind === 'hospital';
   // MapLibre serialises feature properties, so a boolean arrives as a string.
   const hasER = props.emergency === true || props.emergency === 'true';
-  const kicker = isHospital
-    ? (hasER ? 'Hospital &middot; emergency department' : 'Hospital')
-    : 'Police station';
+  const kicker = hasER ? 'Hospital &middot; emergency department' : 'Hospital';
 
   const lines = [];
   if (props.address) lines.push(esc(props.address));
@@ -204,7 +201,7 @@ export function safetyPopupHTML(props) {
 
   return `
     <div class="popup-head">
-      <span class="popup-glyph ${isHospital ? 'is-hospital' : 'is-police'}" aria-hidden="true">${isHospital ? '\u{1F3E5}' : '\u{1F693}'}</span>
+      <span class="popup-glyph is-hospital" aria-hidden="true">\u{1F3E5}</span>
       <div>
         <p class="popup-kicker">${kicker}</p>
         <p class="popup-title">${esc(props.name)}</p>

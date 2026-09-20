@@ -34,12 +34,13 @@ QUERIES = []                              # every query that reached "Overpass"
 
 
 def place(osm_id, kind, name, lat, lng, **tags):
-    """A place that passes the quality filters, so tests about everything
-    else — splitting, dedupe, pruning, batching — are about that and not
-    about whether the fixture looks like an institution."""
-    t = {"amenity": kind, "name": name, "operator": "Test Authority"}
-    if kind == "hospital":
-        t["emergency"] = "yes"
+    """A hospital that passes the quality filters, so tests about everything
+    else — splitting, dedupe, pruning, batching — are about that and not about
+    whether the fixture looks like an institution. `kind` is accepted and
+    ignored: police stations are no longer fetched, and a fixture asking for
+    one would otherwise silently produce no rows at all."""
+    t = {"amenity": "hospital", "name": name,
+         "operator": "Test Authority", "emergency": "yes"}
     t.update(tags)
     return {"type": "node", "id": osm_id, "lat": lat, "lon": lng, "tags": t}
 
@@ -127,13 +128,12 @@ check("subdivisions are searched as areas, not bounding boxes",
       all("map_to_area" in q and "(area.a)" in q for q, _ in QUERIES[1:]))
 check("and hand back the ground they cover, for pruning",
       all(".r out ids bb;" in q for q, _ in QUERIES[1:]), QUERIES[1][0])
-check("subdivision queries ask for police and for hospitals",
-      all('"amenity"="police"' in q and '"amenity"="hospital"' in q for q, _ in QUERIES[1:]))
+check("subdivision queries ask for hospitals",
+      all('"amenity"="hospital"' in q for q, _ in QUERIES[1:]))
+check("and never for police stations, which are no longer mapped",
+      all('"amenity"="police"' not in q for q, _ in QUERIES[1:]), QUERIES[1][0])
 check("only named places are asked for",
-      all(q.count('["name"]') == 2 for q, _ in QUERIES[1:]), QUERIES[1][0])
-check("barracks, pounds and training grounds are not asked for",
-      all('barracks' in q and 'car_pound' in q and 'training_facility' in q
-          for q, _ in QUERIES[1:]))
+      all(q.count('["name"]') == 1 for q, _ in QUERIES[1:]), QUERIES[1][0])
 check("places closed to the public are not asked for",
       all('"access"!~"^(private|no|military|employees|permit)$"' in q for q, _ in QUERIES[1:]))
 check("subdivision queries get the long Overpass budget",
@@ -273,14 +273,15 @@ def rome(query):
     if "out tags" in query:
         return {"elements": [{"type": "relation", "id": 1, "tags": {"ISO3166-2": "IT-62"}}]}
     return {"elements": [
-        # A real station, mapped twice: the building and a node inside it. Only
-        # the building carries the address, which the survivor must inherit.
+        # A real hospital, mapped twice: the building and a node inside it.
+        # Only the building carries the address, which the survivor inherits.
         {"type": "way", "id": 1, "center": {"lat": 41.9010, "lon": 12.4960},
-         "tags": {"amenity": "police", "name": "Commissariato Trevi Campo Marzio",
+         "tags": {"amenity": "hospital", "name": "Ospedale Santo Spirito",
+                  "emergency": "yes",
                   "addr:street": "Via del Gambero", "addr:housenumber": "31"}},
         {"type": "node", "id": 2, "lat": 41.9011, "lon": 12.4961,
-         "tags": {"amenity": "police", "name": "Commissariato Trevi Campo Marzio",
-                  "operator": "Polizia di Stato"}},
+         "tags": {"amenity": "hospital", "name": "Ospedale Santo Spirito",
+                  "operator": "Regione Lazio"}},
         # A hospital campus plus one of its wings.
         {"type": "way", "id": 3, "center": {"lat": 41.9100, "lon": 12.5000},
          "tags": {"amenity": "hospital", "name": "Policlinico Umberto I",
@@ -290,12 +291,12 @@ def rome(query):
                   "operator": "Regione Lazio"}},
         # Same name, genuinely different place, well across town.
         {"type": "node", "id": 5, "lat": 41.8500, "lon": 12.4700,
-         "tags": {"amenity": "police", "name": "Commissariato Trevi Campo Marzio",
-                  "operator": "Polizia di Stato"}},
+         "tags": {"amenity": "hospital", "name": "Ospedale Santo Spirito",
+                  "operator": "Regione Lazio"}},
         # Named after nothing in particular.
         {"type": "node", "id": 6, "lat": 41.9000, "lon": 12.4900,
-         "tags": {"amenity": "police", "name": "Polizia",
-                  "operator": "Polizia di Stato"}},
+         "tags": {"amenity": "hospital", "name": "Hospital",
+                  "operator": "Regione Lazio"}},
     ]}
 
 
@@ -313,16 +314,14 @@ def tagged(osm_id, amenity, name, lat, lng, **tags):
 
 def mixed_quality(query):
     return {"elements": [
-        # Police: real ones carry some contact with the outside world.
+        # Police are no longer fetched at all — if one somehow arrives, it is
+        # not a hospital and has no business on the map.
         tagged(1, "police", "Questura di Roma", 41.90, 12.49,
-               **{"operator": "Polizia di Stato", "opening_hours": "24/7",
-                  "phone": "+39 06 46861", "addr:street": "Via San Vitale"}),
-        tagged(2, "police", "Polizia Locale Trastevere", 41.88, 12.47,
-               **{"addr:street": "Via della Lungaretta"}),
-        tagged(3, "police", "Posto di Polizia", 41.87, 12.46),          # name only
+               **{"operator": "Polizia di Stato", "opening_hours": "24/7"}),
         # Hospitals: an A&E, a bed count or an operator.
         tagged(4, "hospital", "Policlinico Umberto I", 41.91, 12.50,
-               **{"emergency": "yes", "beds": "1200", "operator": "Regione Lazio"}),
+               **{"emergency": "yes", "beds": "1200", "operator": "Regione Lazio",
+                  "opening_hours": "24/7", "phone": "+39 06 49971"}),
         tagged(5, "hospital", "Ospedale San Giovanni", 41.88, 12.51,
                **{"beds": "600"}),
         tagged(6, "hospital", "Studio Medico Rossi", 41.89, 12.48,
@@ -336,27 +335,25 @@ def mixed_quality(query):
 install_nominatim({"Rome": [41.79, 42.01, 12.35, 12.62]})
 install_overpass(mixed_quality)
 sql, log, code = run(["Rome,it,41.9,12.5"])
-check("a station with an operator and hours is kept", "Questura di Roma" in sql)
-check("a station with just a street address is kept", "Polizia Locale Trastevere" in sql)
-check("a station with nothing but a name is dropped", "Posto di Polizia" not in sql, sql)
+check("a police station is not mapped at all any more", "Questura di Roma" not in sql, sql)
 check("a hospital with an A&E is kept", "Policlinico Umberto I" in sql)
 check("a hospital with a bed count is kept", "Ospedale San Giovanni" in sql)
 check("a private clinic mapped as a hospital is dropped", "Studio Medico Rossi" not in sql)
 check("a hospital with nothing but a name is dropped", "Centro Diagnostico" not in sql)
 check("a day clinic that says it has no A&E is dropped", "Day Surgery Aurelia" not in sql)
 check("opening hours are stored, not just used as evidence", "'24/7'" in sql, sql)
-check("so is the phone number", "'+39 06 46861'" in sql)
+check("so is the phone number", "'+39 06 49971'" in sql, sql)
 check("and whether it has an A&E", sql.count("true") >= 1 and "emergency" in sql)
 
 install_overpass(rome)
 sql, log, code = run(["country:IT"])
-check("a station mapped as building and node is one pin",
-      sql.count("Commissariato Trevi Campo Marzio") == 2, f"{sql.count('Commissariato Trevi Campo Marzio')} pins")
+check("a hospital mapped as building and node is one pin",
+      sql.count("Ospedale Santo Spirito") == 2, f"{sql.count('Ospedale Santo Spirito')} pins")
 check("a hospital campus and its wings are one pin",
       sql.count("Policlinico Umberto I") == 1, f"{sql.count('Policlinico Umberto I')} pins")
 check("but the same name across town stays two places",
       "'node/5'" in sql)
-check("a place called only \"Polizia\" is dropped", "'node/6'" not in sql, sql)
+check("a place called only \"Hospital\" is dropped", "'node/6'" not in sql, sql)
 check("the address survives the merge, whichever mapping carried it",
       "Via del Gambero 31" in sql)
 check("the summary says how many duplicates were merged",

@@ -85,7 +85,7 @@ export const GEOCODER = {
 };
 
 // --- Safety & support --------------------------------------------------------
-// Police stations and hospitals live in our own safety_places table, refreshed
+// Hospitals live in our own safety_places table, refreshed
 // from OpenStreetMap by .github/workflows/safety-data.yml. They were once read
 // live from Overpass on every pan, which tied the feature to a free, shared,
 // frequently congested service; it hung more often than it answered. Nothing
@@ -116,7 +116,6 @@ export const SAFETY_MAX_SPAN = 1.5;
 // whatever it drops, it drops arbitrarily — the headroom is the point.
 export const SAFETY_MAX_PLACES = 1000;
 
-// Used by the popup glyph tints in styles.css, which mirror these values.
+// Used by the popup glyph tint in styles.css, which mirrors this value.
 // The map pins themselves are the bare emoji, with no coloured ring.
-export const POLICE_COLOR = '#2f5fa8';
 export const HOSPITAL_COLOR = '#c5382c';

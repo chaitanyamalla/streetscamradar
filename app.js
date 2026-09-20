@@ -307,9 +307,11 @@ async function refresh() {
 const passesFilter = (r) =>
   state.activeCategories.size === 0 || state.activeCategories.has(r.category);
 
-// Police and hospitals are not gated by sign-in or the report window — they
-// are public OSM data, the same for everyone, refreshed independently of the
-// report fetch above.
+// Hospitals are not gated by sign-in or the report window — they are public
+// OSM data, the same for everyone, refreshed independently of the report fetch
+// above. Police stations were dropped: police come to you when you call the
+// number the emergency bar shows, so a map of stations was answering a
+// question nobody had.
 let safetyInFlight = 0;
 async function refreshSafety() {
   if (!layersReady || !isConfigured()) return;
@@ -322,7 +324,7 @@ async function refreshSafety() {
 
   if (!state.safetyOn) { status.textContent = 'Turned off'; return; }
   if (map.getZoom() < SAFETY_MIN_ZOOM) {
-    status.textContent = 'Zoom in to see police and hospitals';
+    status.textContent = 'Zoom in to see hospitals';
     status.classList.remove('is-warning');
     return;
   }

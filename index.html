@@ -79,8 +79,8 @@
             <button id="zoom-out" class="icon-button" type="button" aria-label="Zoom out">−</button>
           </div>
           <!-- Emergency numbers for whatever country is on screen. Inside the
-               map frame on purpose: it belongs with the police and hospital
-               pins, not in the prose below. -->
+               map frame on purpose: it is how you reach the police, who come
+               to you, while the hospital pins are places you go. -->
           <aside class="emergency-bar" id="emergency-bar" hidden aria-live="polite">
             <span class="eb-label">Emergency in <b id="eb-country"></b></span>
             <span class="eb-numbers" id="eb-numbers"></span>
@@ -108,8 +108,8 @@
             <p class="filter-title">Safety &amp; support</p>
             <label class="filter-row">
               <input type="checkbox" id="safety-toggle" checked />
-              <span class="safety-glyphs" aria-hidden="true">🚓 🏥</span>
-              Police &amp; hospitals nearby
+              <span class="safety-glyphs" aria-hidden="true">🏥</span>
+              Hospitals nearby
             </label>
             <p class="muted-note" id="safety-status">Zoom into a city to see these</p>
           </div>
@@ -250,31 +250,36 @@
           </div>
         </section>
 
-        <details class="profile-section disclosure" id="password-disclosure">
-          <summary class="block-title">Change password</summary>
-          <form id="profile-password-form" method="dialog">
-          <label for="new-password">New password</label>
-          <input id="new-password" type="password" required minlength="6"
-                 autocomplete="new-password" placeholder="At least 6 characters" />
-          <label for="new-password-again">Repeat it</label>
-          <input id="new-password-again" type="password" required minlength="6"
-                 autocomplete="new-password" placeholder="The same again" />
-          <button class="primary-button wide" type="submit" id="save-password">Change password</button>
-          </form>
-        </details>
+        <!-- One disclosure, not two. Both of these are things you do to the
+             account itself, and rarely; two collapsed rows for that was more
+             furniture than the page needed. -->
+        <details class="profile-section disclosure" id="account-disclosure">
+          <summary class="block-title">Account settings</summary>
 
-        <details class="profile-section disclosure" id="danger-disclosure">
-          <summary class="block-title is-danger">Close my account</summary>
-          <p class="field-hint">
-            This removes your account and every report you have filed. Reports
-            other people confirmed will disappear from the map with them. It
-            cannot be undone.
-          </p>
-          <label for="delete-confirm">Type <b>DELETE</b> to confirm</label>
-          <input id="delete-confirm" autocomplete="off" placeholder="DELETE" />
-          <button class="ghost-button wide is-danger" type="button" id="delete-account">
-            Close my account permanently
-          </button>
+          <form id="profile-password-form" method="dialog">
+            <p class="settings-label">Change password</p>
+            <label for="new-password">New password</label>
+            <input id="new-password" type="password" required minlength="6"
+                   autocomplete="new-password" placeholder="At least 6 characters" />
+            <label for="new-password-again">Repeat it</label>
+            <input id="new-password-again" type="password" required minlength="6"
+                   autocomplete="new-password" placeholder="The same again" />
+            <button class="primary-button wide" type="submit" id="save-password">Change password</button>
+          </form>
+
+          <div class="settings-danger">
+            <p class="settings-label is-danger">Close my account</p>
+            <p class="field-hint">
+              This removes your account and every report you have filed. Reports
+              other people confirmed will disappear from the map with them. It
+              cannot be undone.
+            </p>
+            <label for="delete-confirm">Type <b>DELETE</b> to confirm</label>
+            <input id="delete-confirm" autocomplete="off" placeholder="DELETE" />
+            <button class="ghost-button wide is-danger" type="button" id="delete-account">
+              Close my account permanently
+            </button>
+          </div>
         </details>
 
         <button class="ghost-button wide" type="button" id="profile-signout">Sign out</button>

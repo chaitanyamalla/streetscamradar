@@ -42,7 +42,6 @@ const byZoomAndConfirmations = (...pairs) => {
 // Below this the map shows dots; at and above it, category icons.
 export const ICON_ZOOM = 11.5;
 const FALLBACK_ICON = 'scam-icon-fallback';
-const POLICE_ICON = 'safety-icon-police';
 const HOSPITAL_ICON = 'safety-icon-hospital';
 
 export function createMap(container) {
@@ -144,13 +143,18 @@ export function addLayers(map) {
     },
   });
 
-  // --- Police & hospitals --------------------------------------------------
+  // --- Hospitals -----------------------------------------------------------
   // Only appears once zoomed into a place; registerSafetyIcons fills in the
-  // real badges once the map is ready, same placeholder trick as reports.
+  // real badge once the map is ready, same placeholder trick as reports.
+  //
+  // Police stations used to be here too. They were dropped: police come to you
+  // when you call the emergency number the map already shows, while a hospital
+  // is somewhere you go under your own steam for something that does not need
+  // an ambulance.
   map.addLayer({
     id: 'safety-icon', type: 'symbol', source: 'safety', minzoom: SAFETY_MIN_ZOOM,
     layout: {
-      'icon-image': ['match', ['get', 'kind'], 'hospital', HOSPITAL_ICON, POLICE_ICON],
+      'icon-image': HOSPITAL_ICON,
       // Deliberately smaller than a scam pin at every zoom. These are context,
       // not the point of the map, and at 0.8 they were the largest thing on it.
       'icon-size': ['interpolate', ['linear'], ['zoom'], SAFETY_MIN_ZOOM, 0.42, 16, 0.52, 19, 0.6],
@@ -228,8 +232,8 @@ export { maplibregl };
 
 /**
  * MapLibre can only place an icon it already holds, and the glyph fonts in a
- * vector style carry no emoji, so every badge — scam category, police,
- * hospital — is drawn once to a canvas and handed to the map as an image.
+ * vector style carry no emoji, so every badge — scam category, hospital — is
+ * drawn once to a canvas and handed to the map as an image.
  * Same white disc and glyph for all of them; only the ring colour differs,
  * which is what tells a report pin from a safety pin at a glance.
  */
@@ -294,10 +298,10 @@ export function registerCategoryIcons(map, categories) {
 }
 
 /**
- * Police and hospital pins: the glyph on its own, no disc. A ringed circle
- * read as a heavy marker competing with the scam pins, when these are meant
- * to sit quietly in the background as context. Scam pins keep their ring, so
- * the two kinds still read apart at a glance.
+ * The hospital pin: the glyph on its own, no disc. A ringed circle read as a
+ * heavy marker competing with the scam pins, when this is meant to sit quietly
+ * in the background as context. Scam pins keep their ring, so the two kinds
+ * still read apart at a glance.
  */
 export function registerSafetyIcons(map) {
   const add = (id, glyph) => {
@@ -305,6 +309,5 @@ export function registerSafetyIcons(map) {
     const image = drawBadge(glyph, null, { disc: false });
     if (image) map.addImage(id, image, { pixelRatio: 2 });
   };
-  add(POLICE_ICON, '\uD83D\uDE93');     // 🚓
   add(HOSPITAL_ICON, '\uD83C\uDFE5');   // 🏥
 }

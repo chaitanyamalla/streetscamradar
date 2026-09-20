@@ -253,8 +253,12 @@ export async function saveHomeArea({ label, lat, lng }) {
 
 // --- Safety places ---------------------------------------------------------
 /**
- * Police stations and hospitals in view. Public reference data, so no
- * sign-in branching: the same rows for everyone.
+ * Hospitals in view. Public reference data, so no sign-in branching: the same
+ * rows for everyone.
+ *
+ * kind is filtered here rather than assumed, because the table can still hold
+ * police rows from earlier crawls and a stray one would be drawn as a
+ * hospital.
  *
  * These used to come straight from OpenStreetMap's Overpass API on every pan,
  * which tied a feature of the site to a free, shared, frequently congested
@@ -268,6 +272,7 @@ export async function fetchSafetyPlaces(bounds) {
   const { data, error } = await supabase
     .from('safety_places')
     .select('id,kind,name,address,lat,lng,country_code,opening_hours,phone,emergency')
+    .eq('kind', 'hospital')
     .gte('lat', minLat).lte('lat', maxLat)
     .gte('lng', minLng).lte('lng', maxLng)
     .limit(SAFETY_MAX_PLACES);

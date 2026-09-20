@@ -5,37 +5,40 @@
 -- ============================================================================
 with expected_tables(t) as (
   values ('reports'),('profiles'),('scam_categories'),
-         ('report_supports'),('report_flags'),('app_settings')
+         ('report_supports'),('report_flags'),('app_settings'),
+         ('safety_places')
 ),
 expected_funcs(f) as (
   values ('public_area_summary'),('public_sample_reports'),('delete_my_report'),
-         ('setting_int'),('setting_num'),('report_window'),('handle_new_user')
+         ('setting_int'),('setting_num'),('report_window'),('handle_new_user'),
+         ('is_own_report')
 )
 select * from (
   select 1 as ord, 'tables created' as check,
-         count(*) || ' of 6' as detail,
-         case when count(*) = 6 then 'PASS' else 'MISSING' end as result
+         count(*) || ' of 7' as detail,
+         case when count(*) = 7 then 'PASS' else 'MISSING' end as result
     from expected_tables e
     join pg_tables p on p.tablename = e.t and p.schemaname = 'public'
 
   union all
   select 2, 'row level security on every table',
-         count(*) filter (where c.relrowsecurity) || ' of 6',
-         case when count(*) filter (where c.relrowsecurity) = 6 then 'PASS' else 'FAIL' end
+         count(*) filter (where c.relrowsecurity) || ' of 7',
+         case when count(*) filter (where c.relrowsecurity) = 7 then 'PASS' else 'FAIL' end
     from expected_tables e
     join pg_class c on c.relname = e.t
     join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
 
   union all
-  -- 10 policies: profiles 3, report_supports 3, report_flags 2,
-  -- reports 1 (insert only — reads go through the view), categories 1.
-  select 3, 'security policies present', count(*) || ' of 10',
-         case when count(*) = 10 then 'PASS' else 'FAIL' end
+  -- 11 policies: profiles 3, report_supports 3, report_flags 2,
+  -- reports 1 (insert only — reads go through the view), categories 1,
+  -- safety_places 1 (read by everyone, written by nobody).
+  select 3, 'security policies present', count(*) || ' of 11',
+         case when count(*) = 11 then 'PASS' else 'FAIL' end
     from pg_policies where schemaname = 'public'
 
   union all
-  select 4, 'functions created', count(distinct p.proname) || ' of 7',
-         case when count(distinct p.proname) = 7 then 'PASS' else 'MISSING' end
+  select 4, 'functions created', count(distinct p.proname) || ' of 8',
+         case when count(distinct p.proname) = 8 then 'PASS' else 'MISSING' end
     from expected_funcs e
     join pg_proc p on p.proname = e.f
     join pg_namespace n on n.oid = p.pronamespace and n.nspname = 'public'

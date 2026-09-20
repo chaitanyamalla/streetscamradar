@@ -84,9 +84,11 @@ export const GEOCODER = {
 // scam report icons, where the map has room for detail. SAFETY_MAX_SPAN is a
 // backstop against pulling half a continent in one query — zoom is the real
 // gate, and this must stay above the widest span that zoom can produce
-// (~0.88 deg on a 2560px screen) or the layer silently shows nothing.
+// (1.243 deg on a 2560px screen at zoom 11.5) or the layer silently shows
+// nothing on wide monitors. safety-zoom-test.js asserts exactly that, and has
+// now caught this pairing going wrong twice.
 export const SAFETY_MIN_ZOOM = 11.5;
-export const SAFETY_MAX_SPAN = 1.2;
+export const SAFETY_MAX_SPAN = 1.5;
 
 export const POLICE_COLOR = '#2f5fa8';
 export const HOSPITAL_COLOR = '#c5382c';

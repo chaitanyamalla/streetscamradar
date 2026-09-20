@@ -21,36 +21,47 @@ MIRRORS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
 ]
-RADIUS_M = 6000        # around each reported area
-TIMEOUT_S = 60         # generous: this is a background job, not a page load
-PAUSE_S = 2            # between areas, to stay a good citizen
+RADIUS_M = 5000        # around each reported area
+TIMEOUT_S = 45         # generous: this is a background job, not a page load
+PAUSE_S = 3            # between areas, to stay a good citizen
+RETRIES = 2            # per area, across all mirrors, before giving up on it
 MAX_PER_AREA = 300
 
 
 def overpass(lat, lng):
+    """
+    One area's worth of places, or None if every mirror gave up on it.
+
+    Returns None rather than raising: Overpass 504s and read timeouts are
+    routine on the free instances, and one unlucky area must not throw away
+    the areas that did come back. The caller skips and carries on.
+    """
     query = (
-        f"[out:json][timeout:50];"
+        f"[out:json][timeout:40];"
         f'nwr["amenity"~"^(hospital|police)$"](around:{RADIUS_M},{lat},{lng});'
         f"out center {MAX_PER_AREA};"
     )
     body = urllib.parse.urlencode({"data": query}).encode()
-    last = None
-    for url in MIRRORS:
-        try:
-            req = urllib.request.Request(
-                url, data=body,
-                headers={
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    # Overpass asks callers to identify themselves.
-                    "User-Agent": "StreetScamRadar/1.0 (+https://streetscamradar.vercel.app)",
-                },
-            )
-            with urllib.request.urlopen(req, timeout=TIMEOUT_S) as res:
-                return json.loads(res.read().decode())
-        except Exception as err:                      # noqa: BLE001
-            last = err
-            print(f"-- {url} failed for {lat},{lng}: {err}", file=sys.stderr)
-    raise RuntimeError(f"all mirrors failed for {lat},{lng}: {last}")
+
+    for attempt in range(1, RETRIES + 1):
+        for url in MIRRORS:
+            try:
+                req = urllib.request.Request(
+                    url, data=body,
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        # Overpass asks callers to identify themselves.
+                        "User-Agent": "StreetScamRadar/1.0 (+https://streetscamradar.vercel.app)",
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=TIMEOUT_S) as res:
+                    return json.loads(res.read().decode())
+            except Exception as err:                  # noqa: BLE001
+                host = url.split("/")[2]
+                print(f"--   attempt {attempt} via {host}: {err}", file=sys.stderr)
+        if attempt < RETRIES:
+            time.sleep(PAUSE_S * 2)
+    return None
 
 
 def to_row(el):
@@ -99,18 +110,33 @@ def main():
         return
 
     rows = {}
+    skipped = []
     for i, (lat, lng) in enumerate(centres, 1):
         print(f"-- [{i}/{len(centres)}] {lat},{lng}", file=sys.stderr)
-        for el in overpass(lat, lng).get("elements", []):
-            row = to_row(el)
-            if row:
-                rows[row["id"]] = row      # dedupe across overlapping areas
+        result = overpass(lat, lng)
+        if result is None:
+            print(f"--   giving up on {lat},{lng} — keeping the rest", file=sys.stderr)
+            skipped.append((lat, lng))
+        else:
+            for el in result.get("elements", []):
+                row = to_row(el)
+                if row:
+                    rows[row["id"]] = row  # dedupe across overlapping areas
         if i < len(centres):
             time.sleep(PAUSE_S)
 
-    print(f"-- {len(rows)} places from {len(centres)} areas")
+    done = len(centres) - len(skipped)
+    summary = f"{len(rows)} places from {done}/{len(centres)} areas"
+    if skipped:
+        summary += f" ({len(skipped)} skipped: " + "; ".join(f"{a},{b}" for a, b in skipped) + ")"
+    print(f"-- {summary}")
+    print(f"-- {summary}", file=sys.stderr)
+
+    # Only a total washout is a failure. Partial data beats no data, and the
+    # next scheduled run picks up whatever was missed.
     if not rows:
-        return
+        print("-- nothing fetched; failing so this does not pass silently", file=sys.stderr)
+        sys.exit(1)
 
     print("begin;")
     for row in rows.values():

@@ -216,6 +216,25 @@ select ssr_test.ok((select support_count from public.reports_feed where id='aaaa
                    'editing does not disturb what a report collected');
 rollback;
 
+-- The density grid is a property of the world, not of your viewport.
+-- It used to divide the viewport into columns from its own corner, so the
+-- circles slid around under the cursor on any pan — about half a kilometre
+-- for a fifth of a degree.
+begin;
+set local role anon;
+select ssr_test.ok(
+  (select lat from public.public_area_summary(48.70, 2.20, 49.00, 2.50) limit 1)
+  = (select lat from public.public_area_summary(48.72, 2.22, 49.02, 2.52) limit 1),
+  'panning does not move a density circle');
+select ssr_test.ok(
+  (select lng from public.public_area_summary(48.70, 2.20, 49.00, 2.50) limit 1)
+  = (select lng from public.public_area_summary(48.75, 2.25, 49.05, 2.55) limit 1),
+  'and neither does panning again');
+select ssr_test.ok(
+  (select count(*) from public.public_area_summary(48.70, 2.20, 49.00, 2.50)) > 0,
+  'the grid still actually groups something');
+rollback;
+
 -- Moving a report, and the day you have to do it in.
 begin;
 set local role authenticated;

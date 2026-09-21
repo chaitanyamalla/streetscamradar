@@ -101,7 +101,20 @@ em { font-style:italic; }
 .maplibregl-map { width:100%; height:100%; font-family:Manrope,Arial,sans-serif; }
 .city-map.is-picking, .city-map.is-picking .maplibregl-canvas { cursor:crosshair; }
 
-.map-intro { position:absolute; z-index:3; top:34px; left:var(--gutter); width:390px; }
+/* On a wide screen this floats over the map, and the heading and blurb were
+   sitting straight on the tiles: streets ran through the words, and the words
+   ran through the streets. A translucent panel separates the two without
+   hiding the map behind it. Mobile puts this in normal flow below the header,
+   where there is nothing to read through, and resets all of it. */
+/* Above the filter panel, not merely equal to it. Both used to sit at z-index
+   3, and the filter panel comes later in the document, so it painted over the
+   search results — which only became reachable once the panel's padding pushed
+   the dropdown far enough down to touch it. */
+.map-intro { position:absolute; z-index:4; top:34px; left:var(--gutter); width:390px;
+  padding:18px 20px 20px; border:1px solid rgba(255,255,255,0.7);
+  border-radius:var(--radius); background:rgba(252,251,249,0.86);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  box-shadow:0 6px 28px rgba(20,30,28,0.13); }
 .map-intro h1 { margin:0; font-size:42px; color:var(--ink); }
 .map-intro h1 em { font-family:Georgia,'Times New Roman',serif; font-weight:400;
   font-style:italic; letter-spacing:-.02em; color:var(--brand); }
@@ -512,7 +525,9 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 
   .map-area { height:auto; min-height:0; max-height:none; overflow:visible;
     display:flex; flex-direction:column; gap:14px; padding-bottom:22px; background:var(--paper); }
-  .map-intro { position:static; order:1; width:auto; padding:22px var(--gutter) 0; }
+  .map-intro { position:static; order:1; width:auto; padding:22px var(--gutter) 0;
+    border:0; border-radius:0; background:none; backdrop-filter:none;
+    -webkit-backdrop-filter:none; box-shadow:none; }
   .map-intro h1 { font-size:32px; }
   .intro-copy { max-width:none; }
   /* The map is the product on a phone: give it the room that headings,

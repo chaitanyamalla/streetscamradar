@@ -465,13 +465,26 @@ language sql stable security definer set search_path = public as $$
            least(min_lng, max_lng) as x0, greatest(min_lng, max_lng) as x1
   ),
   grid as (
-    select y0, y1, x0, x1,
-           greatest((y1 - y0) / greatest(cells, 1), 0.0005) as dy,
-           greatest((x1 - x0) / greatest(cells, 1), 0.0005) as dx
-      from bounds
+    -- A cell size off a fixed ladder of powers of two, anchored at 0,0 and
+    -- shared by the whole world.
+    --
+    -- This used to divide the viewport into `cells` columns starting at its
+    -- own south-west corner, which meant every cell centre moved whenever the
+    -- viewport did: the circles slid around under the cursor on any pan, and
+    -- drifted continuously while zooming. Snapping to a global lattice makes a
+    -- circle's position a property of where the reports are, so panning never
+    -- moves one and zooming only regroups when the span crosses a power of two.
+    select b.*,
+           greatest(
+             power(2::numeric,
+                   floor(log(2::numeric,
+                             greatest(b.x1 - b.x0, b.y1 - b.y0, 1e-6)::numeric
+                               / greatest(cells, 1))))::double precision,
+             0.0005) as step
+      from bounds b
   )
-  select g.y0 + (floor(least((r.lat - g.y0) / g.dy, greatest(cells, 1) - 1)) + 0.5) * g.dy,
-         g.x0 + (floor(least((r.lng - g.x0) / g.dx, greatest(cells, 1) - 1)) + 0.5) * g.dx,
+  select floor(r.lat / g.step) * g.step + g.step / 2,
+         floor(r.lng / g.step) * g.step + g.step / 2,
          count(*),
          count(*) filter (where r.support_count > 0)
     from public.reports r, grid g

@@ -67,7 +67,15 @@ export function createMap(container) {
 }
 
 export function addLayers(map) {
-  map.addSource('reports', { type: 'geojson', data: EMPTY, cluster: true, clusterRadius: 46, clusterMaxZoom: 15 });
+  // Clustering stops at 13 rather than 15, and groups a little less eagerly.
+  //
+  // A cluster sits at the mean of its members, so every time one splits the
+  // circle you were looking at vanishes and two appear somewhere else. Holding
+  // clusters together until zoom 15 meant that kept happening almost until the
+  // last zoom step — reports appeared to jump around all the way in. Letting
+  // them break apart at 13 gets to fixed, individual pins sooner, which is
+  // where a reader actually wants to be.
+  map.addSource('reports', { type: 'geojson', data: EMPTY, cluster: true, clusterRadius: 38, clusterMaxZoom: 13 });
   map.addSource('density', { type: 'geojson', data: EMPTY });
   map.addSource('safety', { type: 'geojson', data: EMPTY });
 

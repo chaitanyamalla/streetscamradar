@@ -482,16 +482,32 @@ language sql stable security definer set search_path = public as $$
                                / greatest(cells, 1))))::double precision,
              0.0005) as step
       from bounds b
+  ),
+  frame as (
+    -- Widen the search to whole cells.
+    --
+    -- Snapping the centres stopped the circles sliding, but the counts still
+    -- changed on every pan, because a cell straddling the edge of the screen
+    -- was only counted as far as the screen went: the number in the circle
+    -- ticked up and down as you moved, and cells blinked in and out at the
+    -- margin. Asking for whole cells means a circle's number is a property of
+    -- the cell, so nothing changes until the view crosses a cell boundary.
+    select floor(g.y0 / g.step) * g.step as qy0,
+           ceil (g.y1 / g.step) * g.step as qy1,
+           floor(g.x0 / g.step) * g.step as qx0,
+           ceil (g.x1 / g.step) * g.step as qx1,
+           g.step
+      from grid g
   )
-  select floor(r.lat / g.step) * g.step + g.step / 2,
-         floor(r.lng / g.step) * g.step + g.step / 2,
+  select floor(r.lat / f.step) * f.step + f.step / 2,
+         floor(r.lng / f.step) * f.step + f.step / 2,
          count(*),
          count(*) filter (where r.support_count > 0)
-    from public.reports r, grid g
+    from public.reports r, frame f
    where r.status = 'published'
      and r.happened_at > now() - public.report_window()
-     and r.lat between g.y0 and g.y1
-     and r.lng between g.x0 and g.x1
+     and r.lat between f.qy0 and f.qy1
+     and r.lng between f.qx0 and f.qx1
    group by 1, 2;
 $$;
 

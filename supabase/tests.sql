@@ -233,6 +233,17 @@ select ssr_test.ok(
 select ssr_test.ok(
   (select count(*) from public.public_area_summary(48.70, 2.20, 49.00, 2.50)) > 0,
   'the grid still actually groups something');
+-- Snapping the centres was only half of it: a cell straddling the edge of the
+-- screen used to be counted only as far as the screen went, so the number in
+-- the circle ticked up and down as you panned.
+select ssr_test.ok(
+  (select coalesce(sum(total), 0) from public.public_area_summary(48.70, 2.20, 49.00, 2.50))
+  = (select coalesce(sum(total), 0) from public.public_area_summary(48.72, 2.22, 49.02, 2.52)),
+  'and panning does not change what a circle counts');
+select ssr_test.ok(
+  (select count(*) from public.public_area_summary(48.70, 2.20, 49.00, 2.50))
+  = (select count(*) from public.public_area_summary(48.73, 2.23, 49.03, 2.53)),
+  'nor how many circles there are');
 rollback;
 
 -- Moving a report, and the day you have to do it in.

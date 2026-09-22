@@ -179,6 +179,8 @@ function onLanguageChanged() {
   // live values go back on top of it.
   if (state.placeLabel) $('#place-label').textContent = state.placeLabel;
   if (signedIn()) $('#profile-email').textContent = state.user?.email ?? t('header.signedIn');
+  $('#when-hint').textContent = t('report.whenHint', { days: REPORT_WINDOW_DAYS });
+  if (!state.pin) $('#pin-status').textContent = t('report.noPin');
 
   paintAuthState();
   if (state.categories.length) {

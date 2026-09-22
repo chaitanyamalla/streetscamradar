@@ -292,6 +292,23 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   text-transform:uppercase; cursor:pointer; }
 .avatar-button:hover { background:var(--brand-lift, var(--brand)); }
 .avatar-button[hidden] { display:none; }
+
+/* Language, in the header, for everyone — signed in or not. A native <select>
+   on purpose: a phone renders it as its own wheel, it is reachable by keyboard
+   without any code of ours, and it is the one control on this site a visitor
+   may need before they can read the rest. */
+.lang-picker { display:flex; align-items:center; }
+.lang-picker select { padding:7px 26px 7px 10px; border:1px solid #2f4855; border-radius:var(--radius);
+  background:transparent; color:#cfe0e3; font-size:12.5px; cursor:pointer;
+  appearance:none; -webkit-appearance:none;
+  background-image:linear-gradient(45deg,transparent 50%,#cfe0e3 50%),
+                   linear-gradient(135deg,#cfe0e3 50%,transparent 50%);
+  background-position:right 12px top 52%, right 7px top 52%;
+  background-size:5px 5px, 5px 5px; background-repeat:no-repeat; }
+.lang-picker select:hover { border-color:var(--glow); color:#fff; }
+.lang-picker select:focus-visible { outline:2px solid var(--glow); outline-offset:1px; }
+/* The list itself is drawn by the browser, on the page's own background. */
+.lang-picker option { background:var(--paper); color:var(--ink); }
 .form-note { color:var(--ink-soft); font-size:12.5px; line-height:1.6; }
 
 .dialog-body label { display:block; margin-top:15px; font-size:11.5px; font-weight:800;
@@ -616,9 +633,12 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   :root { --gutter:16px; }
   .topbar { height:auto; flex-wrap:wrap; padding:10px var(--gutter); gap:10px; }
   .brand { margin-right:auto; font-size:16px; }
-  .top-actions { width:100%; }
+  .topbar .lang-picker select { padding:6px 24px 6px 9px; font-size:12px; }
+  .top-actions { width:100%; order:2; }
   .top-actions .ghost-button { flex:1; }
   .top-actions .primary-button { flex:2; }
+  /* Beside the brand on the first row, where there is room going spare. */
+  .lang-picker { order:1; flex:none; }
   .map-intro h1 { font-size:28px; }
   .city-map { height:clamp(380px,62vh,600px); }
   .setup-banner { font-size:11.5px; }

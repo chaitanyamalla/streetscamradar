@@ -16,6 +16,8 @@
 // faster and in the local language.
 // ---------------------------------------------------------------------------
 
+import { countryName, t } from './i18n.js';
+
 /** general = one number for everything (or two, where both are official);
  *  the rest are service-specific. */
 const NUMBERS = {
@@ -130,17 +132,24 @@ export function emergencyFor(countryCode) {
 
   // Where two numbers both reach everything — 999 and 112 in the UK and
   // Ireland — the second reads as an alternative rather than a second heading.
-  [entry.general ?? []].flat().forEach((number, i) => add(i ? 'or' : 'All services', number));
-  add('Police', entry.police);
-  add('Fire', entry.fire);
-  add('Ambulance', entry.ambulance);
+  [entry.general ?? []].flat()
+    .forEach((number, i) => add(i ? 'emergency.or' : 'emergency.all', number));
+  add('emergency.police', entry.police);
+  add('emergency.fire', entry.fire);
+  add('emergency.ambulance', entry.ambulance);
 
-  const numbers = [...byNumber].map(([number, labels]) => ({
+  const numbers = [...byNumber].map(([number, keys]) => ({
     number,
     // "All services" already covers everything, so it never needs company.
-    label: labels.includes('All services') ? 'All services' : labels.join(' & '),
+    label: keys.includes('emergency.all')
+      ? t('emergency.all')
+      : keys.map(k => t(k)).join(' & '),
   }));
-  return { name: entry.name, numbers };
+  // The English name in the table is the last resort: every browser can say
+  // "Deutschland" or "Niemcy" from the ISO code, and says it better than a
+  // list we would have to keep in seven languages.
+  const code = (countryCode ?? '').toUpperCase();
+  return { name: countryName(code, entry.name), numbers };
 }
 
 export const knownCountries = () => Object.keys(NUMBERS).length;

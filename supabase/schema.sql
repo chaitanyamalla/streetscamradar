@@ -101,10 +101,23 @@ create table if not exists public.profiles (
   home_label   text,
   home_lat     double precision,
   home_lng     double precision,
+  -- The language you chose, so the site opens in it on any device you sign in
+  -- on. Null means "whatever this browser asks for", which is what a member
+  -- who has never touched the picker gets.
+  locale       text,
   created_at   timestamptz not null default now(),
   constraint home_lat_range check (home_lat is null or home_lat between -90 and 90),
-  constraint home_lng_range check (home_lng is null or home_lng between -180 and 180)
+  constraint home_lng_range check (home_lng is null or home_lng between -180 and 180),
+  constraint locale_known   check (locale is null or locale in ('en','de','es','fr','it','cs','pl'))
 );
+
+-- Existing installs: add the column and its check without touching the rest.
+alter table public.profiles add column if not exists locale text;
+do $$ begin
+  alter table public.profiles add constraint locale_known
+    check (locale is null or locale in ('en','de','es','fr','it','cs','pl'));
+exception when duplicate_object then null;
+end $$;
 
 alter table public.profiles enable row level security;
 drop policy if exists "read own profile"   on public.profiles;

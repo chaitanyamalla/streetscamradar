@@ -11,7 +11,7 @@ import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DA
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, myConfirmedReports, editMyReport,
-         deleteMyAccount, getProfile, saveDisplayName, supabase } from './js/data.js';
+         deleteMyAccount, getProfile, saveDisplayName, saveLocale, supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
          signInWithGoogle, signOut, enabledProviders, changePassword } from './js/auth.js';
 import { searchPlaces, describePoint, locateMe } from './js/geo.js';
@@ -20,7 +20,10 @@ import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
          maplibregl } from './js/map.js';
 import { esc, toast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
-         setGateNote, renderProfileReports, renderProfileStats, STAT_TITLES } from './js/ui.js';
+         setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
+         categoryLabel } from './js/ui.js';
+import { t, plural, formatDate, setLanguage, preferredLanguage, currentLanguage,
+         isSupported, renderLanguagePicker } from './js/i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -36,7 +39,7 @@ const state = {
   safetyPlaces: [],   // what the safety layer last loaded, for the country lookup
   pin: null,          // { lat, lng, address, city, countryCode }
   pinPending: null,   // in-flight reverse geocode for that pin
-  placeLabel: 'Anywhere in the world',
+  placeLabel: null,   // null = nowhere chosen yet, so the header says "anywhere"
 };
 
 const signedIn = () => Boolean(state.user);
@@ -78,10 +81,15 @@ if (!isConfigured()) {
 
 init().catch(err => {
   console.error(err);
-  toast('Something went wrong starting up. Check the browser console.', { error: true });
+  toast(t('toast.startupFailed'), { error: true });
 });
 
 async function init() {
+  // Before anything draws: a page that renders in English and then flips is
+  // worse than a page that waits the few milliseconds for its own language.
+  await setLanguage(preferredLanguage(), { remember: false });
+  wireLanguage();
+
   await initAuth();
   onAuthChange(async user => {
     state.user = user;
@@ -93,6 +101,7 @@ async function init() {
     if (user) {
       try {
         state.profile = await getProfile();
+        await adoptAccountLanguage();
         paintAvatar();
       } catch (err) {
         console.error(err);      // the email initial is a fine fallback
@@ -110,14 +119,79 @@ async function init() {
     } catch (err) {
       console.error(err);
       $('#category-filters').innerHTML =
-        '<p class="muted-note">Could not load categories — is schema.sql applied?</p>';
+        `<p class="muted-note">${esc(t('filters.categoriesFailed'))}</p>`;
     }
   } else {
-    $('#category-filters').innerHTML = '<p class="muted-note">Connect Supabase to load categories.</p>';
+    $('#category-filters').innerHTML = `<p class="muted-note">${esc(t('filters.connect'))}</p>`;
   }
 
   wireUI();
   await paintProviders();
+}
+
+// ---------------------------------------------------------------------------
+// Language
+//
+// Two pickers, one setting: the one in the header, which anybody can reach
+// without an account, and the one in the profile, which is the same choice
+// written down against your account. Whichever you use, the other follows.
+//
+// Everything with a data-i18n attribute is swapped by the engine itself. What
+// this file has to do is redraw the parts it renders from JavaScript — the
+// report list, the profile, the emergency bar — and put back the two labels
+// that hold live values rather than a fixed string.
+// ---------------------------------------------------------------------------
+function wireLanguage() {
+  for (const select of [$('#lang-select'), $('#profile-lang')]) {
+    if (!select) continue;
+    renderLanguagePicker(select);
+    select.addEventListener('change', () => chooseLanguage(select.value));
+  }
+  document.addEventListener('languagechange', onLanguageChanged);
+}
+
+async function chooseLanguage(code) {
+  if (code === currentLanguage()) return;
+  await setLanguage(code);
+  // Signed in, the choice belongs to the account, not to this browser.
+  if (signedIn()) {
+    const saved = await saveLocale(code);
+    if (saved) {
+      state.profile = { ...(state.profile ?? {}), locale: code };
+      toast(t('toast.languageSaved'));
+    }
+  }
+}
+
+/** What your account says, once we know who you are. The browser's guess was
+ *  only ever a stand-in until this arrived. */
+async function adoptAccountLanguage() {
+  const wanted = state.profile?.locale;
+  if (!wanted || !isSupported(wanted) || wanted === currentLanguage()) return;
+  await setLanguage(wanted);
+}
+
+function onLanguageChanged() {
+  for (const select of [$('#lang-select'), $('#profile-lang')]) {
+    if (select) select.value = currentLanguage();
+  }
+  // applyTranslations has just written the default into both of these, so the
+  // live values go back on top of it.
+  if (state.placeLabel) $('#place-label').textContent = state.placeLabel;
+  if (signedIn()) $('#profile-email').textContent = state.user?.email ?? t('header.signedIn');
+
+  paintAuthState();
+  if (state.categories.length) {
+    renderCategoryFilters($('#category-filters'), state.categories, state.activeCategories);
+    fillCategorySelect();
+  }
+  if (layersReady && isConfigured()) { draw(); refreshSafety(); }
+  if ($('#profile-dialog').open) paintProfileList();
+  // An open popup holds text built in the old language, and there is no way to
+  // rebuild it without knowing which feature it came from. Closing it is
+  // honest; the pin is still there to tap again.
+  openPopup?.remove();
+  openPopup = null;
 }
 
 /** Only show the Google button if the provider is actually switched on. */
@@ -128,8 +202,10 @@ async function paintProviders() {
 
 function paintAuthState() {
   const btn = $('#auth-button');
-  btn.textContent = signedIn() ? 'Sign out' : 'Sign in';
-  btn.setAttribute('title', signedIn() ? state.user.email ?? 'Signed in' : 'Sign in or create an account');
+  btn.textContent = t(signedIn() ? 'header.signOut' : 'header.signIn');
+  btn.setAttribute('title', signedIn()
+    ? state.user.email ?? t('header.signedIn')
+    : t('header.signIn.title'));
   paintAvatar();
 }
 
@@ -150,9 +226,9 @@ function paintAvatar() {
   const email = state.user?.email ?? '';
   const initial = (name || email).trim().charAt(0);
   $('#profile-initial').textContent = initial || '\u2022';
-  const label = name || email || 'Signed in';
-  button.title = `Your profile — ${label}`;
-  button.setAttribute('aria-label', `Your profile, ${label}`);
+  const label = name || email || t('header.signedIn');
+  button.title = t('header.profile.of', { who: label });
+  button.setAttribute('aria-label', t('header.profile.aria', { who: label }));
 }
 
 // ---------------------------------------------------------------------------
@@ -221,8 +297,8 @@ window.addEventListener('popstate', () => {
 const profile = { reports: [], confirmed: null, stats: null, filter: 'filed' };
 
 async function openProfile() {
-  $('#profile-email').textContent = state.user?.email ?? 'Signed in';
-  $('#profile-reports').innerHTML = '<p class="empty-note">Loading…</p>';
+  $('#profile-email').textContent = state.user?.email ?? t('header.signedIn');
+  $('#profile-reports').innerHTML = `<p class="empty-note">${esc(t('filters.loading'))}</p>`;
   $('#profile-stats').innerHTML = '';
   profile.filter = 'filed';
   openDialog('#profile-dialog');
@@ -251,12 +327,11 @@ async function loadProfile() {
     $('#profile-name').value = saved?.display_name ?? '';
     const since = saved?.created_at ?? state.user?.created_at;
     $('#profile-since').textContent = since
-      ? `Member since ${new Date(since).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`
+      ? t('profile.memberSince', { when: formatDate(since) })
       : '';
   } catch (err) {
     console.error(err);
-    $('#profile-reports').innerHTML =
-      '<p class="empty-note">Could not load your reports right now.</p>';
+    $('#profile-reports').innerHTML = `<p class="empty-note">${esc(t('profile.failed'))}</p>`;
   }
 }
 
@@ -276,7 +351,7 @@ function reportsForFilter() {
 function paintProfileList() {
   if (!profile.stats) return;
   renderProfileStats($('#profile-stats'), profile.stats, profile.filter);
-  $('#reports-heading').textContent = STAT_TITLES[profile.filter];
+  $('#reports-heading').textContent = t(STAT_TITLE_KEYS[profile.filter]);
   $('#stat-back').hidden = profile.filter === 'filed';
   renderProfileReports($('#profile-reports'), reportsForFilter(),
     state.categories, REPORT_WINDOW_DAYS,
@@ -286,7 +361,7 @@ function paintProfileList() {
 async function showStat(key) {
   profile.filter = key;
   if (key === 'given' && profile.confirmed === null) {
-    $('#profile-reports').innerHTML = '<p class="empty-note">Loading…</p>';
+    $('#profile-reports').innerHTML = `<p class="empty-note">${esc(t('filters.loading'))}</p>`;
     try {
       profile.confirmed = await myConfirmedReports();
     } catch (err) {
@@ -332,7 +407,7 @@ async function refresh() {
     draw();
   } catch (err) {
     console.error(err);
-    toast(err.message || 'Could not load reports for this area.', { error: true });
+    toast(err.message || t('toast.loadFailed'), { error: true });
   }
 }
 
@@ -354,9 +429,9 @@ async function refreshSafety() {
   // the country you just panned away from.
   state.safetyPlaces = [];
 
-  if (!state.safetyOn) { status.textContent = 'Turned off'; return; }
+  if (!state.safetyOn) { status.textContent = t('safety.off'); return; }
   if (map.getZoom() < SAFETY_MIN_ZOOM) {
-    status.textContent = 'Zoom in to see hospitals';
+    status.textContent = t('safety.zoomIn');
     status.classList.remove('is-warning');
     return;
   }
@@ -369,12 +444,12 @@ async function refreshSafety() {
     setSafetyPlaces(map, places);
     status.classList.remove('is-warning');
     status.textContent = places.length
-      ? `${places.length} nearby`
-      : 'None recorded in this area yet';
+      ? t('safety.count', { n: places.length })
+      : t('safety.none');
   } catch (err) {
     if (ticket !== safetyInFlight) return;
     console.error(err);
-    status.textContent = 'Could not load these right now';
+    status.textContent = t('safety.failed');
     status.classList.add('is-warning');
   }
 }
@@ -482,10 +557,10 @@ function draw() {
 
   const totalCells = cells.reduce((sum, c) => sum + Number(c.total), 0);
   $('#reports-count').textContent = mode === 'summary' ? totalCells : visible.length;
-  $('#reports-title').textContent = mode === 'summary' ? 'Reports in this region' : 'Reports here';
-  $('#reports-scope').textContent = mode === 'member'
-    ? `Last ${REPORT_WINDOW_DAYS} days · every report in view`
-    : `Last ${REPORT_WINDOW_DAYS} days · public view`;
+  $('#reports-title').textContent = t(mode === 'summary'
+    ? 'reports.title.region' : 'reports.title.here');
+  $('#reports-scope').textContent = t(mode === 'member'
+    ? 'reports.scope.member' : 'reports.scope.public', { days: REPORT_WINDOW_DAYS });
 
   renderReportList($('#report-list'), visible, {
     categories: state.categories, mode, supported: state.supported, signedIn: signedIn(),
@@ -517,6 +592,7 @@ function primeWhenFields() {
   dateField.min = asLocalISO(new Date(now.getTime() - REPORT_WINDOW_DAYS * 86400000)).slice(0, 10);
   if (!dateField.value) dateField.value = dateField.max;
   if (!timeField.value) timeField.value = asLocalISO(now).slice(11, 16);
+  $('#when-hint').textContent = t('report.whenHint', { days: REPORT_WINDOW_DAYS });
 }
 
 /** The chosen moment, or null if the pair does not make one. */
@@ -565,7 +641,7 @@ function onMapClick(e) {
 function startPicking() {
   state.picking = true;
   document.getElementById('city-map').classList.add('is-picking');
-  toast('Tap the exact spot on the map.');
+  toast(t('report.pickHint'));
 }
 function stopPicking() {
   state.picking = false;
@@ -576,7 +652,8 @@ function setPin({ lat, lng, label }) {
   state.pin = { lat, lng, address: null, city: null, countryCode: null };
   const status = $('#pin-status');
   status.classList.add('is-set');
-  status.textContent = label ?? `Pinned at ${lat.toFixed(4)}, ${lng.toFixed(4)} — looking up the address…`;
+  status.textContent = label
+    ?? t('report.pinnedAt', { lat: lat.toFixed(4), lng: lng.toFixed(4) });
 
   // Naming the place is a second network call. Keep the promise so that
   // submitting quickly waits for it rather than posting without a city.
@@ -598,11 +675,13 @@ async function runSearch(query) {
   const box = $('#search-results');
   if (!query.trim()) { box.hidden = true; return; }
   box.hidden = false;
-  box.innerHTML = '<p class="muted-note" style="padding:12px 13px">Searching…</p>';
+  const note = (text) =>
+    `<p class="muted-note" style="padding:12px 13px">${esc(text)}</p>`;
+  box.innerHTML = note(t('search.searching'));
   try {
     const hits = await searchPlaces(query);
     if (!hits.length) {
-      box.innerHTML = '<p class="muted-note" style="padding:12px 13px">No place found. Try a city, postcode or street.</p>';
+      box.innerHTML = note(t('search.none'));
       return;
     }
     box.innerHTML = hits.map((h, i) => `
@@ -611,7 +690,7 @@ async function runSearch(query) {
       </button>`).join('');
     box.__hits = hits;
   } catch (err) {
-    box.innerHTML = `<p class="muted-note" style="padding:12px 13px">${esc(err.message)}</p>`;
+    box.innerHTML = note(err.message);
   }
 }
 
@@ -627,8 +706,10 @@ function goToPlace(place) {
 // ---------------------------------------------------------------------------
 function fillCategorySelect() {
   const sel = $('#scam-category');
+  const chosen = sel.value;
   sel.innerHTML = state.categories
-    .map(c => `<option value="${esc(c.slug)}">${esc(c.glyph)} ${esc(c.label)}</option>`).join('');
+    .map(c => `<option value="${esc(c.slug)}">${esc(c.glyph)} ${esc(categoryLabel(c))}</option>`).join('');
+  if (chosen) sel.value = chosen;   // a language change must not reset the form
 }
 
 function wireUI() {
@@ -649,14 +730,15 @@ function wireUI() {
 
   $('#locate-me').addEventListener('click', async () => {
     try {
+      toast(t('toast.locating'));
       const here = await locateMe();
       map.flyTo({ center: [here.lng, here.lat], zoom: PLACE_ZOOM, duration: 900 });
       const place = await describePoint(here.lat, here.lng);
-      state.placeLabel = place.label ?? 'Where you are now';
+      state.placeLabel = place.label ?? t('place.whereYouAre');
       $('#place-label').textContent = state.placeLabel;
-      toast('Showing what has been reported around you.');
+      toast(t('toast.showingAround'));
     } catch (err) {
-      toast(err.message, { error: true });
+      toast(err.message || t('toast.locateFailed'), { error: true });
     }
   });
   $('#place-chip').addEventListener('click', () => $('#place-search').focus());
@@ -718,11 +800,11 @@ function wireUI() {
         await refresh();
       } else if (flag) {
         await flagReport(flag.dataset.flag, 'wrong');
-        toast('Flagged for review. Thank you.');
+        toast(t('toast.flagged'));
       } else if (withdraw) {
-        if (!confirm('Remove your report from the map? This cannot be undone.')) return;
+        if (!confirm(t('profile.withdrawAsk'))) return;
         await withdrawReport(withdraw.dataset.withdraw);
-        toast('Your report has been withdrawn.');
+        toast(t('toast.withdrawn'));
         await refresh();
       }
     } catch (err) {
@@ -738,7 +820,7 @@ function wireUI() {
   });
 
   $('#auth-button').addEventListener('click', async () => {
-    if (signedIn()) { await signOut(); toast('Signed out.'); }
+    if (signedIn()) { await signOut(); toast(t('toast.signedOut')); }
     else openDialog('#auth-dialog');
   });
 
@@ -757,15 +839,15 @@ function wireUI() {
 
   deleteButton.addEventListener('click', async () => {
     if (deleteField.value.trim().toUpperCase() !== 'DELETE') return;
-    deleteButton.disabled = true; deleteButton.textContent = 'Closing…';
+    deleteButton.disabled = true; deleteButton.textContent = t('profile.closing');
     try {
       await deleteMyAccount();
       $('#profile-dialog').close();
       await signOut();
-      toast('Your account and reports have been removed.');
+      toast(t('toast.accountClosed'));
       await refresh();
     } catch (err) {
-      deleteButton.textContent = 'Close my account permanently';
+      deleteButton.textContent = t('profile.closeButton');
       syncDeleteButton();
       toast(err.message, { error: true });
     }
@@ -774,7 +856,7 @@ function wireUI() {
   $('#profile-signout').addEventListener('click', async () => {
     $('#profile-dialog').close();
     await signOut();
-    toast('Signed out.');
+    toast(t('toast.signedOut'));
   });
 
   $('#profile-stats').addEventListener('click', e => {
@@ -811,7 +893,7 @@ function wireUI() {
       yes.disabled = true;
       try {
         await withdrawReport(yes.dataset.withdrawYes);
-        toast('Your report has been withdrawn.');
+        toast(t('toast.withdrawn'));
         await Promise.all([loadProfile(), refresh()]);
       } catch (err) {
         yes.disabled = false;
@@ -831,7 +913,7 @@ function wireUI() {
         state.supported.delete(id);
         profile.confirmed = null;
         await Promise.all([loadProfile().then(() => showStat('given')), refresh()]);
-        toast('Confirmation removed.');
+        toast(t('toast.confirmationRemoved'));
       } catch (err) {
         unconfirm.disabled = false;
         toast(err.message, { error: true });
@@ -844,18 +926,18 @@ function wireUI() {
       const form = entryOf(find.dataset.find).querySelector('[data-edit-form]');
       const status = form.querySelector('[data-pin-status]');
       const query = form.querySelector('input[name="address"]').value.trim();
-      if (!query) { toast('Type an address first.', { error: true }); return; }
-      status.textContent = 'Looking…';
+      if (!query) { toast(t('toast.typeAddress'), { error: true }); return; }
+      status.textContent = t('profile.edit.looking');
       try {
         const [place] = await searchPlaces(query, 1);
-        if (!place) { status.textContent = 'Could not find that address.'; return; }
+        if (!place) { status.textContent = t('toast.needAddress'); return; }
         const detail = await describePoint(place.lat, place.lng);
         form.dataset.lat = place.lat;
         form.dataset.lng = place.lng;
         form.dataset.city = detail.city ?? '';
         form.dataset.country = detail.countryCode ?? '';
         form.dataset.label = detail.address ?? place.label ?? query;
-        status.textContent = `Will move to ${form.dataset.label}`;
+        status.textContent = t('profile.edit.movedTo', { place: form.dataset.label });
         status.classList.add('is-set');
       } catch (err) {
         status.textContent = err.message;
@@ -899,12 +981,12 @@ function wireUI() {
     // quietly change when the scam happened.
     if (data.get('retime')) {
       const when = new Date(`${data.get('date')}T${data.get('time')}`);
-      if (Number.isNaN(when.getTime())) { toast('That is not a time.', { error: true }); return; }
+      if (Number.isNaN(when.getTime())) { toast(t('toast.notATime'), { error: true }); return; }
       if (when.getTime() > Date.now() + 5 * 60000) {
-        toast('That is in the future.', { error: true }); return;
+        toast(t('toast.whenFuture'), { error: true }); return;
       }
       if (when.getTime() < Date.now() - REPORT_WINDOW_DAYS * 86400000) {
-        toast(`Reports drop off the map after ${REPORT_WINDOW_DAYS} days.`, { error: true }); return;
+        toast(t('toast.whenTooOld', { days: REPORT_WINDOW_DAYS }), { error: true }); return;
       }
       happenedAt = when.toISOString();
     }
@@ -913,7 +995,7 @@ function wireUI() {
     let place = null;
     if (data.get('remove')) {
       if (!form.dataset.lat) {
-        toast('Press Find to choose the new place first.', { error: true });
+        toast(t('toast.findFirst'), { error: true });
         return;
       }
       place = {
@@ -925,7 +1007,7 @@ function wireUI() {
     }
 
     const button = form.querySelector('button[type="submit"]');
-    button.disabled = true; button.textContent = 'Saving…';
+    button.disabled = true; button.textContent = t('profile.edit.saving');
     try {
       await editMyReport(id, {
         headline: data.get('headline'),
@@ -933,10 +1015,10 @@ function wireUI() {
         happenedAt,
         place,
       });
-      toast('Report updated.');
+      toast(t('toast.reportUpdated'));
       await Promise.all([loadProfile(), refresh()]);
     } catch (err) {
-      button.disabled = false; button.textContent = 'Save changes';
+      button.disabled = false; button.textContent = t('profile.edit.save');
       toast(err.message, { error: true });
     }
   });
@@ -948,7 +1030,7 @@ function wireUI() {
       await saveDisplayName(name);
       state.profile = { ...(state.profile ?? {}), display_name: name || null };
       paintAvatar();
-      toast('Name saved.');
+      toast(t('toast.nameSaved'));
     } catch (err) {
       toast(err.message, { error: true });
     }
@@ -960,19 +1042,19 @@ function wireUI() {
     e.preventDefault();
     const first = $('#new-password').value;
     const again = $('#new-password-again').value;
-    if (first !== again) { toast('Those two do not match.', { error: true }); return; }
+    if (first !== again) { toast(t('toast.passwordMismatch'), { error: true }); return; }
 
     const button = $('#save-password');
-    button.disabled = true; button.textContent = 'Saving…';
+    button.disabled = true; button.textContent = t('profile.edit.saving');
     try {
       await changePassword(first);
       $('#new-password').value = '';
       $('#new-password-again').value = '';
-      toast('Password changed. It works from your next sign-in.');
+      toast(t('toast.passwordChanged'));
     } catch (err) {
       toast(err.message, { error: true });
     } finally {
-      button.disabled = false; button.textContent = 'Change password';
+      button.disabled = false; button.textContent = t('profile.changePassword');
     }
   });
 
@@ -985,15 +1067,15 @@ function wireUI() {
 
   async function runAuth(button, label, fn) {
     const { email, password } = credentials();
-    if (!email || !password) { toast('Enter an email and a password first.', { error: true }); return; }
+    if (!email || !password) { toast(t('toast.needEmailAndPassword'), { error: true }); return; }
     const original = button.textContent;
     button.disabled = true; button.textContent = label;
     try {
       const result = await fn(email, password);
       if (result?.needsConfirmation) {
-        toast('Account created — check your email to confirm it before signing in.');
+        toast(t('toast.accountCreated'));
       } else {
-        toast('Signed in.');
+        toast(t('toast.welcome'));
       }
       $('#auth-dialog').close();
       $('#auth-password').value = '';
@@ -1006,24 +1088,24 @@ function wireUI() {
 
   $('#password-form').addEventListener('submit', e => {
     e.preventDefault();
-    runAuth($('#password-signin'), 'Signing in…', signInWithPassword);
+    runAuth($('#password-signin'), t('auth.signingIn'), signInWithPassword);
   });
   $('#password-signup').addEventListener('click', () =>
-    runAuth($('#password-signup'), 'Creating…', signUpWithPassword));
+    runAuth($('#password-signup'), t('auth.creating'), signUpWithPassword));
 
   $('#magic-link').addEventListener('click', async () => {
     const email = $('#auth-email').value.trim();
-    if (!email) { toast('Enter your email address first.', { error: true }); return; }
+    if (!email) { toast(t('toast.needEmail'), { error: true }); return; }
     const btn = $('#magic-link');
-    btn.disabled = true; btn.textContent = 'Sending…';
+    btn.disabled = true; btn.textContent = t('auth.sending');
     try {
       await sendMagicLink(email);
-      toast('Check your email for the sign-in link.');
+      toast(t('toast.magicSent'));
       $('#auth-dialog').close();
     } catch (err) {
       toast(err.message, { error: true });
     } finally {
-      btn.disabled = false; btn.textContent = 'Email me a sign-in link instead';
+      btn.disabled = false; btn.textContent = t('auth.magicLink');
     }
   });
 
@@ -1035,7 +1117,7 @@ function wireUI() {
   // --- report form
   $('#open-report').addEventListener('click', () => {
     if (!signedIn()) {
-      toast('Join the community to add a report — it takes one email.');
+      toast(t('toast.joinToReport'));
       openDialog('#auth-dialog');
       return;
     }
@@ -1047,10 +1129,10 @@ function wireUI() {
 
   $('#find-address').addEventListener('click', async () => {
     const q = $('#scam-address').value.trim();
-    if (!q) { toast('Type a street, landmark or postcode first.'); return; }
+    if (!q) { toast(t('toast.typeStreet')); return; }
     try {
       const hits = await searchPlaces(q, 1);
-      if (!hits.length) { toast('Could not find that address.', { error: true }); return; }
+      if (!hits.length) { toast(t('toast.needAddress'), { error: true }); return; }
       const place = hits[0];
       await setPin({ lat: place.lat, lng: place.lng });
       map.flyTo({ center: [place.lng, place.lat], zoom: PRECISE_ZOOM });
@@ -1064,20 +1146,19 @@ function wireUI() {
 
   $('#report-form').addEventListener('submit', async e => {
     e.preventDefault();
-    if (!state.pin) { toast('Choose where it happened first.', { error: true }); return; }
+    if (!state.pin) { toast(t('toast.needPlaceFirst'), { error: true }); return; }
 
     const when = whenChosen();
-    if (!when) { toast('Tell us when it happened.', { error: true }); return; }
+    if (!when) { toast(t('toast.needWhen'), { error: true }); return; }
     const now = Date.now();
     // A few minutes of slack: phone clocks drift, and somebody filing this on
     // the spot should not be told their own "now" is in the future.
     if (when.getTime() > now + 5 * 60000) {
-      toast('That is in the future. Pick when it actually happened.', { error: true });
+      toast(t('toast.whenFuture'), { error: true });
       return;
     }
     if (when.getTime() < now - REPORT_WINDOW_DAYS * 86400000) {
-      toast(`Reports drop off the map after ${REPORT_WINDOW_DAYS} days, so this one would not show.`,
-            { error: true });
+      toast(t('toast.whenTooOld', { days: REPORT_WINDOW_DAYS }), { error: true });
       return;
     }
 
@@ -1085,7 +1166,7 @@ function wireUI() {
       .map(box => box.value);
 
     const btn = $('#submit-report');
-    btn.disabled = true; btn.textContent = 'Posting…';
+    btn.disabled = true; btn.textContent = t('report.posting');
     try {
       if (state.pinPending) await state.pinPending;   // let the address land first
       await submitReport({
@@ -1102,14 +1183,14 @@ function wireUI() {
       $('#char-now').textContent = '0';
       state.pin = null;
       state.pinPending = null;
-      $('#pin-status').textContent = 'No location chosen yet.';
+      $('#pin-status').textContent = t('report.noPin');
       $('#pin-status').classList.remove('is-set');
-      toast('Posted. Thank you — someone will avoid this because of you.');
+      toast(t('toast.posted'));
       await refresh();
     } catch (err) {
       toast(err.message, { error: true });
     } finally {
-      btn.disabled = false; btn.textContent = 'Post to the map';
+      btn.disabled = false; btn.textContent = t('report.post');
     }
   });
 

@@ -8,6 +8,7 @@
 // role has no read access to the reports table at all.
 // ---------------------------------------------------------------------------
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { t } from './i18n.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, isConfigured, PUBLIC_DETAIL_MAX_SPAN, SAFETY_MAX_PLACES } from './config.js';
 
 export const supabase = isConfigured()
@@ -83,7 +84,7 @@ export async function fetchForBounds(bounds, { signedIn }) {
 export async function submitReport(report) {
   need();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('You need to be signed in to file a report.');
+  if (!user) throw new Error(t('toast.signInRequired'));
 
   const { error } = await supabase.from('reports').insert({
     reporter_id: user.id,
@@ -120,7 +121,7 @@ export async function mySupports(reportIds) {
 export async function addSupport(reportId) {
   need();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Sign in to confirm a report.');
+  if (!user) throw new Error(t('error.signInToConfirm'));
   const { error } = await supabase.from('report_supports')
     .insert({ report_id: reportId, user_id: user.id });
   if (error && error.code !== '23505') throw error;  // 23505 = already supported
@@ -138,7 +139,7 @@ export async function removeSupport(reportId) {
 export async function flagReport(reportId, reason = 'other') {
   need();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Sign in to flag a report.');
+  if (!user) throw new Error(t('error.signInToFlag'));
   const { error } = await supabase.from('report_flags')
     .insert({ report_id: reportId, user_id: user.id, reason });
   if (error && error.code !== '23505') throw error;
@@ -150,14 +151,33 @@ export async function getProfile() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
   const { data } = await supabase.from('profiles')
-    .select('id,display_name,home_label,home_lat,home_lng').eq('id', user.id).maybeSingle();
+    .select('id,display_name,home_label,home_lat,home_lng,locale,created_at')
+    .eq('id', user.id).maybeSingle();
   return data ?? null;
+}
+
+/**
+ * Remember the language you picked, against your account rather than this
+ * browser. Signed in on a borrowed laptop, the site still opens in yours.
+ *
+ * Deliberately quiet on failure: an older database without the column would
+ * otherwise turn "change language" — which has already visibly worked — into
+ * an error message.
+ */
+export async function saveLocale(code) {
+  if (!supabase) return false;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { error } = await supabase.from('profiles')
+    .update({ locale: code }).eq('id', user.id);
+  if (error) { console.warn('Could not save the language choice:', error.message); return false; }
+  return true;
 }
 
 export async function saveDisplayName(name) {
   need();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('You need to be signed in.');
+  if (!user) throw new Error(t('error.signInGeneric'));
   const { error } = await supabase.from('profiles')
     .update({ display_name: name || null }).eq('id', user.id);
   if (error) throw error;
@@ -200,7 +220,7 @@ export async function editMyReport(id, { headline, description, happenedAt = nul
     p_country_code: place?.countryCode ?? null,
   });
   if (error) throw error;
-  if (data !== true) throw new Error('That report could not be edited.');
+  if (data !== true) throw new Error(t('toast.editFailed'));
   return true;
 }
 

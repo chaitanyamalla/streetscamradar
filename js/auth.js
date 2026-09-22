@@ -6,6 +6,7 @@
 // ---------------------------------------------------------------------------
 import { supabase } from './data.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, isConfigured } from './config.js';
+import { t } from './i18n.js';
 
 const listeners = new Set();
 let currentUser = null;
@@ -37,24 +38,26 @@ export const currentUserSync = () => currentUser;
  */
 function friendly(error) {
   const m = String(error?.message ?? '');
-  if (/Invalid login credentials/i.test(m))
-    return new Error('That email and password do not match an account. If you have not made one yet, use "Create account".');
-  if (/User already registered|already been registered/i.test(m))
-    return new Error('There is already an account with that email — use "Sign in" instead.');
-  if (/Password should be at least/i.test(m))
-    return new Error('Passwords need to be at least 6 characters.');
-  if (/email rate limit exceeded|over_email_send_rate_limit/i.test(m))
-    return new Error('Too many emails sent from this project in the last hour. Use a password instead, or try again later.');
-  if (/Email not confirmed/i.test(m))
-    return new Error('That account still needs confirming — check your email for the link.');
-  if (/provider is not enabled|Unsupported provider/i.test(m))
-    return new Error('That sign-in method is not switched on for this site yet.');
-  return error instanceof Error ? error : new Error(m || 'Sign-in failed.');
+  for (const [pattern, key] of [
+    [/Invalid login credentials/i,                     'authError.credentials'],
+    [/User already registered|already been registered/i,'authError.registered'],
+    [/Password should be at least/i,                   'authError.shortPassword'],
+    [/email rate limit exceeded|over_email_send_rate_limit/i, 'authError.rateLimit'],
+    [/Email not confirmed/i,                           'authError.unconfirmed'],
+    [/provider is not enabled|Unsupported provider/i,  'authError.provider'],
+  ]) {
+    if (pattern.test(m)) return new Error(t(key));
+  }
+  // Anything we have not seen before keeps Supabase's own wording, which is at
+  // least specific; only a blank one falls back to the generic line.
+  return error instanceof Error ? error : new Error(m || t('authError.generic'));
 }
+
+const notConfigured = () => new Error(t('authError.notConfigured'));
 
 /** Sign in with a password. No email is sent, so no rate limit applies. */
 export async function signInWithPassword(email, password) {
-  if (!supabase) throw new Error('Supabase is not configured yet.');
+  if (!supabase) throw notConfigured();
   const { error } = await supabase.auth.signInWithPassword({
     email: email.trim(), password,
   });
@@ -67,7 +70,7 @@ export async function signInWithPassword(email, password) {
  * confirmation email, so the page can say so rather than appearing to hang.
  */
 export async function signUpWithPassword(email, password) {
-  if (!supabase) throw new Error('Supabase is not configured yet.');
+  if (!supabase) throw notConfigured();
   const { data, error } = await supabase.auth.signUp({
     email: email.trim(), password,
     options: { emailRedirectTo: window.location.origin },
@@ -101,7 +104,7 @@ export async function enabledProviders() {
 
 /** Send a one-time sign-in link. Supabase creates the account if it is new. */
 export async function sendMagicLink(email) {
-  if (!supabase) throw new Error('Supabase is not configured yet.');
+  if (!supabase) throw notConfigured();
   const { error } = await supabase.auth.signInWithOtp({
     email: email.trim(),
     // Bare origin, so it matches the allow-list entry exactly. Supabase only
@@ -114,7 +117,7 @@ export async function sendMagicLink(email) {
 }
 
 export async function signInWithGoogle() {
-  if (!supabase) throw new Error('Supabase is not configured yet.');
+  if (!supabase) throw notConfigured();
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo: window.location.origin },
@@ -127,7 +130,7 @@ export async function signInWithGoogle() {
  * not the old password, so this only ever works for whoever is already here.
  */
 export async function changePassword(password) {
-  if (!supabase) throw new Error('Supabase is not configured yet.');
+  if (!supabase) throw notConfigured();
   const { error } = await supabase.auth.updateUser({ password });
   if (error) throw friendly(error);
 }

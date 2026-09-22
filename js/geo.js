@@ -7,6 +7,7 @@
 // throttled and only ever fires on an explicit action.
 // ---------------------------------------------------------------------------
 import { GEOCODER } from './config.js';
+import { t } from './i18n.js';
 
 let lastCall = 0;
 
@@ -15,7 +16,7 @@ async function throttled(url) {
   if (wait) await new Promise(r => setTimeout(r, wait));
   lastCall = Date.now();
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!res.ok) throw new Error(`Search is unavailable right now (${res.status}).`);
+  if (!res.ok) throw new Error(t('error.searchUnavailable', { status: res.status }));
   return res.json();
 }
 
@@ -73,15 +74,14 @@ export async function describePoint(lat, lng) {
 export function locateMe({ timeout = 10000 } = {}) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error('This browser cannot share a location.'));
+      reject(new Error(t('error.noGeolocation')));
       return;
     }
     navigator.geolocation.getCurrentPosition(
       pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
       err => reject(new Error(
-        err.code === err.PERMISSION_DENIED
-          ? 'Location access was declined. You can still search for a place by name.'
-          : 'Could not work out where you are. Try searching instead.')),
+        t(err.code === err.PERMISSION_DENIED
+          ? 'error.locationDenied' : 'error.locationUnknown'))),
       { enableHighAccuracy: true, timeout, maximumAge: 60000 },
     );
   });

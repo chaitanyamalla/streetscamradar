@@ -27,9 +27,35 @@ js/auth.js      magic-link and Google sign-in
 js/geo.js       worldwide search + "where am I" (Nominatim / OpenStreetMap)
 js/map.js       MapLibre setup, clustering, density layer
 js/ui.js        rendering helpers (and HTML escaping)
+js/emergency.js emergency numbers, by country
+js/i18n.js      language: detection, switching, t()
+js/locales/     one file per language; en.js is the source of truth
 supabase/schema.sql   tables, security rules, functions     <- run this once
 supabase/tests.sql    proves the security rules actually hold
 ```
+
+### Languages
+
+The site speaks English, German, Spanish, French, Italian, Czech and Polish.
+Which one a visitor gets is decided in this order:
+
+1. what they last chose here, kept in this browser
+2. what their account says, if they are signed in
+3. what their browser asks for (`navigator.languages`)
+4. English
+
+Deliberately not their IP address: an Italian standing in Prague wants
+Italian, and geolocating them would hand them Czech, confidently and wrongly.
+
+To add a language: copy `js/locales/en.js`, translate the values, and add the
+code and its own name to `LANGUAGES` in `js/i18n.js`. `en.js` is the fallback,
+so a key you have not got to yet shows English rather than a blank or a key
+name. Country names and dates come from the browser's own `Intl` data, not
+from these files.
+
+Scam categories live in the database, so they carry their own labels; the
+`category.<slug>` strings translate the ones we ship, and any slug added later
+falls back to whatever label its row carries.
 
 ### The security model, in short
 

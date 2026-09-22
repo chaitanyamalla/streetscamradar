@@ -19,71 +19,79 @@
     </div>
 
     <header class="topbar">
-      <a class="brand" href="#map" aria-label="StreetScamRadar home">
+      <a class="brand" href="#map" data-i18n-aria="brand.home" aria-label="StreetScamRadar home">
         <span class="brand-mark" aria-hidden="true"></span>
         <span class="brand-text">
           <span class="brand-word">Street<span class="accent">Scam</span>Radar</span>
-          <span class="brand-tagline">Plan your trip. Travel informed.</span>
+          <span class="brand-tagline" data-i18n="brand.tagline">Plan your trip. Travel informed.</span>
         </span>
       </a>
 
-      <button class="place-chip" id="place-chip" type="button" aria-label="Current area — click to change">
+      <button class="place-chip" id="place-chip" type="button" data-i18n-aria="header.place.label" aria-label="Current area — click to change">
         <span class="place-ping" aria-hidden="true"></span>
-        <span id="place-label">Anywhere in the world</span>
+        <span id="place-label" data-i18n="header.place.anywhere">Anywhere in the world</span>
       </button>
 
-      <nav aria-label="Main">
-        <a class="active" href="#map">Map</a>
-        <a href="#how">How it works</a>
-        <a href="#safety">Staying safe</a>
+      <nav data-i18n-aria="nav.label" aria-label="Main">
+        <a class="active" href="#map" data-i18n="nav.map">Map</a>
+        <a href="#how" data-i18n="nav.how">How it works</a>
+        <a href="#safety" data-i18n="nav.safety">Staying safe</a>
       </nav>
+
+      <!-- Outside .top-actions on purpose: on a phone the header wraps, and a
+           picker sharing that row squeezed "Sign in" and "Report a scam" onto
+           two lines each. Here it sits beside the brand instead. -->
+      <label class="lang-picker">
+        <span class="visually-hidden" data-i18n="header.language">Language</span>
+        <select id="lang-select" data-i18n-aria="header.language" aria-label="Language"></select>
+      </label>
 
       <div class="top-actions">
         <button class="avatar-button" id="profile-button" type="button" hidden
-                aria-label="Your profile"><span id="profile-initial" aria-hidden="true">•</span></button>
-        <button class="ghost-button" id="auth-button" type="button">Sign in</button>
+                data-i18n-aria="header.profile" aria-label="Your profile"><span id="profile-initial" aria-hidden="true">•</span></button>
+        <button class="ghost-button" id="auth-button" type="button" data-i18n="header.signIn">Sign in</button>
         <button class="primary-button" id="open-report" type="button">
-          <span aria-hidden="true">＋</span> Report a scam
+          <span aria-hidden="true">＋</span> <span data-i18n="header.report">Report a scam</span>
         </button>
       </div>
     </header>
 
     <main>
-      <section class="map-area" id="map" aria-label="Worldwide scam map">
+      <section class="map-area" id="map" data-i18n-aria="map.area" aria-label="Worldwide scam map">
         <aside class="map-intro">
-          <p class="eyebrow">Worldwide · updated every week</p>
-          <h1>Know the streets<br /><em>before you walk them.</em></h1>
-          <p class="intro-copy">
+          <p class="eyebrow" data-i18n="intro.eyebrow">Worldwide · updated every week</p>
+          <h1 data-i18n-html="intro.heading">Know the streets<br /><em>before you walk them.</em></h1>
+          <p class="intro-copy" data-i18n="intro.copy">
             Scams reported by travellers and locals, pinned to the exact corners, stations
             and markets where they happened. Search anywhere on Earth and see what people
             ran into there in the last 7 days.
           </p>
 
           <form class="place-search" id="place-form" role="search">
-            <label class="visually-hidden" for="place-search">Search a city, town, postcode or address</label>
+            <label class="visually-hidden" for="place-search" data-i18n="intro.search.label">Search a city, town, postcode or address</label>
             <span class="search-icon" aria-hidden="true">⌕</span>
             <input id="place-search" name="q" type="search" autocomplete="off"
-                   placeholder="Try Lisbon, 10115 Berlin, or Khao San Road" />
-            <button type="submit" class="search-go">Search</button>
+                   data-i18n-placeholder="intro.search.placeholder" placeholder="Try Lisbon, 10115 Berlin, or Khao San Road" />
+            <button type="submit" class="search-go" data-i18n="intro.search.go">Search</button>
           </form>
-          <div class="search-results" id="search-results" hidden role="listbox" aria-label="Places found"></div>
+          <div class="search-results" id="search-results" hidden role="listbox" data-i18n-aria="intro.search.results" aria-label="Places found"></div>
 
           <button class="link-button" id="locate-me" type="button">
-            <span aria-hidden="true">◎</span> Use my current location
+            <span aria-hidden="true">◎</span> <span data-i18n="intro.locate">Use my current location</span>
           </button>
         </aside>
 
         <div class="map-frame">
-          <div id="city-map" class="city-map" aria-label="Interactive world map of reported scams"></div>
+          <div id="city-map" class="city-map" data-i18n-aria="map.label" aria-label="Interactive world map of reported scams"></div>
           <div class="floating-controls">
-            <button id="zoom-in" class="icon-button" type="button" aria-label="Zoom in">+</button>
-            <button id="zoom-out" class="icon-button" type="button" aria-label="Zoom out">−</button>
+            <button id="zoom-in" class="icon-button" type="button" data-i18n-aria="map.zoomIn" aria-label="Zoom in">+</button>
+            <button id="zoom-out" class="icon-button" type="button" data-i18n-aria="map.zoomOut" aria-label="Zoom out">−</button>
           </div>
           <!-- Emergency numbers for whatever country is on screen. Inside the
                map frame on purpose: it is how you reach the police, who come
                to you, while the hospital pins are places you go. -->
           <aside class="emergency-bar" id="emergency-bar" hidden aria-live="polite">
-            <span class="eb-label">Emergency in <b id="eb-country"></b></span>
+            <span class="eb-label"><span data-i18n="map.emergencyIn">Emergency in</span> <b id="eb-country"></b></span>
             <span class="eb-numbers" id="eb-numbers"></span>
           </aside>
         </div>
@@ -93,34 +101,34 @@
              screens by a media-query listener in app.js. -->
         <details class="filter-panel" id="filter-panel">
           <summary class="panel-heading">
-            <span>Filter the map</span>
+            <span data-i18n="filters.heading">Filter the map</span>
             <span class="panel-chevron" aria-hidden="true">⌄</span>
           </summary>
 
           <div class="filter-section category-section">
             <p class="filter-title">
-              Kind of scam
-              <button id="reset-filters" type="button">Reset</button>
+              <span data-i18n="filters.kind">Kind of scam</span>
+              <button id="reset-filters" type="button" data-i18n="filters.reset">Reset</button>
             </p>
-            <div id="category-filters" class="category-filters"><p class="muted-note">Loading…</p></div>
+            <div id="category-filters" class="category-filters"><p class="muted-note" data-i18n="filters.loading">Loading…</p></div>
           </div>
 
           <div class="filter-section safety-filter">
-            <p class="filter-title">Safety &amp; support</p>
+            <p class="filter-title" data-i18n="filters.safety">Safety &amp; support</p>
             <label class="filter-row">
               <input type="checkbox" id="safety-toggle" checked />
               <span class="safety-glyphs" aria-hidden="true">🏥</span>
-              Hospitals nearby
+              <span data-i18n="filters.hospitals">Hospitals nearby</span>
             </label>
-            <p class="muted-note" id="safety-status">Zoom into a city to see these</p>
+            <p class="muted-note" id="safety-status" data-i18n="safety.zoomIn">Zoom in to see hospitals</p>
           </div>
         </details>
 
-        <aside class="reports-card" aria-label="Reports in view">
+        <aside class="reports-card" data-i18n-aria="reports.label" aria-label="Reports in view">
           <div class="reports-head">
             <div>
               <p class="eyebrow" id="reports-scope">Last 7 days · in view</p>
-              <h2 id="reports-title">Reports here</h2>
+              <h2 id="reports-title" data-i18n="reports.title.here">Reports here</h2>
             </div>
             <span class="count-pill" id="reports-count">0</span>
           </div>
@@ -128,7 +136,7 @@
           <div id="gate-note" class="gate-note" hidden></div>
         </aside>
 
-        <p class="map-attribution">
+        <p class="map-attribution" data-i18n-html="map.attribution">
           Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>
           contributors · tiles © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a>
           · search by <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a>
@@ -138,34 +146,34 @@
 
       <section class="how-strip" id="how">
         <div class="how-lead">
-          <p class="eyebrow">How it works</p>
-          <h2>Local knowledge, a week fresh.</h2>
+          <p class="eyebrow" data-i18n="how.eyebrow">How it works</p>
+          <h2 data-i18n="how.heading">Local knowledge, a week fresh.</h2>
         </div>
         <ol class="how-steps">
-          <li><span class="step-num">1</span><div><b>Search where you are going</b><p>Any city, town, postcode or street on Earth. Drop in before you book, or while you are standing there.</p></div></li>
-          <li><span class="step-num">2</span><div><b>Read the last 7 days</b><p>A rolling seven days, counted back from right now — not a calendar week. What you read is current rather than a decade of folklore.</p></div></li>
-          <li><span class="step-num">3</span><div><b>Add what you ran into</b><p>Drop a pin or type an address. The next person to search that street sees it.</p></div></li>
+          <li><span class="step-num">1</span><div><b data-i18n="how.1.title">Search where you are going</b><p data-i18n="how.1.body">Any city, town, postcode or street on Earth. Drop in before you book, or while you are standing there.</p></div></li>
+          <li><span class="step-num">2</span><div><b data-i18n="how.2.title">Read the last 7 days</b><p data-i18n="how.2.body">A rolling seven days, counted back from right now — not a calendar week. What you read is current rather than a decade of folklore.</p></div></li>
+          <li><span class="step-num">3</span><div><b data-i18n="how.3.title">Add what you ran into</b><p data-i18n="how.3.body">Drop a pin or type an address. The next person to search that street sees it.</p></div></li>
         </ol>
       </section>
 
       <section class="safety-section" id="safety">
         <div>
-          <p class="eyebrow">Reading this map well</p>
-          <h2>Informed, <em>not afraid.</em></h2>
+          <p class="eyebrow" data-i18n="safetyNote.eyebrow">Reading this map well</p>
+          <h2 data-i18n-html="safetyNote.heading">Informed, <em>not afraid.</em></h2>
         </div>
         <div class="safety-copy">
-          <p>
+          <p data-i18n="safetyNote.p1">
             Every pin is one person's account of one moment. A square with many reports is
             usually a busy square, not a dangerous one — crowds draw pickpockets everywhere on
             Earth. Read this to learn which move to watch for, not to cross a city off your list.
           </p>
-          <p>
+          <p data-i18n="safetyNote.p2">
             Reports drop off after seven days on purpose. A trick that worked last spring tells
             you little. One that worked on Tuesday, two streets away, tells you a great deal.
           </p>
-          <p class="safety-callout">
-            In an emergency, always contact local police first. This is a community map, not an
-            emergency service, and nothing here is verified by authorities.
+          <p class="safety-callout" data-i18n="safetyNote.callout">
+            In an emergency, always contact local emergency services first. This is a community
+            map, not an emergency service, and nothing here is verified by authorities.
           </p>
         </div>
       </section>
@@ -176,39 +184,40 @@
       <div class="dialog-body">
         <div class="dialog-header">
           <div>
-            <p class="eyebrow">Community access</p>
-            <h2 id="auth-title">Join the radar.</h2>
+            <p class="eyebrow" data-i18n="auth.eyebrow">Community access</p>
+            <h2 id="auth-title" data-i18n="auth.title">Join the radar.</h2>
           </div>
-          <button class="close-button" data-close="auth-dialog" type="button" aria-label="Close">×</button>
+          <button class="close-button" data-close="auth-dialog" type="button" data-i18n-aria="auth.close" aria-label="Close">×</button>
         </div>
-        <p class="form-note">
+        <p class="form-note" data-i18n="auth.note">
           Members see every report in an area and can add their own. Without an account you
           see counts, and a handful of reports once you zoom into a neighbourhood.
         </p>
 
         <form id="password-form">
-          <label for="auth-email">Email</label>
-          <input id="auth-email" type="email" required autocomplete="email" placeholder="you@example.com" />
+          <label for="auth-email" data-i18n="auth.email">Email</label>
+          <input id="auth-email" type="email" required autocomplete="email"
+                 data-i18n-placeholder="auth.emailPlaceholder" placeholder="you@example.com" />
 
-          <label for="auth-password">Password</label>
-          <input id="auth-password" type="password" required minlength="6"
-                 autocomplete="current-password" placeholder="At least 6 characters" />
+          <label for="auth-password" data-i18n="auth.password">Password</label>
+          <input id="auth-password" type="password" required minlength="6" autocomplete="current-password"
+                 data-i18n-placeholder="auth.passwordPlaceholder" placeholder="At least 6 characters" />
 
           <div class="auth-buttons">
-            <button class="primary-button" type="submit" id="password-signin">Sign in</button>
-            <button class="ghost-button" type="button" id="password-signup">Create account</button>
+            <button class="primary-button" type="submit" id="password-signin" data-i18n="auth.signIn">Sign in</button>
+            <button class="ghost-button" type="button" id="password-signup" data-i18n="auth.createAccount">Create account</button>
           </div>
         </form>
 
-        <p class="or-rule"><span>or</span></p>
+        <p class="or-rule"><span data-i18n="auth.or">or</span></p>
 
-        <button class="ghost-button wide" id="magic-link" type="button">
+        <button class="ghost-button wide" id="magic-link" type="button" data-i18n="auth.magicLink">
           Email me a sign-in link instead
         </button>
         <button class="google-button" id="google-signin" type="button" hidden>
-          <span class="g-mark" aria-hidden="true">G</span> Continue with Google
+          <span class="g-mark" aria-hidden="true">G</span> <span data-i18n="auth.google">Continue with Google</span>
         </button>
-        <p class="fine-print">
+        <p class="fine-print" data-i18n="auth.finePrint">
           We store your email address and the reports you file. Your name is never
           attached to a report shown on the map.
         </p>
@@ -220,10 +229,10 @@
       <div class="dialog-body">
         <div class="dialog-header">
           <div>
-            <p class="eyebrow">Your account</p>
-            <h2 id="profile-title">Your profile</h2>
+            <p class="eyebrow" data-i18n="profile.eyebrow">Your account</p>
+            <h2 id="profile-title" data-i18n="profile.title">Your profile</h2>
           </div>
-          <button class="close-button" data-close="profile-dialog" type="button" aria-label="Close">×</button>
+          <button class="close-button" data-close="profile-dialog" type="button" data-i18n-aria="auth.close" aria-label="Close">×</button>
         </div>
 
         <p class="profile-identity">
@@ -234,20 +243,27 @@
         <div class="stat-row" id="profile-stats"></div>
 
         <form id="name-form" class="profile-section" method="dialog">
-          <label for="profile-name">Display name</label>
+          <label for="profile-name" data-i18n="profile.displayName">Display name</label>
           <div class="inline-row">
-            <input id="profile-name" maxlength="40" placeholder="Optional — only you see this for now" />
-            <button class="ghost-button small" type="submit">Save</button>
+            <input id="profile-name" maxlength="40" data-i18n-placeholder="profile.displayNamePlaceholder"
+                   placeholder="Optional — only you see this for now" />
+            <button class="ghost-button small" type="submit" data-i18n="profile.save">Save</button>
           </div>
         </form>
 
+        <div class="profile-section">
+          <label for="profile-lang" data-i18n="profile.language">Language</label>
+          <select id="profile-lang"></select>
+          <p class="field-hint" data-i18n="profile.languageHint">The site opens in this language wherever you sign in.</p>
+        </div>
+
         <section class="profile-section">
           <div class="section-head">
-            <p class="block-title" id="reports-heading">Your reports</p>
-            <button type="button" class="chip-action" id="stat-back" hidden>← All reports</button>
+            <p class="block-title" id="reports-heading" data-i18n="profile.list.filed">Your reports</p>
+            <button type="button" class="chip-action" id="stat-back" hidden data-i18n="profile.back">← All reports</button>
           </div>
           <div id="profile-reports" class="profile-reports">
-            <p class="empty-note">Loading…</p>
+            <p class="empty-note" data-i18n="filters.loading">Loading…</p>
           </div>
         </section>
 
@@ -255,35 +271,35 @@
              account itself, and rarely; two collapsed rows for that was more
              furniture than the page needed. -->
         <details class="profile-section disclosure" id="account-disclosure">
-          <summary class="block-title">Account settings</summary>
+          <summary class="block-title" data-i18n="profile.settings">Account settings</summary>
 
           <form id="profile-password-form" method="dialog">
-            <p class="settings-label">Change password</p>
-            <label for="new-password">New password</label>
-            <input id="new-password" type="password" required minlength="6"
-                   autocomplete="new-password" placeholder="At least 6 characters" />
-            <label for="new-password-again">Repeat it</label>
-            <input id="new-password-again" type="password" required minlength="6"
-                   autocomplete="new-password" placeholder="The same again" />
-            <button class="primary-button wide" type="submit" id="save-password">Change password</button>
+            <p class="settings-label" data-i18n="profile.changePassword">Change password</p>
+            <label for="new-password" data-i18n="profile.newPassword">New password</label>
+            <input id="new-password" type="password" required minlength="6" autocomplete="new-password"
+                   data-i18n-placeholder="auth.passwordPlaceholder" placeholder="At least 6 characters" />
+            <label for="new-password-again" data-i18n="profile.repeatPassword">Repeat it</label>
+            <input id="new-password-again" type="password" required minlength="6" autocomplete="new-password"
+                   data-i18n-placeholder="profile.repeatPlaceholder" placeholder="The same again" />
+            <button class="primary-button wide" type="submit" id="save-password" data-i18n="profile.changePassword">Change password</button>
           </form>
 
           <div class="settings-danger">
-            <p class="settings-label is-danger">Close my account</p>
-            <p class="field-hint">
+            <p class="settings-label is-danger" data-i18n="profile.closeAccount">Close my account</p>
+            <p class="field-hint" data-i18n="profile.closeWarning">
               This removes your account and every report you have filed. Reports
               other people confirmed will disappear from the map with them. It
               cannot be undone.
             </p>
-            <label for="delete-confirm">Type <b>DELETE</b> to confirm</label>
+            <label for="delete-confirm" data-i18n-html="profile.typeDelete">Type <b>DELETE</b> to confirm</label>
             <input id="delete-confirm" autocomplete="off" placeholder="DELETE" />
-            <button class="ghost-button wide is-danger" type="button" id="delete-account">
+            <button class="ghost-button wide is-danger" type="button" id="delete-account" data-i18n="profile.closeButton">
               Close my account permanently
             </button>
           </div>
         </details>
 
-        <button class="ghost-button wide" type="button" id="profile-signout">Sign out</button>
+        <button class="ghost-button wide" type="button" id="profile-signout" data-i18n="profile.signOut">Sign out</button>
       </div>
     </dialog>
 
@@ -292,57 +308,60 @@
       <form id="report-form" class="dialog-body" method="dialog">
         <div class="dialog-header">
           <div>
-            <p class="eyebrow">Community report</p>
-            <h2 id="report-title">Help someone avoid this.</h2>
+            <p class="eyebrow" data-i18n="report.eyebrow">Community report</p>
+            <h2 id="report-title" data-i18n="report.title">Help someone avoid this.</h2>
           </div>
-          <button class="close-button" data-close="report-dialog" type="button" aria-label="Close">×</button>
+          <button class="close-button" data-close="report-dialog" type="button" data-i18n-aria="auth.close" aria-label="Close">×</button>
         </div>
 
-        <p class="form-note">
+        <p class="form-note" data-i18n="report.note">
           Describe what happened without names, photos of people, or contact details.
           Reports drop off the map after 7 days.
         </p>
 
-        <label for="scam-category">What kind of scam?</label>
+        <label for="scam-category" data-i18n="report.category">What kind of scam?</label>
         <select id="scam-category" required></select>
 
         <fieldset class="impact-picker">
-          <legend>What happened? <span class="legend-hint">Tick anything that applies</span></legend>
-          <label><input type="checkbox" name="impact" value="money" /><span class="impact-glyph" aria-hidden="true">&#128181;</span><span>Money or belongings lost</span></label>
-          <label><input type="checkbox" name="impact" value="harm" /><span class="impact-glyph" aria-hidden="true">&#129657;</span><span>Someone was hurt or forced</span></label>
-          <label><input type="checkbox" name="impact" value="threats" /><span class="impact-glyph" aria-hidden="true">&#128552;</span><span>Threats, abuse or intimidation</span></label>
-          <p class="field-hint">Leave all three blank if it was attempted and nothing came of it.</p>
+          <legend><span data-i18n="report.happened">What happened?</span> <span class="legend-hint" data-i18n="report.happenedHint">Tick anything that applies</span></legend>
+          <label><input type="checkbox" name="impact" value="money" /><span class="impact-glyph" aria-hidden="true">&#128181;</span><span data-i18n="report.impact.money">Money or belongings lost</span></label>
+          <label><input type="checkbox" name="impact" value="harm" /><span class="impact-glyph" aria-hidden="true">&#129657;</span><span data-i18n="report.impact.harm">Someone was hurt or forced</span></label>
+          <label><input type="checkbox" name="impact" value="threats" /><span class="impact-glyph" aria-hidden="true">&#128552;</span><span data-i18n="report.impact.threats">Threats, abuse or intimidation</span></label>
+          <p class="field-hint" data-i18n="report.impactNone">Leave all three blank if it was attempted and nothing came of it.</p>
         </fieldset>
 
-        <label for="scam-headline">One line summary</label>
+        <label for="scam-headline" data-i18n="report.headline">One line summary</label>
         <input id="scam-headline" required minlength="8" maxlength="90"
+               data-i18n-placeholder="report.headlinePlaceholder"
                placeholder="e.g. Fake ticket inspector at the north entrance" />
 
         <div class="location-block">
-          <p class="block-title">Where did it happen?</p>
+          <p class="block-title" data-i18n="report.where">Where did it happen?</p>
           <div class="address-row">
-            <input id="scam-address" placeholder="Street, landmark or postcode" autocomplete="off" />
-            <button type="button" id="find-address" class="ghost-button small">Find</button>
+            <input id="scam-address" data-i18n-placeholder="report.addressPlaceholder"
+                   placeholder="Street, landmark or postcode" autocomplete="off" />
+            <button type="button" id="find-address" class="ghost-button small" data-i18n="report.find">Find</button>
           </div>
           <button type="button" id="pick-on-map" class="link-button">
-            <span aria-hidden="true">⌖</span> or pick the exact spot on the map
+            <span aria-hidden="true">⌖</span> <span data-i18n="report.pickOnMap">or pick the exact spot on the map</span>
           </button>
-          <p class="pin-status" id="pin-status">No location chosen yet.</p>
+          <p class="pin-status" id="pin-status" data-i18n="report.noPin">No location chosen yet.</p>
         </div>
 
-        <label for="scam-when-date">When did it happen?</label>
+        <label for="scam-when-date" data-i18n="report.when">When did it happen?</label>
         <div class="when-row">
-          <input id="scam-when-date" type="date" required aria-label="Date it happened" />
-          <input id="scam-when-time" type="time" required aria-label="Time it happened" />
+          <input id="scam-when-date" type="date" required data-i18n-aria="report.whenDate" aria-label="Date it happened" />
+          <input id="scam-when-time" type="time" required data-i18n-aria="report.whenTime" aria-label="Time it happened" />
         </div>
         <p class="field-hint" id="when-hint">Anything within the last 7 days.</p>
 
-        <label for="scam-details">What should others know?</label>
+        <label for="scam-details" data-i18n="report.details">What should others know?</label>
         <textarea id="scam-details" required rows="4" maxlength="1200"
+                  data-i18n-placeholder="report.detailsPlaceholder"
                   placeholder="The warning signs, how the approach started, and what you would do differently."></textarea>
         <span class="char-count"><span id="char-now">0</span>/1200</span>
 
-        <button class="primary-button wide" type="submit" id="submit-report">Post to the map</button>
+        <button class="primary-button wide" type="submit" id="submit-report" data-i18n="report.post">Post to the map</button>
       </form>
     </dialog>
 

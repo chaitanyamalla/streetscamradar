@@ -3,6 +3,7 @@
 // reaches innerHTML — report text is untrusted input from strangers.
 // ---------------------------------------------------------------------------
 import { PIN_COLOR } from './config.js';
+import { t, tn, plural, tOr } from './i18n.js';
 
 export const esc = (value) => String(value ?? '').replace(/[&<>"']/g,
   c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -12,9 +13,9 @@ export const esc = (value) => String(value ?? '').replace(/[&<>"']/g,
 // whether money went, whether anyone was hurt, and whether they were
 // threatened.
 export const IMPACTS = {
-  money:   { glyph: '\u{1F4B5}', label: 'Money lost' },
-  harm:    { glyph: '\u{1FA79}', label: 'Hurt or forced' },
-  threats: { glyph: '\u{1F628}', label: 'Threatened' },
+  money:   { glyph: '\u{1F4B5}', key: 'impact.money' },
+  harm:    { glyph: '\u{1FA79}', key: 'impact.harm' },
+  threats: { glyph: '\u{1F628}', key: 'impact.threats' },
 };
 
 /**
@@ -36,7 +37,7 @@ export function impactTags(value) {
   const keys = parseImpacts(value);
   if (!keys.length) return '';
   return `<span class="impact-tags">${keys.map(k =>
-    `<span class="impact-tag is-${esc(k)}"><span aria-hidden="true">${IMPACTS[k].glyph}</span> ${esc(IMPACTS[k].label)}</span>`
+    `<span class="impact-tag is-${esc(k)}"><span aria-hidden="true">${IMPACTS[k].glyph}</span> ${esc(t(IMPACTS[k].key))}</span>`
   ).join('')}</span>`;
 }
 
@@ -44,11 +45,11 @@ export function timeAgo(iso) {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return '';
   const mins = Math.max(0, Math.round((Date.now() - then) / 60000));
-  if (mins < 60) return mins <= 1 ? 'just now' : `${mins} min ago`;
+  if (mins < 60) return mins <= 1 ? t('time.justNow') : t('time.minutes', { n: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours} h ago`;
+  if (hours < 24) return t('time.hours', { n: hours });
   const days = Math.round(hours / 24);
-  return days === 1 ? 'yesterday' : `${days} days ago`;
+  return days === 1 ? t('time.yesterday') : t('time.days', { n: days });
 }
 
 let toastTimer;
@@ -61,15 +62,21 @@ export function toast(message, { error = false } = {}) {
   toastTimer = setTimeout(() => el.classList.remove('show'), error ? 6000 : 4000);
 }
 
+/** A category's name and blurb in the reader's language, or the database's
+ *  own wording for a slug we do not have a string for. */
+export const categoryLabel = (cat, slug) =>
+  tOr(`category.${cat?.slug ?? slug}`, cat?.label ?? slug ?? '');
+const categoryBlurb = (cat) => tOr(`category.${cat.slug}.blurb`, cat.blurb ?? '');
+
 export function renderCategoryFilters(host, categories, activeSet) {
   if (!categories.length) {
-    host.innerHTML = '<p class="muted-note">No categories loaded.</p>';
+    host.innerHTML = `<p class="muted-note">${esc(t('filters.noCategories'))}</p>`;
     return;
   }
   host.innerHTML = categories.map(c => `
     <button type="button" class="cat-chip" data-category="${esc(c.slug)}"
-            aria-pressed="${activeSet.has(c.slug)}" title="${esc(c.blurb ?? '')}">
-      <span class="glyph" aria-hidden="true">${esc(c.glyph)}</span>${esc(c.label)}
+            aria-pressed="${activeSet.has(c.slug)}" title="${esc(categoryBlurb(c))}">
+      <span class="glyph" aria-hidden="true">${esc(c.glyph)}</span>${esc(categoryLabel(c))}
     </button>`).join('');
 }
 
@@ -77,11 +84,9 @@ export function renderReportList(host, reports, { categories, mode, supported, s
   const byslug = new Map(categories.map(c => [c.slug, c]));
 
   if (!reports.length) {
-    host.innerHTML = `<p class="empty-note">${
-      mode === 'summary'
-        ? 'Zoom into a town or neighbourhood to see individual reports.'
-        : 'Nothing reported here in the last 7 days. That is good news — or nobody has told us yet.'
-    }</p>`;
+    host.innerHTML = `<p class="empty-note">${esc(
+      t(mode === 'summary' ? 'reports.empty.summary' : 'reports.empty.here')
+    )}</p>`;
     return;
   }
 
@@ -97,11 +102,11 @@ export function renderReportList(host, reports, { categories, mode, supported, s
     const actions = signedIn ? `
       <div class="report-actions">
         ${r.is_mine
-          ? `<button class="chip-action" data-withdraw="${esc(r.id)}">Withdraw my report</button>`
+          ? `<button class="chip-action" data-withdraw="${esc(r.id)}">${esc(t('reports.withdrawMine'))}</button>`
           : `<button class="chip-action" data-support="${esc(r.id)}" aria-pressed="${isOn}">
-               ${isOn ? '✓ Confirmed' : 'I saw this too'}
+               ${esc(t(isOn ? 'reports.confirmed' : 'reports.confirm'))}
              </button>
-             <button class="chip-action" data-flag="${esc(r.id)}">Flag</button>`}
+             <button class="chip-action" data-flag="${esc(r.id)}">${esc(t('reports.flag'))}</button>`}
       </div>` : '';
 
     return `
@@ -109,7 +114,7 @@ export function renderReportList(host, reports, { categories, mode, supported, s
         <span class="report-glyph" aria-hidden="true">${esc(cat?.glyph ?? '⚠')}</span>
         <div class="report-copy">
           <b>${esc(r.headline)}</b>
-          <span class="report-meta">${place}${esc(cat?.label ?? r.category)} · ${timeAgo(r.happened_at)}</span>
+          <span class="report-meta">${place}${esc(categoryLabel(cat, r.category))} · ${timeAgo(r.happened_at)}</span>
           ${impactTags(r.impacts)}
           ${confirmBadge(confirms)}
           ${actions}
@@ -127,7 +132,7 @@ export const confirmClass = (n) => (n >= 3 ? ' is-confirmed-many' : n >= 1 ? ' i
 
 export function confirmBadge(n) {
   if (!n) return '';
-  return `<span class="confirm-badge">\u2713 ${n} ${n === 1 ? 'person' : 'people'} confirmed this</span>`;
+  return `<span class="confirm-badge">${esc(plural('reports.confirmedBy', n))}</span>`;
 }
 
 export function popupHTML(props, categories) {
@@ -145,7 +150,7 @@ export function popupHTML(props, categories) {
     <div class="popup-head">
       <span class="popup-glyph" aria-hidden="true">${esc(cat?.glyph ?? '\u26A0')}</span>
       <div>
-        <p class="popup-kicker">${esc(cat?.label ?? props.category)}</p>
+        <p class="popup-kicker">${esc(categoryLabel(cat, props.category))}</p>
         <p class="popup-title">${esc(props.headline)}</p>
       </div>
     </div>
@@ -182,10 +187,11 @@ function directionsHTML(props) {
   if (Number.isFinite(lat) && Number.isFinite(lng)) {
     const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
     parts.push(`<a class="popup-action is-primary" href="${esc(url)}"
-                   target="_blank" rel="noopener noreferrer">Directions</a>`);
+                   target="_blank" rel="noopener noreferrer">${esc(t('hospital.directions'))}</a>`);
   }
   if (tel) {
-    parts.push(`<a class="popup-action" href="tel:${esc(tel)}">Call ${esc(props.phone)}</a>`);
+    parts.push(`<a class="popup-action" href="tel:${esc(tel)}">${
+      esc(t('hospital.call', { number: props.phone }))}</a>`);
   }
   return parts.length ? `<div class="popup-actions">${parts.join('')}</div>` : '';
 }
@@ -210,16 +216,16 @@ export function safetyPopupHTML(props) {
   const hasER = props.emergency === true || props.emergency === 'true';
   const brief = shortHours(props.opening_hours);
   const kicker = [
-    'Hospital',
-    hasER ? 'emergency department' : null,
+    t('hospital.kind'),
+    hasER ? t('hospital.withER') : null,
     brief || null,
-  ].filter(Boolean).join(' &middot; ');
+  ].filter(Boolean).map(esc).join(' &middot; ');
 
   const lines = [];
   if (props.address) lines.push(esc(props.address));
   // Only repeat the hours below when the short form left something out.
   if (props.opening_hours && String(props.opening_hours).trim() !== brief) {
-    lines.push(`Open ${esc(props.opening_hours)}`);
+    lines.push(esc(t('hospital.open', { hours: props.opening_hours })));
   }
 
   return `
@@ -232,7 +238,7 @@ export function safetyPopupHTML(props) {
     </div>
     ${lines.length ? `<p class="popup-body">${lines.join('<br />')}</p>` : ''}
     ${directionsHTML(props)}
-    <p class="popup-meta">via OpenStreetMap</p>`;
+    <p class="popup-meta">${esc(t('hospital.source'))}</p>`;
 }
 
 /** A date and time input pair, pre-filled from an ISO timestamp in local time. */
@@ -254,9 +260,8 @@ const localParts = (iso) => {
 export function renderProfileReports(host, reports, categories, windowDays,
                                      { mine = true, moveWindowHours = 24 } = {}) {
   if (!reports.length) {
-    host.innerHTML = `<p class="empty-note">${mine
-      ? 'You have not filed a report yet. When you do, it will live here — with what it collected, and how long it has left.'
-      : 'Nothing here yet.'}</p>`;
+    host.innerHTML = `<p class="empty-note">${
+      esc(t(mine ? 'profile.empty' : 'profile.emptyOther'))}</p>`;
     return;
   }
   const byslug = new Map(categories.map(c => [c.slug, c]));
@@ -282,11 +287,11 @@ export function renderProfileReports(host, reports, categories, windowDays,
         <div class="report-copy">
           <button type="button" class="report-open" data-show="${id}">${esc(r.headline)}</button>
           <span class="report-meta">
-            ${r.city ? esc(r.city) + ' · ' : ''}${esc(cat?.label ?? r.category)} · ${timeAgo(r.happened_at)}
+            ${r.city ? esc(r.city) + ' · ' : ''}${esc(categoryLabel(cat, r.category))} · ${timeAgo(r.happened_at)}
           </span>
           ${impactTags(r.impacts)}
           <div class="report-actions">
-            <button class="chip-action" data-unconfirm="${id}">Undo my confirmation</button>
+            <button class="chip-action" data-unconfirm="${id}">${esc(t('profile.unconfirm'))}</button>
           </div>
         </div>
       </article>`;
@@ -294,45 +299,46 @@ export function renderProfileReports(host, reports, categories, windowDays,
 
     const actions = r.is_mine ? `
       <div class="report-actions">
-        <button class="chip-action" data-edit="${id}">Edit</button>
-        <button class="chip-action" data-withdraw="${id}">Withdraw</button>
+        <button class="chip-action" data-edit="${id}">${esc(t('profile.edit'))}</button>
+        <button class="chip-action" data-withdraw="${id}">${esc(t('reports.withdraw'))}</button>
       </div>
       <div class="withdraw-confirm" data-confirm="${id}" hidden>
-        <span>Remove this from the map? It cannot be undone.</span>
-        <button class="chip-action is-danger" data-withdraw-yes="${id}">Yes, remove it</button>
-        <button class="chip-action" data-withdraw-no="${id}">Keep it</button>
+        <span>${esc(t('profile.withdrawAsk'))}</span>
+        <button class="chip-action is-danger" data-withdraw-yes="${id}">${esc(t('profile.withdrawYes'))}</button>
+        <button class="chip-action" data-withdraw-no="${id}">${esc(t('profile.withdrawNo'))}</button>
       </div>
       <form class="edit-form" data-edit-form="${id}" hidden>
-        <label for="edit-headline-${id}">Headline</label>
+        <label for="edit-headline-${id}">${esc(t('profile.edit.headline'))}</label>
         <input id="edit-headline-${id}" name="headline" required minlength="8" maxlength="90"
                value="${esc(r.headline)}" />
-        <label for="edit-description-${id}">What others should know</label>
+        <label for="edit-description-${id}">${esc(t('profile.edit.description'))}</label>
         <textarea id="edit-description-${id}" name="description" required rows="3"
                   maxlength="1200">${esc(r.description ?? '')}</textarea>
         <label class="edit-when-toggle">
-          <input type="checkbox" name="retime" /> Also correct when it happened
+          <input type="checkbox" name="retime" /> ${esc(t('profile.edit.retime'))}
         </label>
         <div class="when-row" data-when hidden>
-          <input type="date" name="date" value="${esc(when.date)}" aria-label="Date it happened" />
-          <input type="time" name="time" value="${esc(when.time)}" aria-label="Time it happened" />
+          <input type="date" name="date" value="${esc(when.date)}" aria-label="${esc(t('report.whenDate'))}" />
+          <input type="time" name="time" value="${esc(when.time)}" aria-label="${esc(t('report.whenTime'))}" />
         </div>
         ${movable ? `
         <label class="edit-when-toggle">
-          <input type="checkbox" name="remove" /> Also correct where it happened
+          <input type="checkbox" name="remove" /> ${esc(t('profile.edit.remove'))}
         </label>
         <div data-where hidden>
           <div class="address-row">
-            <input name="address" placeholder="Street, landmark or postcode"
+            <input name="address" placeholder="${esc(t('report.addressPlaceholder'))}"
                    value="${esc(r.address ?? '')}" autocomplete="off" />
-            <button type="button" class="ghost-button small" data-find="${id}">Find</button>
+            <button type="button" class="ghost-button small" data-find="${id}">${esc(t('report.find'))}</button>
           </div>
-          <p class="pin-status" data-pin-status>Currently ${esc(r.address || r.city || 'the pin you dropped')}.</p>
+          <p class="pin-status" data-pin-status>${esc(t('profile.edit.currently', {
+            place: r.address || r.city || t('profile.edit.pinDropped'),
+          }))}</p>
         </div>` : `
-        <p class="field-hint">Where it happened can only be corrected in the first
-          ${moveWindowHours} hours, and this one is past that.</p>`}
+        <p class="field-hint">${esc(t('profile.edit.tooOld', { hours: moveWindowHours }))}</p>`}
         <div class="report-actions">
-          <button class="chip-action is-primary" type="submit">Save changes</button>
-          <button class="chip-action" type="button" data-edit-cancel="${id}">Cancel</button>
+          <button class="chip-action is-primary" type="submit">${esc(t('profile.edit.save'))}</button>
+          <button class="chip-action" type="button" data-edit-cancel="${id}">${esc(t('profile.edit.cancel'))}</button>
         </div>
       </form>` : '';
 
@@ -342,15 +348,15 @@ export function renderProfileReports(host, reports, categories, windowDays,
         <div class="report-copy">
           <button type="button" class="report-open" data-show="${id}">${esc(r.headline)}</button>
           <span class="report-meta">
-            ${r.city ? esc(r.city) + ' · ' : ''}${esc(cat?.label ?? r.category)} · ${timeAgo(r.happened_at)}
+            ${r.city ? esc(r.city) + ' · ' : ''}${esc(categoryLabel(cat, r.category))} · ${timeAgo(r.happened_at)}
           </span>
           ${impactTags(r.impacts)}
           <span class="profile-status">
-            <span class="${live ? 'is-live' : 'is-gone'}">${live
-              ? `On the map · ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left`
-              : 'Off the map — older than ' + windowDays + ' days'}</span>
-            ${confirms ? `<span class="is-confirms">✓ ${confirms} confirmed</span>` : ''}
-            ${flagged ? `<span class="is-flagged">⚑ ${r.flag_count} flagged</span>` : ''}
+            <span class="${live ? 'is-live' : 'is-gone'}">${esc(live
+              ? plural('profile.onMap', daysLeft)
+              : t('profile.offMap', { days: windowDays }))}</span>
+            ${confirms ? `<span class="is-confirms">${esc(t('profile.confirms', { n: confirms }))}</span>` : ''}
+            ${flagged ? `<span class="is-flagged">${esc(t('profile.flagged', { n: r.flag_count }))}</span>` : ''}
           </span>
           ${actions}
         </div>
@@ -368,32 +374,28 @@ export function renderProfileStats(host, { filed, live, received, given }, activ
        <b>${n}</b><span>${esc(label)}</span>
      </button>`;
   host.innerHTML =
-    tile('filed', filed, filed === 1 ? 'report filed' : 'reports filed') +
-    tile('live', live, 'on the map now') +
-    tile('received', received, 'confirmations received') +
-    tile('given', given, 'you have confirmed');
+    tile('filed', filed, plural('profile.stat.filed', filed)) +
+    tile('live', live, t('profile.stat.live')) +
+    tile('received', received, t('profile.stat.received')) +
+    tile('given', given, t('profile.stat.given'));
 }
 
-export const STAT_TITLES = {
-  filed: 'Your reports',
-  live: 'Still on the map',
-  received: 'Reports others confirmed',
-  given: 'Reports you confirmed',
+export const STAT_TITLE_KEYS = {
+  filed: 'profile.list.filed',
+  live: 'profile.list.live',
+  received: 'profile.list.received',
+  given: 'profile.list.given',
 };
 
 export function setGateNote(host, { mode, shown = 0, hiddenCount = 0, signedIn }) {
   if (signedIn) { host.hidden = true; return; }
   host.hidden = false;
   if (mode === 'summary') {
-    host.innerHTML = `Each circle is how many scams were reported here in the last 7 days.
-      <b>Zoom into a town</b> to see individual reports, or
-      <button class="chip-action" data-open-auth>join free</button> to see them all.`;
+    host.innerHTML = t('gate.summary');
   } else if (hiddenCount > 0) {
-    host.innerHTML = `Showing ${shown} of ${shown + hiddenCount} reports here.
-      <b>${hiddenCount} more ${hiddenCount === 1 ? 'is' : 'are'} members-only.</b>
-      <button class="chip-action" data-open-auth>Join free to see them</button>`;
+    host.innerHTML = tn('gate.partial', hiddenCount,
+      { shown, total: shown + hiddenCount, hidden: hiddenCount });
   } else {
-    host.innerHTML = `Seen something here yourself?
-      <button class="chip-action" data-open-auth>Join free</button> to put it on the map.`;
+    host.innerHTML = t('gate.invite');
   }
 }

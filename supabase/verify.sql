@@ -110,6 +110,19 @@ select * from (
               then 'PASS' else 'FAIL' end
 
   union all
-  select 14, 'reports currently stored', count(*) || ' reports', 'INFO'
+  select 14, 'language choice can be stored',
+         coalesce((select array_length(
+                     regexp_split_to_array(
+                       substring(pg_get_constraintdef(oid) from 'ARRAY\[(.*)\]'), ','), 1)::text
+                   || ' languages allowed'
+                     from pg_constraint where conname = 'locale_known'),
+                  'profiles.locale MISSING'),
+         case when exists (select 1 from information_schema.columns
+                            where table_schema='public' and table_name='profiles'
+                              and column_name='locale')
+              then 'PASS' else 'FAIL' end
+
+  union all
+  select 15, 'reports currently stored', count(*) || ' reports', 'INFO'
     from public.reports
 ) x order by ord;

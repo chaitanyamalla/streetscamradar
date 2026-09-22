@@ -36,7 +36,8 @@ supabase/tests.sql    proves the security rules actually hold
 
 ### Languages
 
-The site speaks English, German, Spanish, French, Italian, Czech and Polish.
+The site speaks English, German, Spanish, French, Italian, Portuguese, Dutch,
+Czech and Polish.
 Which one a visitor gets is decided in this order:
 
 1. what they last chose here, kept in this browser
@@ -47,8 +48,10 @@ Which one a visitor gets is decided in this order:
 Deliberately not their IP address: an Italian standing in Prague wants
 Italian, and geolocating them would hand them Czech, confidently and wrongly.
 
-To add a language: copy `js/locales/en.js`, translate the values, and add the
-code and its own name to `LANGUAGES` in `js/i18n.js`. `en.js` is the fallback,
+To add a language: copy `js/locales/en.js`, translate the values, add the code
+and its own name to `LANGUAGES` in `js/i18n.js`, and add it to the `locale`
+check constraint in `supabase/schema.sql` — miss the last one and the picker
+offers a language the database then refuses to store. `en.js` is the fallback,
 so a key you have not got to yet shows English rather than a blank or a key
 name. Country names and dates come from the browser's own `Intl` data, not
 from these files.

@@ -108,16 +108,14 @@ create table if not exists public.profiles (
   created_at   timestamptz not null default now(),
   constraint home_lat_range check (home_lat is null or home_lat between -90 and 90),
   constraint home_lng_range check (home_lng is null or home_lng between -180 and 180),
-  constraint locale_known   check (locale is null or locale in ('en','de','es','fr','it','cs','pl'))
+  constraint locale_known   check (locale is null or locale in ('en','de','es','fr','it','pt','nl','cs','pl'))
 );
 
 -- Existing installs: add the column and its check without touching the rest.
 alter table public.profiles add column if not exists locale text;
-do $$ begin
-  alter table public.profiles add constraint locale_known
-    check (locale is null or locale in ('en','de','es','fr','it','cs','pl'));
-exception when duplicate_object then null;
-end $$;
+alter table public.profiles drop constraint if exists locale_known;
+alter table public.profiles add constraint locale_known
+  check (locale is null or locale in ('en','de','es','fr','it','pt','nl','cs','pl'));
 
 alter table public.profiles enable row level security;
 drop policy if exists "read own profile"   on public.profiles;

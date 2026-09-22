@@ -28,6 +28,8 @@ export const LANGUAGES = [
   { code: 'es', label: 'Español' },
   { code: 'fr', label: 'Français' },
   { code: 'it', label: 'Italiano' },
+  { code: 'pt', label: 'Português' },
+  { code: 'nl', label: 'Nederlands' },
   { code: 'cs', label: 'Čeština' },
   { code: 'pl', label: 'Polski' },
 ];

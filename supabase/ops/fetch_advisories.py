@@ -145,6 +145,11 @@ def rows_from(payload):
             continue
         if seen_keys is None:
             seen_keys = sorted(entry.keys())
+            # Every run, not only the failing ones. A field quietly renamed at
+            # their end reads as "nobody has a security notice", which looks
+            # like good news rather than like a bug; printing the shape we were
+            # handed is the cheapest way for that to be noticed.
+            print(f"-- fields in a response entry: [{', '.join(seen_keys)}]", file=sys.stderr)
         try:
             numeric_id = int(str(content_id).strip())
         except ValueError:
@@ -269,10 +274,16 @@ def main():
         sys.exit(1)
 
     emit_sql(rows)
-    levels = sum(1 for r in rows if r["warning"] or r["partial_warning"]
-                 or r["situation_warning"] or r["situation_part_warning"])
-    print(f"-- {len(rows)} countries, {levels} of them carrying a warning or notice",
-          file=sys.stderr)
+    # A per-level tally, so a level that suddenly reads zero everywhere is
+    # visible in the run that caused it rather than three weeks later.
+    tally = {name: sum(1 for r in rows if r[name]) for name in
+             ("warning", "partial_warning", "situation_warning", "situation_part_warning")}
+    print(f"-- {len(rows)} countries: "
+          + ", ".join(f"{name}={count}" for name, count in tally.items()), file=sys.stderr)
+    if not any(tally.values()):
+        print("::warning::Every level read as false for every country. That is more "
+              "likely a renamed field than a calm week — check the field list above.",
+              file=sys.stderr)
 
 
 if __name__ == "__main__":

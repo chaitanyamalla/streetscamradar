@@ -123,6 +123,33 @@ select * from (
               then 'PASS' else 'FAIL' end
 
   union all
-  select 15, 'reports currently stored', count(*) || ' reports', 'INFO'
+  select 15, 'travel advisories loaded',
+         (select count(*) || ' countries' from public.travel_advisories),
+         case when (select count(*) from public.travel_advisories) >= 100
+              then 'PASS' else 'EMPTY' end
+
+  union all
+  select 16, 'advisories readable by a signed-out visitor',
+         case when has_table_privilege('anon', 'public.travel_advisories', 'SELECT')
+              then 'anon can select' else 'anon CANNOT select' end,
+         case when has_table_privilege('anon', 'public.travel_advisories', 'SELECT')
+               and not has_table_privilege('anon', 'public.travel_advisories', 'INSERT')
+              then 'PASS' else 'FAIL' end
+
+  union all
+  select 17, 'advisory levels in force',
+         (select coalesce(count(*) filter (where warning) || ' travel warnings, '
+               || count(*) filter (where partial_warning) || ' partial, '
+               || count(*) filter (where situation_warning or situation_part_warning)
+               || ' security notices', '—')
+            from public.travel_advisories), 'INFO'
+
+  union all
+  select 18, 'advisories last refreshed',
+         (select coalesce(to_char(max(refreshed_at), 'YYYY-MM-DD HH24:MI') || ' UTC', 'never')
+            from public.travel_advisories), 'INFO'
+
+  union all
+  select 19, 'reports currently stored', count(*) || ' reports', 'INFO'
     from public.reports
 ) x order by ord;

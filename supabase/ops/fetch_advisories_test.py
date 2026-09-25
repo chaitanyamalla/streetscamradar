@@ -112,6 +112,30 @@ check("ESP" not in codes and "12" not in codes, "a malformed country code is dro
 check(all(r["title"] for r in rows), "a row with no title is dropped")
 check(len(rows) == fa.MIN_PLAUSIBLE + 5, "the good rows in a partly bad response survive")
 
+# --- a renamed field, which is what a live response actually did ------------
+# The published schema says CountryCode/CountryName; a real response need not
+# agree. Both spellings are accepted, and when nothing parses the error names
+# the fields it was handed instead of only the count.
+entries = {}
+for i in range(fa.MIN_PLAUSIBLE + 3):
+    code = chr(65 + i // 26) + chr(65 + i % 26)
+    entries[400000 + i] = {
+        "title": f"Land {code}: Hinweise", "countryCode": code, "countryName": f"Land {code}",
+        "lastModified": 1758000000000, "warning": False, "partialWarning": False,
+        "situationWarning": True, "situationPartWarning": False,
+    }
+rows = fa.rows_from(payload(entries))
+check(len(rows) == fa.MIN_PLAUSIBLE + 3, 'lowercase countryCode/countryName parse too')
+check(rows[0]["situation_warning"] is True, 'and the level booleans still read')
+check(rows[0]["country_name"].startswith('Land '), 'and the country name comes through')
+
+try:
+    fa.rows_from(payload({1: {"someOtherShape": 1, "andAnother": 2}}))
+    check(False, 'an unrecognisable entry shape is refused')
+except fa.SourceProblem as problem:
+    check('someOtherShape' in str(problem) and 'andAnother' in str(problem),
+          f'and the error names the fields it was handed')
+
 # --- duplicates -------------------------------------------------------------
 entries = bulk(fa.MIN_PLAUSIBLE + 2)
 entries[900001] = {**country("PT", "Portugal"), "lastModified": 1000000000000}

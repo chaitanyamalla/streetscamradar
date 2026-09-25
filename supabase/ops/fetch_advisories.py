@@ -101,11 +101,24 @@ def as_timestamp(value):
         return None
 
 
+def pick(entry, *names):
+    """The first of these fields the entry actually has.
+
+    Their published schema capitalises CountryCode and CountryName; a live
+    response may not. Accepting both spellings costs nothing and means a
+    change of case at their end is not an outage at ours.
+    """
+    for name in names:
+        if entry.get(name) not in (None, ""):
+            return entry[name]
+    return None
+
+
 def flag(entry, key):
     """One of the four level booleans. Anything unrecognisable counts as false:
     inventing a warning is worse than missing one, because a warning we made up
     is not in the text the reader is sent to."""
-    value = entry.get(key)
+    value = entry.get(key, entry.get(key[0].upper() + key[1:]))
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -126,18 +139,21 @@ def rows_from(payload):
 
     rows = {}
     skipped = 0
+    seen_keys = None          # the shape we were actually handed, for the error
     for content_id, entry in response.items():
         if content_id in NOT_A_COUNTRY or not isinstance(entry, dict):
             continue
+        if seen_keys is None:
+            seen_keys = sorted(entry.keys())
         try:
             numeric_id = int(str(content_id).strip())
         except ValueError:
             skipped += 1
             continue
 
-        code = str(entry.get("CountryCode") or "").strip().upper()
-        title = str(entry.get("title") or "").strip()
-        name = str(entry.get("CountryName") or "").strip()
+        code = str(pick(entry, "CountryCode", "countryCode") or "").strip().upper()
+        title = str(pick(entry, "title", "Title") or "").strip()
+        name = str(pick(entry, "CountryName", "countryName") or "").strip()
         # A row with no country code cannot be matched to anything on the map,
         # and a row with no title has nothing to show. Both are dropped rather
         # than stored as blanks that would render as an empty chip.
@@ -168,9 +184,15 @@ def rows_from(payload):
         print(f"-- skipped {skipped} entr(ies) with no usable country code or title",
               file=sys.stderr)
     if len(rows) < MIN_PLAUSIBLE:
+        # Say what we were handed, not just that we did not like it. Rejecting
+        # every entry almost always means a field was renamed at their end, and
+        # "0 countries" alone sends you reading the interface docs instead of
+        # the one line that answers it.
+        shape = ", ".join(seen_keys) if seen_keys else "no entries at all"
         raise SourceProblem(
             f"only {len(rows)} countries came back, expected at least {MIN_PLAUSIBLE} — "
-            "refusing to overwrite the table with a partial response")
+            f"refusing to overwrite the table with a partial response. "
+            f"An entry carried these fields: [{shape}]")
     return sorted(rows.values(), key=lambda r: r["country_code"])
 
 

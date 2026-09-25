@@ -149,7 +149,8 @@ em { font-style:italic; }
 .floating-controls { position:absolute; z-index:3; top:34px; right:var(--gutter);
   display:flex; flex-direction:column; }
 .map-frame .floating-controls { top:14px; right:14px; }
-/* Travel advisory, top right under the zoom controls.
+/* Travel advisory, floating over the map: top right on a desktop, top left on
+   a phone where the zoom controls own the right.
    Two tiers of colour, not four: scanning a map, you need "is this serious"
    before you need the exact gradation, and the words carry the gradation. */
 .advisory-chip { position:absolute; z-index:3; top:14px; right:66px;
@@ -603,25 +604,28 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   /* The map is the product on a phone: give it the room that headings,
      intro copy and the explainer sections were using, and put the zoom
      controls on top of it rather than in a row of their own. */
-  .map-frame { position:relative; inset:auto; order:3; width:100%; }
+  .map-frame { position:relative; inset:auto; order:2; width:100%; }
   .city-map { position:relative; inset:auto; width:100%;
     height:clamp(400px,64vh,640px); }
   .floating-controls { position:absolute; top:10px; right:10px; flex-direction:column; }
   .icon-button { width:34px; height:30px; font-size:16px; }
-  /* The map is short here and the zoom controls sit close to the corner, so
-     floating a second control beside them crowds both. Going static puts it in
-     .map-frame's normal flow, directly above the map, where it is read on the
-     way down instead. */
-  .advisory-chip { position:static; order:2; align-self:flex-start;
-    max-width:none; width:auto; margin:0 var(--gutter); }
+  /* The zoom controls own the right of the map here, so the chip takes the
+     left. Smaller than on a desktop: it sits on the map rather than beside it,
+     and a phone's map has less to give away. The width cap keeps it clear of
+     the zoom buttons however long a country's name runs. */
+  .advisory-chip { top:12px; left:12px; right:auto; max-width:min(58%, 210px);
+    gap:7px; padding:6px 9px; }
+  .ac-dot { width:8px; height:8px; }
+  .ac-kicker { font-size:8.5px; }
+  .ac-level { font-size:11.5px; }
   .icon-button:first-child { border-radius:var(--radius) var(--radius) 0 0; }
   .icon-button:last-child { border-radius:0 0 var(--radius) var(--radius); border-top:0; }
-  .filter-panel { position:static; order:4; width:auto; margin:0 var(--gutter); }
+  .filter-panel { position:static; order:3; width:auto; margin:0 var(--gutter); }
   .category-section { max-height:none; }
-  .reports-card { position:static; order:5; width:auto; margin:0 var(--gutter);
+  .reports-card { position:static; order:4; width:auto; margin:0 var(--gutter);
     max-height:none; }
   .report-list { max-height:360px; }
-  .map-attribution { position:static; order:6; margin:0 var(--gutter);
+  .map-attribution { position:static; order:5; margin:0 var(--gutter);
     padding:0; background:none; font-size:10.5px; line-height:1.55; }
 
   .filter-row { min-height:36px; font-size:13px; }

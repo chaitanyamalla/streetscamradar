@@ -81,24 +81,25 @@
           </button>
         </aside>
 
-          <!-- Top right, clear of the zoom controls: the only free corner, and
-               the one the eye reaches after the search. It is a button as well
-               as a readout, so it doubles as the way in when no country is
-               resolved yet. -->
-          <button class="advisory-chip" id="advisory-chip" type="button" lang="de" hidden>
-            <span class="ac-dot" aria-hidden="true"></span>
-            <span class="ac-text">
-              <span class="ac-kicker" id="advisory-kicker">Reisehinweise</span>
-              <span class="ac-level" id="advisory-level"></span>
-            </span>
-          </button>
-
           <div class="map-frame">
-          <div id="city-map" class="city-map" data-i18n-aria="map.label" aria-label="Interactive world map of reported scams"></div>
-          <div class="floating-controls">
-            <button id="zoom-in" class="icon-button" type="button" data-i18n-aria="map.zoomIn" aria-label="Zoom in">+</button>
-            <button id="zoom-out" class="icon-button" type="button" data-i18n-aria="map.zoomOut" aria-label="Zoom out">−</button>
-          </div>
+            <!-- Floats over the map, opposite the zoom controls: top right on a
+                 desktop where that corner is free, top left on a phone where
+                 the zoom buttons own the right. Inside .map-frame so it is
+                 positioned against the map itself rather than against the
+                 column the map sits in. -->
+            <button class="advisory-chip" id="advisory-chip" type="button" lang="de" hidden>
+              <span class="ac-dot" aria-hidden="true"></span>
+              <span class="ac-text">
+                <span class="ac-kicker" id="advisory-kicker">Reisehinweise</span>
+                <span class="ac-level" id="advisory-level"></span>
+              </span>
+            </button>
+
+            <div id="city-map" class="city-map" data-i18n-aria="map.label" aria-label="Interactive world map of reported scams"></div>
+            <div class="floating-controls">
+              <button id="zoom-in" class="icon-button" type="button" data-i18n-aria="map.zoomIn" aria-label="Zoom in">+</button>
+              <button id="zoom-out" class="icon-button" type="button" data-i18n-aria="map.zoomOut" aria-label="Zoom out">−</button>
+            </div>
           <!-- Emergency numbers for whatever country is on screen. Inside the
                map frame on purpose: it is how you reach the police, who come
                to you, while the hospital pins are places you go. -->

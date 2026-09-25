@@ -393,25 +393,29 @@ export const STAT_TITLE_KEYS = {
  * The advisory dialog's body.
  *
  * German throughout, like the advisories themselves — see js/advisory.js for
- * why. What it shows is the level, the two dates, the country's emergency
- * numbers, and how many countries carry a warning right now; then a link out.
- * Never the advisory text.
+ * why. What it shows is the level, the country's emergency numbers, the date
+ * the ministry itself last updated the advisory, and how many countries carry
+ * a warning right now; then a link out. Never the advisory text.
+ *
+ * When we last fetched it is deliberately not a row. It is our housekeeping,
+ * not the reader's business, and on a daily refresh it says the same thing
+ * every day. The context line carries the freshness promise instead — and
+ * withdraws it if the refresh has plainly stopped.
  *
  * The prose that used to wrap all this said, at length, what the layout now
  * says by itself. A traveller reading a travel warning wants the number to
  * dial and the date it was written, not two paragraphs about our sourcing.
  */
-export function advisoryDialogHTML(row, { level, tone, changed, checked, stats }) {
+export function advisoryDialogHTML(row, { level, tone, changed, stats, ageDays }) {
   if (!row) return `<p class="empty-note">${esc(ADVISORY.empty)}</p>`;
 
   const numbers = emergencyLine(row.country_code);
   const facts = [
     numbers && [ADVISORY.emergency, numbers],
     changed && [ADVISORY.changedKey, changed],
-    checked && [ADVISORY.checkedKey, checked],
   ].filter(Boolean);
 
-  const context = contextLine(stats);
+  const context = contextLine(stats, ageDays);
 
   return `
     <div class="advisory-panel ${esc(tone)}">

@@ -39,9 +39,12 @@ supabase/tests.sql    proves the security rules actually hold
 
 The map shows the German Federal Foreign Office's advisory status for the
 country in view: a chip naming the country and the level, and a dialog with
-the level, the country's emergency numbers, when the ministry last changed it,
-how old our copy is, how many countries carry a warning right now, and a link
-to the official page.
+the level, the country's emergency numbers, the ministry's own "Stand" date,
+how many countries carry a warning right now, and a link to the official page.
+
+That last line promises a daily refresh. It is withdrawn automatically once the
+newest row is more than three days old — a stale page claiming to be fresh is
+worse than one that says how old it is.
 
 Note their `lastModified` and `effective` are epoch **seconds**, not
 milliseconds — read the wrong way they put every advisory in January 1970,

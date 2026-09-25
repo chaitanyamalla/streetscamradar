@@ -75,12 +75,16 @@ export const STRINGS = {
   // emergency number and the two dates; the prose that used to sit here said
   // the same thing at ten times the length.
   emergency: 'Notruf',
-  changedKey: 'Zuletzt geändert',
-  checkedKey: 'Von uns abgerufen',
-  checkedRecent: 'vor unter 1 Std.',
-  checkedHours: 'vor {n} Std.',
-  checkedDays: 'vor {n} Tagen',
-  context: '{warn} von {total} Ländern mit Reisewarnung, {partial} mit Teilreisewarnung.',
+  // "Stand" is what German authorities themselves put on a dated notice, so it
+  // reads as the ministry's own date rather than as ours.
+  changedKey: 'Amtlicher Stand',
+  context: '{warn} von {total} Ländern mit Reisewarnung, {partial} mit Teilreisewarnung '
+         + '(täglich für Sie aktualisiert).',
+  // When the daily refresh has plainly stopped, the promise above stops being
+  // true, so it is not made. Saying how old the copy actually is keeps the
+  // panel honest without making a working day's reader think about it.
+  contextStale: '{warn} von {total} Ländern mit Reisewarnung, {partial} mit Teilreisewarnung '
+              + '(zuletzt vor {days} Tagen aktualisiert).',
   readOfficial: 'Amtlichen Hinweis lesen',
   sourceNote: 'Nur auf Deutsch, nur beim Auswärtigen Amt. Vor der Reise immer dort lesen.',
   ariaChip: 'Reisehinweise für {country}: {level}',
@@ -173,18 +177,34 @@ export function advisoryStats(rows) {
   return { total: all.length, warn, partial };
 }
 
-export const contextLine = (stats) =>
-  (stats ? fill(STRINGS.context, stats) : '');
+/**
+ * The one line of context under the facts.
+ *
+ * It promises a daily refresh, which is true — so long as the refresh is
+ * actually happening. If the copy is older than a few days the promise is
+ * replaced by the plain fact, because a stale page claiming to be fresh is
+ * worse than a stale page that says so.
+ */
+export function contextLine(stats, ageDays = null) {
+  if (!stats) return '';
+  return ageDays !== null && ageDays > STALE_AFTER_DAYS
+    ? fill(STRINGS.contextStale, { ...stats, days: ageDays })
+    : fill(STRINGS.context, stats);
+}
 
-/** How old our copy is. Shown rather than hidden: the refresh is daily, and a
- *  reader deciding something on this deserves to know that without digging. */
-export function refreshedAgo(row) {
-  if (!row?.refreshed_at) return '';
-  const hours = Math.floor((Date.now() - new Date(row.refreshed_at).getTime()) / 3600000);
-  if (!Number.isFinite(hours) || hours < 0) return '';
-  if (hours < 1) return STRINGS.checkedRecent;
-  if (hours < 24) return fill(STRINGS.checkedHours, { n: hours });
-  return fill(STRINGS.checkedDays, { n: Math.floor(hours / 24) });
+// A daily job can be late, and a run can be skipped; past this it has plainly
+// stopped rather than slipped, and "updated daily for you" would be a claim the
+// data does not support.
+const STALE_AFTER_DAYS = 3;
+
+/** How many days old our copy is, or null if we cannot tell. */
+export function copyAgeDays(rows) {
+  const newest = [...(rows?.values?.() ?? rows ?? [])]
+    .map(r => new Date(r.refreshed_at).getTime())
+    .filter(Number.isFinite);
+  if (!newest.length) return null;
+  const days = Math.floor((Date.now() - Math.max(...newest)) / 86400000);
+  return days >= 0 ? days : null;
 }
 
 /** The country's emergency numbers, labelled in German. Not the ministry's

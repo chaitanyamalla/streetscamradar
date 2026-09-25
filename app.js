@@ -24,7 +24,7 @@ import { esc, toast, renderCategoryFilters, renderReportList, popupHTML, safetyP
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
          categoryLabel, advisoryDialogHTML } from './js/ui.js';
 import { STRINGS as ADVISORY, advisoryLevel, advisoryTone, levelLabel, countryTitle,
-         changedOn, refreshedAgo, chipAria, advisoryStats } from './js/advisory.js';
+         changedOn, chipAria, advisoryStats, copyAgeDays } from './js/advisory.js';
 import { t, plural, formatDate, setLanguage, preferredLanguage, currentLanguage,
          isSupported, renderLanguagePicker } from './js/i18n.js';
 
@@ -666,8 +666,8 @@ function paintAdvisoryDialog() {
     level,
     tone: row ? advisoryTone(level) : 'is-empty',
     changed: row ? changedOn(row) : '',
-    checked: row ? refreshedAgo(row) : '',
     stats: advisoryStats(state.advisories),
+    ageDays: copyAgeDays(state.advisories),
   });
 }
 

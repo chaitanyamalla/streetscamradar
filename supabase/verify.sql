@@ -150,6 +150,18 @@ select * from (
             from public.travel_advisories), 'INFO'
 
   union all
-  select 19, 'reports currently stored', count(*) || ' reports', 'INFO'
+  -- The exact bug that shipped once: their timestamps are epoch SECONDS, and
+  -- reading them as milliseconds puts every advisory in January 1970. That is
+  -- invisible in a count and obvious in a date range, so the range is checked.
+  select 19, 'advisory dates look like dates',
+         (select coalesce(to_char(min(last_modified), 'YYYY-MM-DD') || ' … '
+                       || to_char(max(last_modified), 'YYYY-MM-DD'), 'none stored')
+            from public.travel_advisories),
+         case when (select min(last_modified) from public.travel_advisories)
+                   > timestamptz '2000-01-01'
+              then 'PASS' else 'SUSPECT' end
+
+  union all
+  select 20, 'reports currently stored', count(*) || ' reports', 'INFO'
     from public.reports
 ) x order by ord;

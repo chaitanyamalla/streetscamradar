@@ -28,11 +28,39 @@ js/geo.js       worldwide search + "where am I" (Nominatim / OpenStreetMap)
 js/map.js       MapLibre setup, clustering, density layer
 js/ui.js        rendering helpers (and HTML escaping)
 js/emergency.js emergency numbers, by country
+js/advisory.js  German Federal Foreign Office travel advisories (German only)
 js/i18n.js      language: detection, switching, t()
 js/locales/     one file per language; en.js is the source of truth
 supabase/schema.sql   tables, security rules, functions     <- run this once
 supabase/tests.sql    proves the security rules actually hold
 ```
+
+### Travel advisories
+
+The map shows the German Federal Foreign Office's advisory status for the
+country in view — which of four levels is in force, when the ministry last
+changed it, and a link to the official page.
+
+It stores the **status, never the text**. Their terms require the information
+to be taken complete, kept current and not shown in a distorting context, and
+ask that country text be linked rather than copied; an excerpt of a multi-page
+advisory satisfies none of that. A level is a fact about the advisory rather
+than a piece of it, and the link means the words a reader acts on are always
+the ministry's own.
+
+The panel is in German only, deliberately: these are advisories written in
+Berlin, in German, for German citizens travelling abroad, and translating them
+is exactly what the terms forbid. Everyone sees it for now; the intended shape
+is to show it to the readers it is for and add other countries' sources
+alongside. The seam for that is `STRINGS` and `SOURCE` in `js/advisory.js`.
+
+`.github/workflows/advisories.yml` refreshes `public.travel_advisories` daily.
+The generator refuses to write a short or empty response — their interface
+answers `{}` when it is down, and a credulous loader would read that as "no
+country has an advisory" and clear every warning on the site.
+
+Before using this in your own deployment, accept their terms and tell them how
+you present the data: https://www.auswaertiges-amt.de/de/service/opendata
 
 ### Languages
 

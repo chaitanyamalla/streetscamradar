@@ -81,7 +81,19 @@
           </button>
         </aside>
 
-        <div class="map-frame">
+          <!-- Top right, clear of the zoom controls: the only free corner, and
+               the one the eye reaches after the search. It is a button as well
+               as a readout, so it doubles as the way in when no country is
+               resolved yet. -->
+          <button class="advisory-chip" id="advisory-chip" type="button" lang="de" hidden>
+            <span class="ac-dot" aria-hidden="true"></span>
+            <span class="ac-text">
+              <span class="ac-kicker" id="advisory-kicker">Reisehinweise</span>
+              <span class="ac-level" id="advisory-level"></span>
+            </span>
+          </button>
+
+          <div class="map-frame">
           <div id="city-map" class="city-map" data-i18n-aria="map.label" aria-label="Interactive world map of reported scams"></div>
           <div class="floating-controls">
             <button id="zoom-in" class="icon-button" type="button" data-i18n-aria="map.zoomIn" aria-label="Zoom in">+</button>
@@ -363,6 +375,28 @@
 
         <button class="primary-button wide" type="submit" id="submit-report" data-i18n="report.post">Post to the map</button>
       </form>
+    </dialog>
+
+    <!-- ---------------------------------------------------------------- -->
+    <dialog id="advisory-dialog" lang="de" aria-labelledby="advisory-title">
+      <div class="dialog-body">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow" id="advisory-eyebrow">Offizielle Reisehinweise</p>
+            <h2 id="advisory-title">Reise- und Sicherheitshinweise</h2>
+          </div>
+          <button class="close-button" data-close="advisory-dialog" type="button"
+                  data-i18n-aria="auth.close" aria-label="Close">×</button>
+        </div>
+
+        <!-- Whose advice this is comes first, not in a footnote. It is written
+             in Berlin, in German, for German travellers going abroad — the one
+             thing a reader needs in order to weigh it. The panel is in German
+             for the same reason; see js/advisory.js. -->
+        <p class="form-note" id="advisory-whose" lang="de"></p>
+
+        <div id="advisory-body"></div>
+      </div>
     </dialog>
 
     <div id="toast" role="status" aria-live="polite"></div>

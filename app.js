@@ -11,7 +11,8 @@ import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DA
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, myConfirmedReports, editMyReport,
-         deleteMyAccount, getProfile, saveDisplayName, saveLocale, supabase } from './js/data.js';
+         deleteMyAccount, getProfile, saveDisplayName, saveLocale, fetchAdvisories,
+         supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
          signInWithGoogle, signOut, enabledProviders, changePassword } from './js/auth.js';
 import { searchPlaces, describePoint, locateMe } from './js/geo.js';
@@ -21,7 +22,9 @@ import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          maplibregl } from './js/map.js';
 import { esc, toast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
-         categoryLabel } from './js/ui.js';
+         categoryLabel, advisoryDialogHTML } from './js/ui.js';
+import { STRINGS as ADVISORY, advisoryLevel, advisoryTone, levelLabel,
+         changedOn, refreshedAgo, chipAria } from './js/advisory.js';
 import { t, plural, formatDate, setLanguage, preferredLanguage, currentLanguage,
          isSupported, renderLanguagePicker } from './js/i18n.js';
 
@@ -37,6 +40,8 @@ const state = {
   safetyOn: true,
   profile: null,      // display_name and home area, read once at sign-in
   safetyPlaces: [],   // what the safety layer last loaded, for the country lookup
+  advisories: null,   // country_code -> row, read once per session
+  advisoryCountry: null,   // whose advisory the chip is currently showing
   pin: null,          // { lat, lng, address, city, countryCode }
   pinPending: null,   // in-flight reverse geocode for that pin
   placeLabel: null,   // null = nowhere chosen yet, so the header says "anywhere"
@@ -527,15 +532,46 @@ async function countryAtCentre() {
   }
 }
 
+/**
+ * Which country is on screen, resolved once per view and shared.
+ *
+ * The emergency bar and the travel advisory both need this, and each asking
+ * separately meant two Nominatim lookups for one pan — the cache made the
+ * second free only if the first had already landed, which racing calls do not
+ * guarantee. Sharing one promise also keeps the two panels agreeing with each
+ * other, which matters more than the request: a bar naming France beside an
+ * advisory for Spain would be worse than either being slow.
+ */
+let countryPending = null;
+const forgetCountry = () => { countryPending = null; };
+
+/**
+ * Whether the view is inside one country far enough to name it.
+ *
+ * Zoomed out across a continent, one country's answer is a lie — that is as
+ * true of an advisory as of an emergency number, so both use the same test.
+ * It also keeps the geocoder out of a plain page load: at world zoom there is
+ * nothing to look up and nothing worth showing.
+ */
+const viewIsOneCountry = () => map.getZoom() >= EMERGENCY_MIN_ZOOM;
+
+function currentCountry() {
+  if (!countryPending) {
+    const known = countryFromView();
+    countryPending = known ? Promise.resolve(known) : countryAtCentre();
+  }
+  return countryPending;
+}
+
 let emergencyTicket = 0;
 async function refreshEmergency() {
   const bar = $('#emergency-bar');
 
   // Zoomed out across several countries, one country's numbers would be a lie.
-  if (map.getZoom() < EMERGENCY_MIN_ZOOM) { bar.hidden = true; return; }
+  if (!viewIsOneCountry()) { bar.hidden = true; return; }
 
   const ticket = ++emergencyTicket;
-  const code = countryFromView() ?? await countryAtCentre();
+  const code = await currentCountry();
   if (ticket !== emergencyTicket) return;
 
   const info = emergencyFor(code);
@@ -548,6 +584,88 @@ async function refreshEmergency() {
     <span class="eb-num"><span>${esc(n.label)}</span><a href="tel:${esc(n.number.replace(/\s/g, ''))}">${esc(n.number)}</a></span>
   `).join('');
   bar.hidden = false;
+}
+
+// ---------------------------------------------------------------------------
+// Travel advisory for the country on screen
+//
+// It follows the same country the emergency bar follows — worked out from the
+// reports and hospitals already in view, so most of the time it costs nothing.
+// The chip shows the level; the dialog adds the dates and the link.
+//
+// The chip stays visible with nothing resolved, prompting for a place, so it
+// also serves as the way in when you have not searched for anywhere yet.
+// ---------------------------------------------------------------------------
+let advisoryTicket = 0;
+
+/** The chip with no country behind it: a prompt, and the way into the dialog. */
+function paintAdvisoryPrompt(chip) {
+  state.advisoryCountry = null;
+  chip.hidden = false;
+  chip.className = 'advisory-chip is-empty';
+  $('#advisory-level').textContent = ADVISORY.prompt;
+  chip.setAttribute('aria-label', ADVISORY.kicker);
+  if ($('#advisory-dialog').open) paintAdvisoryDialog();
+}
+
+async function refreshAdvisory() {
+  const chip = $('#advisory-chip');
+  if (!isConfigured()) { chip.hidden = true; return; }
+
+  const ticket = ++advisoryTicket;
+  // Zoomed out, the chip still shows — it is the way into the dialog — but as
+  // a prompt rather than as a country's status, and without asking anybody.
+  const code = viewIsOneCountry() ? await currentCountry() : null;
+  if (ticket !== advisoryTicket) return;
+
+  // Nothing to look up yet, so nothing is read: a visitor who never zooms in
+  // should not pay for two hundred rows they were never shown.
+  if (!code) { paintAdvisoryPrompt(chip); return; }
+
+  if (!state.advisories) {
+    try {
+      state.advisories = await fetchAdvisories();
+    } catch (err) {
+      console.error(err);
+      chip.hidden = true;        // quiet: a missing advisory is not an error
+      return;                    // worth interrupting a map with
+    }
+    if (ticket !== advisoryTicket) return;
+  }
+
+  // A country the ministry does not publish on — Germany itself among them,
+  // since it does not advise Germans about home.
+  const row = state.advisories.get(code) ?? null;
+  if (!row) { paintAdvisoryPrompt(chip); return; }
+  state.advisoryCountry = row;
+
+  const level = advisoryLevel(row);
+  chip.hidden = false;
+  chip.className = `advisory-chip ${advisoryTone(level)}`;
+  $('#advisory-level').textContent = levelLabel(level);
+  chip.setAttribute('aria-label', chipAria(row, level));
+
+  if ($('#advisory-dialog').open) paintAdvisoryDialog();
+}
+
+/** The panel's fixed wording. Set from JS rather than left in the markup so
+ *  there is one place it lives, next to the strings it belongs with. */
+function paintAdvisoryChrome() {
+  $('#advisory-kicker').textContent = ADVISORY.kicker;
+  $('#advisory-eyebrow').textContent = ADVISORY.eyebrow;
+  $('#advisory-title').textContent = ADVISORY.title;
+  $('#advisory-whose').textContent = ADVISORY.whose;
+}
+
+function paintAdvisoryDialog() {
+  const row = state.advisoryCountry;
+  const level = advisoryLevel(row);
+  $('#advisory-body').innerHTML = advisoryDialogHTML(row, {
+    level,
+    tone: row ? advisoryTone(level) : 'is-empty',
+    changed: row ? changedOn(row) : '',
+    checked: row ? refreshedAgo(row) : '',
+  });
 }
 
 function draw() {
@@ -571,8 +689,11 @@ function draw() {
 
   // After the fetch, not alongside it: run in parallel and this reads the
   // previous view's reports, finds no country in them, and asks the geocoder
-  // for something the answer already contained.
+  // for something the answer already contained. The advisory rides on the
+  // same country lookup.
+  forgetCountry();
   refreshEmergency();
+  refreshAdvisory();
 }
 
 // ---------------------------------------------------------------------------
@@ -744,6 +865,13 @@ function wireUI() {
     }
   });
   $('#place-chip').addEventListener('click', () => $('#place-search').focus());
+
+  // --- travel advisory
+  paintAdvisoryChrome();
+  $('#advisory-chip').addEventListener('click', () => {
+    paintAdvisoryDialog();
+    openDialog('#advisory-dialog');
+  });
 
   // --- map controls
   $('#zoom-in').addEventListener('click', () => map.zoomIn());

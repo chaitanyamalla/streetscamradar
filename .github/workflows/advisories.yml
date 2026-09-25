@@ -1,0 +1,107 @@
+# ---------------------------------------------------------------------------
+# Refresh public.travel_advisories from the German Federal Foreign Office.
+#
+# One request covers every country, so this is a small job — a few seconds,
+# unlike the safety-places crawl that walks a city at a time.
+#
+# Why here and not in the browser: their interface sends no CORS headers, so a
+# page cannot call it directly. Mirroring it also puts one place in charge of
+# what we show, which their terms effectively require — the information has to
+# be complete and current, and a page making its own ad-hoc calls is neither
+# auditable nor cacheable.
+#
+# Needs the same SUPABASE_DB_URL secret as the database workflow.
+# ---------------------------------------------------------------------------
+name: Refresh travel advisories
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Daily, early. Advisories change on real events rather than on a
+    # timetable, so this is the floor, not the ideal; the site shows both the
+    # ministry's own "last changed" date and our refresh time, and links to the
+    # official page, so a reader can always see how old this is and go to the
+    # source. Raise the frequency here if that ever feels too slow — the job
+    # costs seconds and one request.
+    - cron: '23 5 * * *'
+
+concurrency:
+  group: advisories
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the secret is set
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "${SUPABASE_DB_URL}" ]; then
+            echo "::error::SUPABASE_DB_URL is not set."
+            exit 1
+          fi
+
+      - name: Install psql
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          fi
+
+      # The direct db.<ref>.supabase.co host is IPv6-only and runners are
+      # IPv4-only, so reuse the same pooler discovery as the other workflows.
+      - name: Resolve a reachable host
+        env:
+          PGURL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python3 - <<'PY' > resolved.env
+          import os, sys, urllib.parse, subprocess
+          u = os.environ["PGURL"].strip().strip('"').strip("'")
+          p = urllib.parse.urlparse(u)
+          host, pwd = p.hostname or "", p.password or ""
+          print(f"::add-mask::{pwd}", file=sys.stderr)
+
+          if "pooler.supabase.com" in host or not host.startswith("db."):
+              print(f"PGURL_FINAL={u}")
+              sys.exit(0)
+
+          ref = host[len("db."):-len(".supabase.co")]
+          regions = ["eu-central-1","eu-west-1","eu-west-2","eu-west-3","eu-north-1","eu-central-2",
+                     "ap-south-1","ap-southeast-1","ap-southeast-2","ap-northeast-1","ap-northeast-2",
+                     "us-east-1","us-east-2","us-west-1","us-west-2","ca-central-1","sa-east-1"]
+          quoted = urllib.parse.quote(pwd, safe="")
+          env = {**os.environ, "PGCONNECT_TIMEOUT": "6"}
+          for prefix in ("aws-0", "aws-1"):
+              for r in regions:
+                  ph = f"{prefix}-{r}.pooler.supabase.com"
+                  cand = f"postgresql://postgres.{ref}:{quoted}@{ph}:5432/postgres"
+                  if subprocess.run(["psql", cand, "-tAc", "select 1"],
+                                    capture_output=True, text=True, env=env).returncode == 0:
+                      print(f"Connected via {ph}", file=sys.stderr)
+                      print(f"PGURL_FINAL={cand}")
+                      sys.exit(0)
+          print("::error::Could not reach any pooler host.", file=sys.stderr)
+          sys.exit(1)
+          PY
+          cat resolved.env >> "$GITHUB_ENV"
+          rm -f resolved.env
+
+      # This generator is the only thing that writes to travel_advisories and
+      # it runs unattended. The case worth guarding is the bad one: the
+      # interface answers {} when it is down, and a credulous loader would read
+      # that as "no country has an advisory" and clear the table.
+      - name: Check the generator
+        run: python3 supabase/ops/fetch_advisories_test.py
+
+      - name: Fetch from the Federal Foreign Office
+        run: |
+          python3 supabase/ops/fetch_advisories.py > advisories.sql
+          head -1 advisories.sql
+
+      - name: Load into Supabase
+        env:
+          PGURL: ${{ env.PGURL_FINAL }}
+        run: |
+          psql "$PGURL" -v ON_ERROR_STOP=1 -f advisories.sql

@@ -608,6 +608,52 @@ create index if not exists safety_places_lat_idx on public.safety_places (lat);
 create index if not exists safety_places_lng_idx on public.safety_places (lng);
 create index if not exists safety_places_kind_idx on public.safety_places (kind);
 
+-- ---------------------------------------------------------------------------
+-- Travel advisories, from the German Federal Foreign Office.
+--
+-- One row per country, mirrored from their open-data interface. We store the
+-- STATUS of an advisory — which of the four levels applies, its official
+-- title, when the ministry last changed it — and never the advisory text.
+--
+-- That is deliberate, not a shortcut. Their terms require the information to
+-- be taken complete, kept current, and not put in a distorting context; an
+-- excerpt of a multi-page advisory is none of those things. The status is a
+-- fact about the advisory rather than the advisory itself, and content_id
+-- gives us the official permalink so the full text is always read from them,
+-- always current, in their words.
+--
+-- Written only by the refresh workflow, which connects as the database owner.
+-- ---------------------------------------------------------------------------
+create table if not exists public.travel_advisories (
+  country_code  char(2) primary key,
+  content_id    bigint not null,
+  title         text   not null,          -- e.g. "Spanien: Reise- und Sicherheitshinweise"
+  country_name  text   not null,          -- the ministry's own (German) name for it
+  -- The four levels, most serious first. All false = ordinary country
+  -- information, which is itself worth showing: "no warning" is an answer.
+  warning                boolean not null default false,  -- full travel warning
+  partial_warning        boolean not null default false,  -- parts of the country
+  situation_warning      boolean not null default false,  -- security notice, countrywide
+  situation_part_warning boolean not null default false,  -- security notice, parts
+  last_modified timestamptz,              -- when the ministry last changed it
+  effective     timestamptz,
+  refreshed_at  timestamptz not null default now()   -- when we last read it
+);
+
+alter table public.travel_advisories enable row level security;
+
+drop policy if exists "advisories are public" on public.travel_advisories;
+create policy "advisories are public" on public.travel_advisories
+  for select to anon, authenticated using (true);
+
+-- Supabase grants new public tables to anon and authenticated by default, so
+-- in practice the revoke below is what makes this read-only. The grant is
+-- stated anyway: it costs nothing, it survives a project whose default
+-- privileges differ, and it says out loud that this table is meant to be world
+-- readable — it is public government data, not anybody's report.
+grant select on table public.travel_advisories to anon, authenticated;
+revoke insert, update, delete on table public.travel_advisories from anon, authenticated;
+
 alter table public.safety_places enable row level security;
 
 -- Readable by everyone; writable by nobody through the API. The refresh

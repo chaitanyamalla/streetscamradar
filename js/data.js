@@ -286,6 +286,39 @@ export async function saveHomeArea({ label, lat, lng }) {
  * our own table by .github/workflows/safety-data.yml, so this is one indexed
  * query like everything else here.
  */
+// --- Travel advisories -----------------------------------------------------
+/**
+ * Every country's advisory status, read once and kept for the session.
+ *
+ * About two hundred small rows, so one read is cheaper than a query each time
+ * the map crosses a border — and it means the dialog can list every country
+ * without going back to the network. The promise itself is cached, not just
+ * the result, so a burst of pans while the first read is in flight shares it
+ * rather than starting five more.
+ */
+let advisoryCache = null;
+
+export function fetchAdvisories() {
+  if (advisoryCache) return advisoryCache;
+  if (!supabase) return Promise.resolve(new Map());
+
+  advisoryCache = supabase
+    .from('travel_advisories')
+    .select('country_code,content_id,title,country_name,warning,partial_warning,'
+          + 'situation_warning,situation_part_warning,last_modified,refreshed_at')
+    .then(({ data, error }) => {
+      if (error) throw error;
+      return new Map((data ?? []).map(row => [row.country_code, row]));
+    })
+    .catch(err => {
+      // A failed read must not poison the session: drop the cache so the next
+      // pan tries again, rather than showing nothing until a reload.
+      advisoryCache = null;
+      throw err;
+    });
+  return advisoryCache;
+}
+
 export async function fetchSafetyPlaces(bounds) {
   need();
   const { minLat, minLng, maxLat, maxLng } = bounds;

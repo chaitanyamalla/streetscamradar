@@ -4,6 +4,8 @@
 // ---------------------------------------------------------------------------
 import { PIN_COLOR } from './config.js';
 import { t, tn, plural, tOr } from './i18n.js';
+import { STRINGS as ADVISORY, officialUrl, countryTitle,
+         levelLabel, levelExplain } from './advisory.js';
 
 export const esc = (value) => String(value ?? '').replace(/[&<>"']/g,
   c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -386,6 +388,33 @@ export const STAT_TITLE_KEYS = {
   received: 'profile.list.received',
   given: 'profile.list.given',
 };
+
+/**
+ * The advisory dialog's body.
+ *
+ * German throughout, like the advisories themselves — see js/advisory.js for
+ * why. Status, dates, and a link out; never the advisory text. The link is the
+ * whole point: it is where the words a reader acts on come from, in the
+ * ministry's own wording and always current, rather than from a copy of ours
+ * that is a day old at best.
+ */
+export function advisoryDialogHTML(row, { level, tone, changed, checked }) {
+  if (!row) return `<p class="empty-note">${esc(ADVISORY.empty)}</p>`;
+
+  const dates = [changed, checked].filter(Boolean)
+    .map(line => `<span>${esc(line)}</span>`).join('');
+
+  return `
+    <div class="advisory-panel ${esc(tone)}">
+      <p class="advisory-country">${esc(countryTitle(row))}</p>
+      <p class="advisory-level">${esc(levelLabel(level))}</p>
+      <p class="advisory-explain">${esc(levelExplain(level))}</p>
+    </div>
+    ${dates ? `<p class="advisory-dates">${dates}</p>` : ''}
+    <a class="primary-button wide advisory-link" target="_blank" rel="noopener noreferrer"
+       href="${esc(officialUrl(row.content_id))}">${esc(ADVISORY.readOfficial)}</a>
+    <p class="fine-print">${esc(ADVISORY.sourceNote)}</p>`;
+}
 
 export function setGateNote(host, { mode, shown = 0, hiddenCount = 0, signedIn }) {
   if (signedIn) { host.hidden = true; return; }

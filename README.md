@@ -38,8 +38,15 @@ supabase/tests.sql    proves the security rules actually hold
 ### Travel advisories
 
 The map shows the German Federal Foreign Office's advisory status for the
-country in view — which of four levels is in force, when the ministry last
-changed it, and a link to the official page.
+country in view: a chip naming the country and the level, and a dialog with
+the level, the country's emergency numbers, when the ministry last changed it,
+how old our copy is, how many countries carry a warning right now, and a link
+to the official page.
+
+Note their `lastModified` and `effective` are epoch **seconds**, not
+milliseconds — read the wrong way they put every advisory in January 1970,
+which looks like a neglected site rather than a unit mix-up. The loader detects
+the unit rather than trusting either.
 
 It stores the **status, never the text**. Their terms require the information
 to be taken complete, kept current and not shown in a distorting context, and

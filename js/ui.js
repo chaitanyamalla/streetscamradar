@@ -4,8 +4,8 @@
 // ---------------------------------------------------------------------------
 import { PIN_COLOR } from './config.js';
 import { t, tn, plural, tOr } from './i18n.js';
-import { STRINGS as ADVISORY, officialUrl, countryTitle,
-         levelLabel, levelExplain } from './advisory.js';
+import { STRINGS as ADVISORY, officialUrl, countryTitle, levelLabel, levelExplain,
+         emergencyLine, contextLine } from './advisory.js';
 
 export const esc = (value) => String(value ?? '').replace(/[&<>"']/g,
   c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -393,24 +393,34 @@ export const STAT_TITLE_KEYS = {
  * The advisory dialog's body.
  *
  * German throughout, like the advisories themselves — see js/advisory.js for
- * why. Status, dates, and a link out; never the advisory text. The link is the
- * whole point: it is where the words a reader acts on come from, in the
- * ministry's own wording and always current, rather than from a copy of ours
- * that is a day old at best.
+ * why. What it shows is the level, the two dates, the country's emergency
+ * numbers, and how many countries carry a warning right now; then a link out.
+ * Never the advisory text.
+ *
+ * The prose that used to wrap all this said, at length, what the layout now
+ * says by itself. A traveller reading a travel warning wants the number to
+ * dial and the date it was written, not two paragraphs about our sourcing.
  */
-export function advisoryDialogHTML(row, { level, tone, changed, checked }) {
+export function advisoryDialogHTML(row, { level, tone, changed, checked, stats }) {
   if (!row) return `<p class="empty-note">${esc(ADVISORY.empty)}</p>`;
 
-  const dates = [changed, checked].filter(Boolean)
-    .map(line => `<span>${esc(line)}</span>`).join('');
+  const numbers = emergencyLine(row.country_code);
+  const facts = [
+    numbers && [ADVISORY.emergency, numbers],
+    changed && [ADVISORY.changedKey, changed],
+    checked && [ADVISORY.checkedKey, checked],
+  ].filter(Boolean);
+
+  const context = contextLine(stats);
 
   return `
     <div class="advisory-panel ${esc(tone)}">
-      <p class="advisory-country">${esc(countryTitle(row))}</p>
       <p class="advisory-level">${esc(levelLabel(level))}</p>
       <p class="advisory-explain">${esc(levelExplain(level))}</p>
     </div>
-    ${dates ? `<p class="advisory-dates">${dates}</p>` : ''}
+    ${facts.length ? `<dl class="advisory-facts">${facts.map(([key, value]) =>
+      `<div><dt>${esc(key)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>` : ''}
+    ${context ? `<p class="advisory-context">${esc(context)}</p>` : ''}
     <a class="primary-button wide advisory-link" target="_blank" rel="noopener noreferrer"
        href="${esc(officialUrl(row.content_id))}">${esc(ADVISORY.readOfficial)}</a>
     <p class="fine-print">${esc(ADVISORY.sourceNote)}</p>`;

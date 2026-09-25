@@ -113,8 +113,12 @@ const NUMBERS = {
 /**
  * What to show for a country, or null if we do not know it well enough to say.
  * Returns the numbers already ordered for display, most useful first.
+ *
+ * `label` and `name` default to the site's own language. The travel advisory
+ * panel passes German ones instead: it is a German-language panel, and half a
+ * sentence in Polish inside it would read as a bug rather than as a courtesy.
  */
-export function emergencyFor(countryCode) {
+export function emergencyFor(countryCode, { label = t, name = countryName } = {}) {
   const entry = NUMBERS[(countryCode ?? '').toUpperCase()];
   if (!entry) return null;
 
@@ -142,14 +146,14 @@ export function emergencyFor(countryCode) {
     number,
     // "All services" already covers everything, so it never needs company.
     label: keys.includes('emergency.all')
-      ? t('emergency.all')
-      : keys.map(k => t(k)).join(' & '),
+      ? label('emergency.all')
+      : keys.map(k => label(k)).join(' & '),
   }));
   // The English name in the table is the last resort: every browser can say
   // "Deutschland" or "Niemcy" from the ISO code, and says it better than a
   // list we would have to keep in seven languages.
   const code = (countryCode ?? '').toUpperCase();
-  return { name: countryName(code, entry.name), numbers };
+  return { name: name(code, entry.name), numbers };
 }
 
 export const knownCountries = () => Object.keys(NUMBERS).length;

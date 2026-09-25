@@ -37,8 +37,8 @@ def country(code, name, **flags):
         "title": f"{name}: Reise- und Sicherheitshinweise",
         "CountryCode": code,
         "CountryName": name,
-        "lastModified": 1758000000000,
-        "effective": 1757000000000,
+        "lastModified": 1758000000,
+        "effective": 1757000000,
         "warning": flags.get("warning", False),
         "partialWarning": flags.get("partialWarning", False),
         "situationWarning": flags.get("situationWarning", False),
@@ -79,7 +79,7 @@ check(by_code["ES"]["warning"] is False, "an unset level stays false")
 check(by_code["AF"]["warning"] is True, "a full travel warning is carried through")
 check(by_code["ES"]["title"].startswith("Spanien:"), "the official title is kept verbatim")
 check(by_code["ES"]["last_modified"].startswith("2025-09-16"),
-      f"epoch millis become a timestamp ({by_code['ES']['last_modified']})")
+      f"the source's epoch seconds become a timestamp ({by_code['ES']['last_modified']})")
 check([r["country_code"] for r in rows] == sorted(r["country_code"] for r in rows),
       "rows come out in a stable order")
 
@@ -121,7 +121,7 @@ for i in range(fa.MIN_PLAUSIBLE + 3):
     code = chr(65 + i // 26) + chr(65 + i % 26)
     entries[400000 + i] = {
         "title": f"Land {code}: Hinweise", "countryCode": code, "countryName": f"Land {code}",
-        "lastModified": 1758000000000, "warning": False, "partialWarning": False,
+        "lastModified": 1758000000, "warning": False, "partialWarning": False,
         "situationWarning": True, "situationPartWarning": False,
     }
 rows = fa.rows_from(payload(entries))
@@ -138,8 +138,8 @@ except fa.SourceProblem as problem:
 
 # --- duplicates -------------------------------------------------------------
 entries = bulk(fa.MIN_PLAUSIBLE + 2)
-entries[900001] = {**country("PT", "Portugal"), "lastModified": 1000000000000}
-entries[900002] = {**country("PT", "Portugal", warning=True), "lastModified": 1758000000000}
+entries[900001] = {**country("PT", "Portugal"), "lastModified": 1000000000}
+entries[900002] = {**country("PT", "Portugal", warning=True), "lastModified": 1758000000}
 rows = fa.rows_from(payload(entries))
 portugal = [r for r in rows if r["country_code"] == "PT"]
 check(len(portugal) == 1, "a country listed twice yields one row")
@@ -151,7 +151,16 @@ check(fa.as_timestamp(0) is None, "epoch 0 is not a date")
 check(fa.as_timestamp(-5) is None, "a negative timestamp is not a date")
 check(fa.as_timestamp(None) is None, "a missing timestamp is not a date")
 check(fa.as_timestamp("nope") is None, "a non-numeric timestamp is not a date")
-check(fa.as_timestamp(1758000000000).startswith("2025-09-16"), "a real timestamp converts")
+check(fa.as_timestamp(1758000000000).startswith("2025-09-16"), "milliseconds convert")
+# The live interface sends seconds, not milliseconds. Read as milliseconds they
+# land in January 1970, which looks like a stale site rather than a unit bug —
+# so both units are pinned here.
+check(fa.as_timestamp(1728000000).startswith("2024-10-04"),
+      f"seconds convert too ({fa.as_timestamp(1728000000)})")
+check(not fa.as_timestamp(1728000000).startswith("1970"),
+      "and are never read as milliseconds, which would give 1970")
+check(fa.as_timestamp(1).startswith("1970"),
+      "a genuinely tiny value is still 1970, not rescued into something plausible")
 
 # --- booleans arriving as strings -------------------------------------------
 check(fa.flag({"warning": "true"}, "warning") is True, '"true" counts as set')

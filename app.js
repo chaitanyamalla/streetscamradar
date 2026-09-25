@@ -23,8 +23,8 @@ import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
 import { esc, toast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
          categoryLabel, advisoryDialogHTML } from './js/ui.js';
-import { STRINGS as ADVISORY, advisoryLevel, advisoryTone, levelLabel,
-         changedOn, refreshedAgo, chipAria } from './js/advisory.js';
+import { STRINGS as ADVISORY, advisoryLevel, advisoryTone, levelLabel, countryTitle,
+         changedOn, refreshedAgo, chipAria, advisoryStats } from './js/advisory.js';
 import { t, plural, formatDate, setLanguage, preferredLanguage, currentLanguage,
          isSupported, renderLanguagePicker } from './js/i18n.js';
 
@@ -603,6 +603,7 @@ function paintAdvisoryPrompt(chip) {
   state.advisoryCountry = null;
   chip.hidden = false;
   chip.className = 'advisory-chip is-empty';
+  $('#advisory-kicker').textContent = ADVISORY.kicker;
   $('#advisory-level').textContent = ADVISORY.prompt;
   chip.setAttribute('aria-label', ADVISORY.kicker);
   if ($('#advisory-dialog').open) paintAdvisoryDialog();
@@ -642,6 +643,7 @@ async function refreshAdvisory() {
   const level = advisoryLevel(row);
   chip.hidden = false;
   chip.className = `advisory-chip ${advisoryTone(level)}`;
+  $('#advisory-kicker').textContent = countryTitle(row);
   $('#advisory-level').textContent = levelLabel(level);
   chip.setAttribute('aria-label', chipAria(row, level));
 
@@ -651,20 +653,21 @@ async function refreshAdvisory() {
 /** The panel's fixed wording. Set from JS rather than left in the markup so
  *  there is one place it lives, next to the strings it belongs with. */
 function paintAdvisoryChrome() {
-  $('#advisory-kicker').textContent = ADVISORY.kicker;
   $('#advisory-eyebrow').textContent = ADVISORY.eyebrow;
-  $('#advisory-title').textContent = ADVISORY.title;
-  $('#advisory-whose').textContent = ADVISORY.whose;
 }
 
 function paintAdvisoryDialog() {
   const row = state.advisoryCountry;
   const level = advisoryLevel(row);
+  // The heading is the country, so the dialog says what it is about before it
+  // says how serious it is.
+  $('#advisory-title').textContent = row ? countryTitle(row) : ADVISORY.title;
   $('#advisory-body').innerHTML = advisoryDialogHTML(row, {
     level,
     tone: row ? advisoryTone(level) : 'is-empty',
     changed: row ? changedOn(row) : '',
     checked: row ? refreshedAgo(row) : '',
+    stats: advisoryStats(state.advisories),
   });
 }
 

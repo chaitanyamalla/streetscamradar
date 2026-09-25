@@ -32,6 +32,8 @@
 // ministry's own, always current.
 // ---------------------------------------------------------------------------
 
+import { emergencyFor } from './emergency.js';
+
 /** Where this comes from, said once so the UI never hardcodes it twice. */
 export const SOURCE = {
   name: 'Auswärtiges Amt',
@@ -69,16 +71,32 @@ export const STRINGS = {
   },
   empty: 'Für diesen Ort liegen keine Hinweise vor. Zoomen Sie auf ein Land oder '
        + 'suchen Sie eines, um zu sehen, ob eine Warnung gilt.',
-  changed: 'Zuletzt geändert am {when}',
-  checkedRecent: 'Von uns vor weniger als einer Stunde abgerufen',
-  checkedHours: 'Von uns vor {n} Std. abgerufen',
-  checkedDays: 'Von uns vor {n} Tagen abgerufen',
+  // Facts, as short key/value pairs. A reader deciding something wants the
+  // emergency number and the two dates; the prose that used to sit here said
+  // the same thing at ten times the length.
+  emergency: 'Notruf',
+  changedKey: 'Zuletzt geändert',
+  checkedKey: 'Von uns abgerufen',
+  checkedRecent: 'vor unter 1 Std.',
+  checkedHours: 'vor {n} Std.',
+  checkedDays: 'vor {n} Tagen',
+  context: '{warn} von {total} Ländern mit Reisewarnung, {partial} mit Teilreisewarnung.',
   readOfficial: 'Amtlichen Hinweis lesen',
-  sourceNote: 'Der vollständige Text erscheint nur auf Deutsch und nur beim Auswärtigen Amt. '
-            + 'Lesen Sie ihn vor der Reise immer dort — er kann sich jederzeit ändern, und was '
-            + 'hier steht, ist eine täglich aktualisierte Kopie seines Status.',
+  sourceNote: 'Nur auf Deutsch, nur beim Auswärtigen Amt. Vor der Reise immer dort lesen.',
   ariaChip: 'Reisehinweise für {country}: {level}',
+  // The service labels for the emergency numbers, in German, so the panel does
+  // not mix languages mid-sentence.
+  services: {
+    'emergency.all': 'Alle Dienste',
+    'emergency.or': 'oder',
+    'emergency.police': 'Polizei',
+    'emergency.fire': 'Feuerwehr',
+    'emergency.ambulance': 'Rettungsdienst',
+  },
 };
+
+/** German service labels for emergencyFor(), so the panel stays one language. */
+export const germanServiceLabel = (key) => STRINGS.services[key] ?? key;
 
 const fill = (text, params = {}) =>
   Object.entries(params).reduce((out, [k, v]) => out.replaceAll(`{${k}}`, String(v)), text);
@@ -127,20 +145,36 @@ export const countryTitle = (row) => row?.country_name || row?.country_code || '
 export const officialUrl = (contentId) =>
   `https://www.auswaertiges-amt.de/de/-/${encodeURIComponent(contentId)}`;
 
-/** "Zuletzt geändert am 3. März 2026", or nothing if the source gave no date. */
+/** "3. März 2026", or nothing if the source gave no date. */
 export function changedOn(row) {
   if (!row?.last_modified) return '';
   const date = new Date(row.last_modified);
   if (Number.isNaN(date.getTime())) return '';
-  let when;
   try {
-    when = new Intl.DateTimeFormat(SOURCE.locale,
+    return new Intl.DateTimeFormat(SOURCE.locale,
       { year: 'numeric', month: 'long', day: 'numeric' }).format(date);
   } catch {
-    when = date.toLocaleDateString();
+    return date.toLocaleDateString();
   }
-  return fill(STRINGS.changed, { when });
 }
+
+/**
+ * How many countries carry each level right now.
+ *
+ * Context a single country cannot give: "Reisewarnung" means more when you can
+ * see it applies to eighteen countries out of two hundred rather than to half
+ * the world.
+ */
+export function advisoryStats(rows) {
+  const all = [...(rows?.values?.() ?? rows ?? [])];
+  if (!all.length) return null;
+  const warn = all.filter(r => r.warning === true || r.warning === 'true').length;
+  const partial = all.filter(r => r.partial_warning === true || r.partial_warning === 'true').length;
+  return { total: all.length, warn, partial };
+}
+
+export const contextLine = (stats) =>
+  (stats ? fill(STRINGS.context, stats) : '');
 
 /** How old our copy is. Shown rather than hidden: the refresh is daily, and a
  *  reader deciding something on this deserves to know that without digging. */
@@ -151,6 +185,17 @@ export function refreshedAgo(row) {
   if (hours < 1) return STRINGS.checkedRecent;
   if (hours < 24) return fill(STRINGS.checkedHours, { n: hours });
   return fill(STRINGS.checkedDays, { n: Math.floor(hours / 24) });
+}
+
+/** The country's emergency numbers, labelled in German. Not the ministry's
+ *  data — ours — but it is what somebody reading a travel warning wants next. */
+export function emergencyLine(countryCode) {
+  const info = emergencyFor(countryCode, {
+    label: germanServiceLabel,
+    name: (_code, fallbackName) => fallbackName,
+  });
+  if (!info?.numbers?.length) return '';
+  return info.numbers.map(n => n.number).join(' · ');
 }
 
 /** The chip's screen-reader label. */

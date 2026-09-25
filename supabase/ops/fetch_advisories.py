@@ -82,21 +82,30 @@ def fetch(url=SOURCE, retries=RETRIES):
     return None
 
 
+# Above this, a value is milliseconds; below it, seconds. Their schema says
+# only "number", and the live interface sends seconds — read as milliseconds
+# that put every advisory in January 1970, which looks like a site that has not
+# been touched in fifty years rather than like a unit mix-up. The boundary is
+# far from both: 1e11 seconds is the year 5138, 1e11 milliseconds is 1973.
+MILLIS_FLOOR = 1e11
+
+
 def as_timestamp(value):
-    """Their epoch milliseconds, as an ISO string — or None if it is not a time.
+    """Their epoch time, in whichever unit they sent, as an ISO string.
 
     Zero and negative values appear in place of "never set", and would
-    otherwise become 1970, which reads as an advisory that has not been
-    touched in fifty years.
+    otherwise become 1970 — the same wrong answer a unit mix-up gives, which is
+    why both are ruled out here rather than left to look alike.
     """
     try:
-        millis = float(value)
+        stamp = float(value)
     except (TypeError, ValueError):
         return None
-    if millis <= 0:
+    if stamp <= 0:
         return None
+    seconds = stamp / 1000 if stamp >= MILLIS_FLOOR else stamp
     try:
-        return datetime.fromtimestamp(millis / 1000, tz=timezone.utc).isoformat()
+        return datetime.fromtimestamp(seconds, tz=timezone.utc).isoformat()
     except (OverflowError, OSError, ValueError):
         return None
 

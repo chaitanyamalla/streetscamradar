@@ -35,6 +35,18 @@ SOURCES = {
         "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson",
 }
 
+# MeteoAlarm publishes per country rather than as one global feed, and has
+# moved endpoint more than once. Rather than pick one from documentation and
+# find out later, try the plausible ones and report which actually answer.
+METEOALARM = {
+    "MeteoAlarm feeds index": "https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-europe",
+    "MeteoAlarm atom (Germany)":
+        "https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-germany",
+    "MeteoAlarm api v1 (Germany)":
+        "https://feeds.meteoalarm.org/api/v1/warnings/feeds-germany",
+    "MeteoAlarm api portal": "https://api.meteoalarm.org/v1/alerts",
+}
+
 # Somewhere a traveller would actually look, and the half-degree box a city
 # view covers. If a typical city box holds several hazards at once, a layer
 # that is on by default is noise; if it is almost always empty, it is free.
@@ -166,11 +178,29 @@ def density(name, features):
     return busiest
 
 
+def probe_meteoalarm():
+    """Which MeteoAlarm endpoint answers, and in what format."""
+    print(f"\n{'=' * 72}\nMETEOALARM — which endpoint is live\n{'=' * 72}")
+    for name, url in METEOALARM.items():
+        status, headers, body = fetch(url)
+        kind = headers.get("Content-Type", "—").split(";")[0]
+        print(f"\n  {name}\n    {url}")
+        print(f"    status {status}  type {kind}  CORS {cors_verdict(headers)}")
+        if status == 200:
+            head = body.strip()[:220].replace("\n", " ")
+            print(f"    starts: {head!r}")
+            # CAP/Atom rather than JSON, so count entries rather than features.
+            for marker in ("<entry", "<alert", "\"features\"", "\"warnings\""):
+                if marker in body:
+                    print(f"    contains {marker!r} x{body.count(marker)}")
+
+
 def main():
     print("Probing the hazard sources. Nothing is written.")
     everything = {}
     for name, url in SOURCES.items():
         everything[name] = report(name, url)
+    probe_meteoalarm()
 
     print(f"\n{'=' * 72}\nHOW CROWDED WOULD THE MAP GET\n{'=' * 72}")
     print(f"  A city view here is +/-{CITY_BOX} degrees, about a city and its suburbs.")

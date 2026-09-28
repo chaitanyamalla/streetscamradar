@@ -1,0 +1,34 @@
+# ---------------------------------------------------------------------------
+# Natural hazards: GDACS, USGS and MeteoAlarm.
+#
+# Runs here rather than in the browser for the same reason the other data jobs
+# do: this sandbox and, most likely, the page itself cannot reach these hosts
+# directly. The probe below answers that for real — if a source turns out to
+# send CORS headers, the page can call it itself and this job stops needing to
+# mirror it.
+#
+# Needs the same SUPABASE_DB_URL secret as the other database workflows.
+# ---------------------------------------------------------------------------
+name: Refresh hazards
+
+on:
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: 'Only look at the sources and report what they send. Writes nothing.'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  hazards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Deliberately the whole job for now. Before writing a parser against
+      # these, look at what they actually send: the travel advisory work shipped
+      # a parser built from a published schema that the live interface did not
+      # match, and every row was rejected on the first real run.
+      - name: Look at the sources
+        run: python3 supabase/ops/probe_hazards.py

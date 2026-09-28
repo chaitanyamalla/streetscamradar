@@ -37,7 +37,7 @@ export default {
   'map.area': 'Wereldwijde oplichtingskaart',
   'map.zoomIn': 'Inzoomen',
   'map.zoomOut': 'Uitzoomen',
-  'map.attribution': 'Kaartgegevens © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>-bijdragers · tegels © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · zoeken via <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> · meldingen zijn ongecontroleerde verhalen uit de community',
+  'map.attribution': 'Kaartgegevens © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>-bijdragers · tegels © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · zoeken via <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> · meldingen zijn ongecontroleerde verhalen uit de community · natuurrampen via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> en <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>',
   'map.emergencyIn': 'Noodnummers in',
 
   // --- emergency numbers ---------------------------------------------------
@@ -307,4 +307,21 @@ export default {
   'category.online.blurb': 'Valse advertenties en boekingssites voor dit gebied.',
   'category.other': 'Iets anders',
   'category.other.blurb': 'Alles wat niet in de lijst past.',
+  // --- natural hazards ------------------------------------------------------
+  'hazards.checking': 'Controleren…',
+  'hazards.none': 'Niets belangrijks gemeld',
+  'hazards.failed': 'Kon dit nu niet controleren',
+  'hazards.quakes.one': '1 aardbeving deze week',
+  'hazards.quakes.other': '{n} aardbevingen deze week',
+  'hazard.kind.earthquake': 'Aardbeving',
+  'hazard.kind.cyclone': 'Cycloon',
+  'hazard.kind.flood': 'Overstroming',
+  'hazard.kind.volcano': 'Vulkaan',
+  'hazard.kind.drought': 'Droogte',
+  'hazard.kind.wildfire': 'Natuurbrand',
+  'hazard.magnitude': 'M {m}',
+  'hazard.tsunami': 'Tsunamiwaarschuwing afgegeven',
+  'hazard.official': 'Officiële details',
+  'hazard.notAlert': 'Geen waarschuwingsdienst — raadpleeg officiële bronnen voordat je reist.',
+  'hazard.source.quake': 'via USGS',
 };

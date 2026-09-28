@@ -38,7 +38,7 @@ export default {
   'map.area': 'Mapa mundial de burlas',
   'map.zoomIn': 'Aproximar',
   'map.zoomOut': 'Afastar',
-  'map.attribution': 'Dados do mapa © colaboradores do <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · mosaicos © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · pesquisa por <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> · os relatos não são verificados e vêm da comunidade',
+  'map.attribution': 'Dados do mapa © colaboradores do <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · mosaicos © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · pesquisa por <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> · os relatos não são verificados e vêm da comunidade · riscos naturais via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> e <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>',
   'map.emergencyIn': 'Emergência em',
 
   // --- emergency numbers ---------------------------------------------------
@@ -308,4 +308,21 @@ export default {
   'category.online.blurb': 'Anúncios e sites de reservas falsos para esta zona.',
   'category.other': 'Outra coisa',
   'category.other.blurb': 'Tudo o que não encaixa na lista.',
+  // --- natural hazards ------------------------------------------------------
+  'hazards.checking': 'A verificar…',
+  'hazards.none': 'Nada de relevante assinalado',
+  'hazards.failed': 'Não foi possível verificar agora',
+  'hazards.quakes.one': '1 sismo esta semana',
+  'hazards.quakes.other': '{n} sismos esta semana',
+  'hazard.kind.earthquake': 'Sismo',
+  'hazard.kind.cyclone': 'Ciclone',
+  'hazard.kind.flood': 'Cheia',
+  'hazard.kind.volcano': 'Vulcão',
+  'hazard.kind.drought': 'Seca',
+  'hazard.kind.wildfire': 'Incêndio florestal',
+  'hazard.magnitude': 'M {m}',
+  'hazard.tsunami': 'Aviso de tsunami emitido',
+  'hazard.official': 'Detalhes oficiais',
+  'hazard.notAlert': 'Não é um serviço de alerta — consulte as fontes oficiais antes de viajar.',
+  'hazard.source.quake': 'via USGS',
 };

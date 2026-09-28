@@ -195,6 +195,14 @@ em { font-style:italic; }
   line-height:1.5; }
 .advisory-link { display:block; margin-bottom:10px; text-align:center; text-decoration:none; }
 
+/* Hazards. The ring on the map is drawn by MapLibre; these are the popup. */
+.popup-glyph.is-hazard { background:rgba(197,56,44,.12); }
+.hazard-tsunami { margin-top:7px; padding:6px 9px; border-radius:4px;
+  background:rgba(197,56,44,.1); color:var(--danger); font-size:12px; font-weight:700; }
+/* Said on every hazard, not buried in a page nobody opens: this is a signal
+   for planning, and somebody in trouble needs the official source. */
+.popup-fine { margin-top:7px; color:var(--muted); font-size:10.5px; line-height:1.45; }
+
 .icon-button { width:38px; height:34px; border:1px solid var(--line-strong);
   background:var(--surface); color:var(--ink-2); font-size:19px; box-shadow:var(--shadow-sm); }
 .icon-button:first-child { border-radius:var(--radius) var(--radius) 0 0; }

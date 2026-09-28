@@ -29,11 +29,39 @@ js/map.js       MapLibre setup, clustering, density layer
 js/ui.js        rendering helpers (and HTML escaping)
 js/emergency.js emergency numbers, by country
 js/advisory.js  German Federal Foreign Office travel advisories (German only)
+js/hazards.js   natural hazards from USGS and GDACS, fetched in the browser
 js/i18n.js      language: detection, switching, t()
 js/locales/     one file per language; en.js is the source of truth
 supabase/schema.sql   tables, security rules, functions     <- run this once
 supabase/tests.sql    proves the security rules actually hold
 ```
+
+### Natural hazards
+
+Earthquakes from USGS, and floods, cyclones, volcanoes, droughts and wildfires
+from GDACS. A trip-planning signal — "is anything major happening where I am
+going" — and deliberately **not an alerting service**: every hazard links to
+the agency that issued it, and the popup says so in as many words.
+
+Earthquakes are rings on the map; everything else is one line in the filter
+panel. There is no switch: measured across ten major cities, a view holds no
+hazards at all almost all of the time, so there is nothing to turn off.
+
+Both sources send `Access-Control-Allow-Origin: *`, so the page fetches them
+itself. Nothing is mirrored, so there is no table to go stale and no job to
+silently stop; what a reader sees is what the agency published.
+
+The two are shown differently because they are different shapes. USGS gives an
+earthquake a real position, so it is drawn where it happened. GDACS gives a
+whole event one `Point_Centroid` — "Flood in Guinea" sits at the country's
+geographic centre, not on the flooded ground — so those are matched by country
+and reported as a line, never as a pin that would be in the wrong place.
+
+Mind the units: USGS `time` is epoch **milliseconds**, GDACS dates are ISO
+strings. Both are pinned by tests, for the reason the travel advisories are.
+
+`supabase/ops/probe_hazards.py` reports what the sources currently send, and
+runs from the `Refresh hazards` workflow. Run it before changing the parser.
 
 ### Travel advisories
 

@@ -430,6 +430,39 @@ export function advisoryDialogHTML(row, { level, tone, changed, stats, ageDays }
     <p class="fine-print">${esc(ADVISORY.sourceNote)}</p>`;
 }
 
+/**
+ * An earthquake, clicked on the map.
+ *
+ * The magnitude and where, the agency's own words for the place, and a link to
+ * USGS. No advice: what to do about an earthquake that already happened is not
+ * ours to say, and the one line that matters — that this is not an alert
+ * service — is said plainly rather than implied.
+ */
+export function quakePopupHTML(props) {
+  const magnitude = Number(props.magnitude);
+  const when = props.at ? timeAgo(props.at) : '';
+  const tsunami = props.tsunami === 'true' || props.tsunami === true;
+
+  return `
+    <div class="popup-head">
+      <span class="popup-glyph is-hazard" aria-hidden="true">\u{1F30D}</span>
+      <div>
+        <p class="popup-kicker">${esc(t('hazard.kind.earthquake'))}</p>
+        <p class="popup-title">${esc(t('hazard.magnitude', {
+          m: Number.isFinite(magnitude) ? magnitude.toFixed(1) : '?',
+        }))}</p>
+      </div>
+    </div>
+    ${props.place ? `<p class="popup-body">${esc(props.place)}</p>` : ''}
+    ${tsunami ? `<p class="hazard-tsunami">${esc(t('hazard.tsunami'))}</p>` : ''}
+    ${props.url ? `<div class="popup-actions">
+      <a class="popup-action is-primary" href="${esc(props.url)}"
+         target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>
+    </div>` : ''}
+    <p class="popup-meta">${esc(when)}${when ? ' \u00b7 ' : ''}${esc(t('hazard.source.quake'))}</p>
+    <p class="popup-fine">${esc(t('hazard.notAlert'))}</p>`;
+}
+
 export function setGateNote(host, { mode, shown = 0, hiddenCount = 0, signedIn }) {
   if (signedIn) { host.hidden = true; return; }
   host.hidden = false;

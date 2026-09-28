@@ -78,6 +78,7 @@ export function addLayers(map) {
   map.addSource('reports', { type: 'geojson', data: EMPTY, cluster: true, clusterRadius: 38, clusterMaxZoom: 13 });
   map.addSource('density', { type: 'geojson', data: EMPTY });
   map.addSource('safety', { type: 'geojson', data: EMPTY });
+  map.addSource('hazards', { type: 'geojson', data: EMPTY });
 
   // --- Signed-out density view: one soft circle per grid cell --------------
   map.addLayer({
@@ -159,6 +160,32 @@ export function addLayers(map) {
   // when you call the emergency number the map already shows, while a hospital
   // is somewhere you go under your own steam for something that does not need
   // an ambulance.
+  // --- Earthquakes --------------------------------------------------------
+  //
+  // A ring rather than a pin, and deliberately not a badge like the others.
+  // These are not places — nothing is there to visit, and a marker shaped like
+  // the scam pins would read as one. A circle centred on the epicentre, sized
+  // by magnitude, is closer to what the data actually says.
+  //
+  // No minzoom: a M7 matters from a continent away, which is exactly the zoom
+  // at which somebody is choosing where to go.
+  map.addLayer({
+    id: 'hazard-ring', type: 'circle', source: 'hazards',
+    paint: {
+      // Magnitude is logarithmic, so the radius is too, loosely. The numbers
+      // are picked so a M3 is a dot you can ignore and a M7 is not.
+      'circle-radius': ['interpolate', ['linear'], ['get', 'magnitude'],
+        2.5, 4, 4.5, 8, 6, 14, 7.5, 22],
+      'circle-color': ['match', ['get', 'tone'],
+        'severe', '#c5382c', 'notice', '#e0713c', '#8a9aa2'],
+      'circle-opacity': 0.18,
+      'circle-stroke-width': 1.6,
+      'circle-stroke-color': ['match', ['get', 'tone'],
+        'severe', '#c5382c', 'notice', '#e0713c', '#8a9aa2'],
+      'circle-stroke-opacity': 0.85,
+    },
+  });
+
   map.addLayer({
     id: 'safety-icon', type: 'symbol', source: 'safety', minzoom: SAFETY_MIN_ZOOM,
     layout: {
@@ -210,6 +237,22 @@ export const toSafetyFeatures = (places) => ({
 
 export function setSafetyPlaces(map, places) {
   map.getSource('safety')?.setData(toSafetyFeatures(places));
+}
+
+export const toHazardFeatures = (quakes) => ({
+  type: 'FeatureCollection',
+  features: quakes.map(q => ({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [q.lng, q.lat] },
+    properties: {
+      id: q.id, kind: q.kind, magnitude: q.magnitude, tone: q.tone,
+      place: q.place, at: q.at, url: q.url ?? '', tsunami: q.tsunami ? 'true' : 'false',
+    },
+  })),
+});
+
+export function setHazards(map, quakes) {
+  map.getSource('hazards')?.setData(toHazardFeatures(quakes));
 }
 
 export function setSafetyVisible(map, visible) {

@@ -37,7 +37,7 @@ export default {
   'map.area': 'Worldwide scam map',
   'map.zoomIn': 'Zoom in',
   'map.zoomOut': 'Zoom out',
-  'map.attribution': 'Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors · tiles © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · search by <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> · reports are unverified community accounts',
+  'map.attribution': 'Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors · tiles © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · search by <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> · reports are unverified community accounts · hazards via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> and <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>',
   'map.emergencyIn': 'Emergency in',
 
   // --- emergency numbers ---------------------------------------------------
@@ -305,4 +305,21 @@ export default {
   'category.online.blurb': 'Fake listings and booking sites for this area.',
   'category.other': 'Something else',
   'category.other.blurb': 'Anything that does not fit the list.',
+  // --- natural hazards ------------------------------------------------------
+  'hazards.checking': 'Checking…',
+  'hazards.none': 'Nothing major reported',
+  'hazards.failed': 'Could not check right now',
+  'hazards.quakes.one': '1 earthquake this week',
+  'hazards.quakes.other': '{n} earthquakes this week',
+  'hazard.kind.earthquake': 'Earthquake',
+  'hazard.kind.cyclone': 'Cyclone',
+  'hazard.kind.flood': 'Flood',
+  'hazard.kind.volcano': 'Volcano',
+  'hazard.kind.drought': 'Drought',
+  'hazard.kind.wildfire': 'Wildfire',
+  'hazard.magnitude': 'M {m}',
+  'hazard.tsunami': 'Tsunami warning issued',
+  'hazard.official': 'Official details',
+  'hazard.notAlert': 'Not an alert service — check official sources before you travel.',
+  'hazard.source.quake': 'via USGS',
 };

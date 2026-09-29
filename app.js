@@ -52,18 +52,18 @@ const state = {
   disasters: null,    // country_code -> rows, mirrored from GDACS every few hours
   weather: null,      // country_code -> rows, mirrored from MeteoAlarm
   disasterMarkers: [],     // the GDACS events currently drawn
-  // Which hazard layers are switched on.
+  // Which hazard layers are switched on. One per kind GDACS publishes, keyed
+  // by the kind itself so a row and a marker cannot disagree about what it
+  // controls, and whatever the reader switches is remembered.
   //
-  // Earthquakes start OFF. This is a street scam map before it is anything
-  // else, and a ring drawn across a city centre for a quake nobody felt
-  // competes with the pins the site exists for. The others cost the map
-  // nothing: a volcano is a single point somewhere remote, and the country
-  // rows are a chip in the corner. Whatever the reader switches is remembered.
-  // One switch per kind GDACS publishes, keyed by the kind itself so a row
-  // and a marker cannot disagree about what it controls. Earthquakes start
-  // off: the map is about street scams, and the ground moving somewhere is
-  // context rather than the point.
-  layers: { earthquake: false, flood: true, cyclone: true,
+  // Earthquakes used to start off, and the reason was a good one: they came
+  // live from USGS at every magnitude, and a ring drawn across a city centre
+  // for a quake nobody felt competed with the pins this site exists for. They
+  // come from the same GDACS table as everything else now, and only when GDACS
+  // graded them Orange or Red or they were magnitude 6 and above — which is
+  // news wherever it happens. The reason for the exception went with the
+  // change that made it, so the exception goes too.
+  layers: { earthquake: true, flood: true, cyclone: true,
             wildfire: true, volcano: true, drought: true },
   countryWeather: null,    // { code, weather } for the chip and its dialog
   advisoryCountry: null,   // whose advisory the chip is currently showing

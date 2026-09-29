@@ -214,25 +214,35 @@ em { font-style:italic; }
    watching what it draws is the whole point, and because these are somebody
    else's official data rather than a filter on our reports.
    --------------------------------------------------------------------------- */
-/* The chip that opens it, built out of the advisory chip so the two read as
-   one family. The caret is the whole of the open/close affordance: a chip that
-   only highlights when open leaves you guessing whether it opens anything. */
-.hazard-chip { width:100%; }
-.hazard-chip .ac-text { flex:1; }
-.hazard-chip[aria-expanded="true"] { border-color:var(--brand); }
-.hazard-caret { flex:none; color:var(--muted); font-size:10px; line-height:1;
+/* A drawer handle under the chips, not a chip of its own: the panel it opens
+   is named in its label and its tooltip, and a second heading over a stack
+   that already carries two would say less than the caret does. The negative
+   margin closes the stack's gap, so it reads as hanging off the chip above
+   rather than floating under it. */
+.hazard-menu { position:relative; max-width:100%; margin-top:-8px; }
+.hazard-tab { display:flex; align-items:center; justify-content:center;
+  width:46px; height:21px; padding:0;
+  border:1px solid var(--line-strong); border-top:0;
+  border-radius:0 0 var(--radius) var(--radius);
+  background:var(--surface); box-shadow:var(--shadow-sm); cursor:pointer; }
+/* Nothing above it to hang from — no advisory and no weather warning here —
+   so it closes up into a pill of its own rather than a tab cut off at the top. */
+.map-chips > .hazard-menu:first-child { margin-top:0; }
+.map-chips > .hazard-menu:first-child .hazard-tab { border-top:1px solid var(--line-strong);
+  border-radius:var(--radius); }
+.hazard-tab:hover { border-color:var(--brand); }
+.hazard-tab:focus-visible { outline:2px solid var(--brand-lift); outline-offset:2px; }
+.hazard-tab[aria-expanded="true"] { background:var(--brand); border-color:var(--brand); }
+.hazard-caret { color:var(--muted); font-size:10px; line-height:1;
   transition:transform .15s ease; }
-.hazard-chip[aria-expanded="true"] .hazard-caret { color:var(--brand);
+.hazard-tab:hover .hazard-caret { color:var(--brand); }
+.hazard-tab[aria-expanded="true"] .hazard-caret { color:#fff;
   transform:rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .hazard-caret { transition:none; } }
 
-/* Hung off the chip rather than placed against the map, so it stays under the
-   thing that opened it however many chips are showing above it today. */
-.hazard-menu { position:relative; max-width:100%; }
-
 /* Six rows now, one per kind, so every millimetre of it is tighter than when
    it held three. It still has to sit over the map without covering it. */
-.hazard-panel { position:absolute; z-index:4; top:calc(100% + 8px); right:0;
+.hazard-panel { position:absolute; z-index:4; top:calc(100% + 6px); right:0;
   width:272px; padding:11px 12px 9px;
   border:1px solid var(--line-strong); border-radius:var(--radius);
   background:var(--surface); box-shadow:var(--shadow); }
@@ -747,6 +757,9 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   .map-chips { top:12px; left:12px; right:auto; align-items:flex-start;
     max-width:min(58%, 210px); gap:6px; }
   .advisory-chip { gap:7px; padding:6px 9px; }
+  /* A thumb needs more than a caret does, and the stack's gap is smaller here. */
+  .hazard-menu { margin-top:-6px; }
+  .hazard-tab { width:52px; height:26px; }
   /* The stack is on the left here, so the panel opens down the left too — and
      it is allowed to be wider than the chip that opened it, because the layer
      names need the room and there is nothing under it but map. */

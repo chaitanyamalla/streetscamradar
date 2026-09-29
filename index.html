@@ -108,23 +108,17 @@
                 </span>
               </button>
 
-              <!-- The hazard layers open from here, beside the chips they
-                   belong with. They used to open from a third button under the
-                   zoom controls, where a bare glyph in a column of + and − read
-                   as another map control rather than as something to open. A
-                   chip can say what it holds and how many are in view, and it
-                   opens and closes the way the advisory chip beside it does. -->
+              <!-- The hazard layers open from here: a tab hanging off the
+                   bottom of the chips, not a chip of its own. A second labelled
+                   chip put a heading over a stack that already had two, for a
+                   panel most readers open once; a drawer handle asks for the
+                   width of a caret and says the same thing. The name lives in
+                   the label and the tooltip, since there is no text in it. -->
               <div class="hazard-menu">
-                <!-- No aria-label: the two lines inside it ARE the name, and
-                     "Natural hazard layers, 4 in view, collapsed" tells a screen
-                     reader more than a label that hides the count from it. -->
-                <button class="advisory-chip hazard-chip" id="hazard-layers" type="button"
-                        aria-expanded="false" aria-controls="hazard-panel">
-                  <span class="hz-mark" data-hazard-sign="unknown" aria-hidden="true"></span>
-                  <span class="ac-text">
-                    <span class="ac-kicker" data-i18n="hazards.layers">Natural hazard layers</span>
-                    <span class="ac-level" id="hazard-summary" data-i18n="hazards.checking">Checking…</span>
-                  </span>
+                <button class="hazard-tab" id="hazard-layers" type="button"
+                        aria-expanded="false" aria-controls="hazard-panel"
+                        data-i18n-aria="hazards.layers" data-i18n-title="hazards.layers"
+                        aria-label="Natural hazard layers" title="Natural hazard layers">
                   <span class="hazard-caret" aria-hidden="true">▾</span>
                 </button>
                 <!-- The hazard layers, with what draws them and who publishes them.

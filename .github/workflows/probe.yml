@@ -21,6 +21,7 @@ on:
         type: choice
         options:
           - probe_geocoder.py
+          - probe_search.py
 
 concurrency:
   group: probe

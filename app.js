@@ -22,8 +22,7 @@ import { searchPlaces, suggestPlaces, describePoint, locateMe } from './js/geo.j
 import { emergencyFor } from './js/emergency.js';
 import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
-         setHazards, setHazardsVisible, setDisasters, setVolcanoesVisible,
-         setDisastersVisible, maplibregl } from './js/map.js';
+         setHazards, setDisasters, maplibregl } from './js/map.js';
 import { quakesIn, inBounds, quakeTone, hazardLabel, isLive } from './js/hazards.js';
 import { hazardSignSVG } from './js/hazard-signs.js';
 import { esc, toast, liftToast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
@@ -60,7 +59,12 @@ const state = {
   // competes with the pins the site exists for. The others cost the map
   // nothing: a volcano is a single point somewhere remote, and the country
   // rows are a chip in the corner. Whatever the reader switches is remembered.
-  layers: { quakes: false, volcanoes: true, disasters: true, weather: true },
+  // One switch per kind GDACS publishes, keyed by the kind itself so a row
+  // and a marker cannot disagree about what it controls. Earthquakes start
+  // off: the map is about street scams, and the ground moving somewhere is
+  // context rather than the point.
+  layers: { earthquake: false, flood: true, cyclone: true,
+            wildfire: true, volcano: true, drought: true },
   countryWeather: null,    // { code, weather } for the chip and its dialog
   advisoryCountry: null,   // whose advisory the chip is currently showing
   pin: null,          // { lat, lng, address, city, countryCode }
@@ -543,8 +547,8 @@ async function refreshHazards() {
  * refresh rather than here — see supabase/ops/fetch_disasters.py.
  */
 function paintQuakes() {
-  const status = $('#quake-status');
-  if (!state.layers.quakes) {
+  const status = $('#earthquake-status');
+  if (!state.layers.earthquake) {
     setHazards(map, []);
     status.textContent = t('safety.off');
     return;
@@ -616,8 +620,9 @@ async function refreshCountryHazards(ticket) {
       // "none in view" would be a claim we are in no position to make.
       console.error(err);
       chip.hidden = true;
-      for (const id of ['#quake-status', '#disaster-status', '#volcano-status']) {
-        $(id).textContent = t('hazards.failed');
+      for (const kind of Object.keys(state.layers)) {
+        const status = $(`#${kind}-status`);
+        if (status) status.textContent = t('hazards.failed');
       }
       return;
     }
@@ -625,7 +630,7 @@ async function refreshCountryHazards(ticket) {
   }
   paintDisasterMarkers();
 
-  if (state.layers.weather && !state.weather) {
+  if (!state.weather) {
     try {
       state.weather = await fetchWeatherWarnings();
     } catch (err) {
@@ -638,14 +643,17 @@ async function refreshCountryHazards(ticket) {
   const code = viewIsOneCountry() ? await currentCountry() : null;
   if (ticket !== hazardTicket) return;
 
-  const weather = state.layers.weather && code ? state.weather?.get(code) ?? [] : [];
-  $('#weather-status').textContent = !state.layers.weather ? t('safety.off')
-    : !code ? t('weather.zoomIn')
-    // Europe only, and saying "none here" for Mexico would be a different
-    // claim entirely: nobody is telling us, rather than nothing is happening.
+  // No switch for these: they are the chip above the map, which appears when
+  // the view is inside one country. What the switch's status text said is
+  // still worth saying, so it is a line in the panel instead — "Europe only"
+  // and "none here" are very different claims, and a reader looking at Mexico
+  // deserves the first rather than silence.
+  const weather = code ? state.weather?.get(code) ?? [] : [];
+  $('#weather-note').textContent = `${t('hazards.weather')} — ` + (
+    !code ? t('weather.zoomIn')
     : !WEATHER_COUNTRIES.has(code) ? t('weather.notCovered')
     : weather.length ? plural('weather.count', weather.length)
-    : t('weather.none');
+    : t('weather.none'));
 
   state.countryWeather = { code, weather };
   if ($('#weather-dialog').open) paintWeatherDialog();
@@ -684,24 +692,21 @@ function paintDisasterMarkers() {
   paintQuakes();
 
   const rows = uniqueEvents(row => row.kind !== 'earthquake');
-  const volcanoes = rows.filter(r => r.kind === 'volcano');
-  const others = rows.filter(r => r.kind !== 'volcano');
-  state.disasterMarkers = [
-    ...(state.layers.volcanoes ? volcanoes : []),
-    ...(state.layers.disasters ? others : []),
-  ];
+  state.disasterMarkers = rows.filter(r => state.layers[r.kind]);
   setDisasters(map, state.disasterMarkers);
 
   const bounds = boundsOf(map);
-  const count = (list) => inBounds(list, bounds).length;
-  // The same words for all three, because they answer the same question about
+  // The same words for every row, because they answer the same question about
   // the same rectangle of map.
-  const note = (list) => (count(list) ? plural('hazards.inView', count(list))
-                                      : t('hazards.noneInView'));
-  $('#volcano-status').textContent =
-    state.layers.volcanoes ? note(volcanoes) : t('safety.off');
-  $('#disaster-status').textContent =
-    state.layers.disasters ? note(others) : t('safety.off');
+  for (const kind of Object.keys(state.layers)) {
+    if (kind === 'earthquake') continue;          // its own layer, counted there
+    const status = $(`#${kind}-status`);
+    if (!status) continue;
+    const here = inBounds(rows.filter(r => r.kind === kind), bounds).length;
+    status.textContent = !state.layers[kind] ? t('safety.off')
+      : here ? plural('hazards.inView', here)
+      : t('hazards.noneInView');
+  }
 }
 
 /**
@@ -1354,33 +1359,29 @@ function wireUI() {
   // The switches, and the memory of them. A reader who turned the earthquakes
   // on should not have to do it again tomorrow — nor should one who turned
   // something off have it come back.
-  const LAYER_BOXES = {
-    quakes: '#quake-toggle', volcanoes: '#volcano-toggle',
-    disasters: '#disaster-toggle', weather: '#weather-toggle',
-  };
 
   // The key beside each switch is drawn from the same paths as the marker on
   // the map. A legend redrawn by hand stops matching the map the first time
   // either one changes, and then it is worse than no legend.
   for (const mark of document.querySelectorAll('[data-hazard-sign]')) {
-    mark.innerHTML = hazardSignSVG(mark.dataset.hazardSign, { size: 17 });
+    mark.innerHTML = hazardSignSVG(mark.dataset.hazardSign, { size: 16 });
   }
-  for (const [layer, selector] of Object.entries(LAYER_BOXES)) {
-    const stored = readSetting(`ssr.layer.${layer}`);
-    if (stored !== null) state.layers[layer] = stored === 'true';
-    $(selector).checked = state.layers[layer];
-    $(selector).addEventListener('change', e => {
-      state.layers[layer] = e.target.checked;
-      writeSetting(`ssr.layer.${layer}`, String(e.target.checked));
-      if (layer === 'quakes') setHazardsVisible(map, e.target.checked);
-      if (layer === 'volcanoes') setVolcanoesVisible(map, e.target.checked);
-      if (layer === 'disasters') setDisastersVisible(map, e.target.checked);
+  // Each switch is named after its kind, so there is no table mapping one to
+  // the other to fall out of step. What a switch does is decide whether that
+  // kind reaches the map source at all — no layer visibility to keep in
+  // agreement with it.
+  for (const kind of Object.keys(state.layers)) {
+    const box = $(`#${kind}-toggle`);
+    if (!box) continue;
+    const stored = readSetting(`ssr.layer.${kind}`);
+    if (stored !== null) state.layers[kind] = stored === 'true';
+    box.checked = state.layers[kind];
+    box.addEventListener('change', e => {
+      state.layers[kind] = e.target.checked;
+      writeSetting(`ssr.layer.${kind}`, String(e.target.checked));
       refreshHazards();
     });
   }
-  setHazardsVisible(map, state.layers.quakes);
-  setVolcanoesVisible(map, state.layers.volcanoes);
-  setDisastersVisible(map, state.layers.disasters);
 
   $('#hazard-layers').addEventListener('click', () => toggleHazardPanel());
   $('#hazard-panel-close').addEventListener('click', () => toggleHazardPanel(false));

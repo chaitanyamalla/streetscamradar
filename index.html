@@ -133,32 +133,49 @@
                         data-i18n-aria="auth.close" aria-label="Close">×</button>
               </div>
 
-              <!-- Two groups, because they answer differently. The first two
-                   are drawn where they are; the second two have no single
-                   place on a street map and are reported for the country in
-                   view — which is what the chip above the map is. Without the
-                   split, a cyclone showing on the chip while the panel listed
-                   nothing looked like a bug. -->
-              <p class="hp-group" data-i18n="hazards.onMap">On the map</p>
+              <!-- One row per kind GDACS publishes. It used to be three rows
+                   with the floods, storms and fires bundled into one, plus a
+                   switch for the weather warnings — but those are a chip above
+                   the map that appears when you zoom into a country, not a
+                   layer, so a switch for them here was a switch for something
+                   that is not on this list.
 
+                   Every row is GDACS now, so the per-row source label went as
+                   well; the footer says whose data this is. -->
               <label class="hazard-row">
-                <input type="checkbox" id="quake-toggle" />
+                <input type="checkbox" id="earthquake-toggle" />
                 <span class="hz-mark hz-quake" aria-hidden="true"></span>
                 <span class="hz-text">
                   <span class="hz-name" data-i18n="filters.quakes">Earthquakes</span>
-                  <span class="hz-note" id="quake-status" data-i18n="safety.off">Turned off</span>
+                  <span class="hz-note" id="earthquake-status" data-i18n="safety.off">Turned off</span>
                 </span>
-                <span class="hz-source">GDACS</span>
               </label>
 
               <label class="hazard-row">
-                <input type="checkbox" id="disaster-toggle" checked />
+                <input type="checkbox" id="flood-toggle" checked />
                 <span class="hz-mark" data-hazard-sign="flood" aria-hidden="true"></span>
                 <span class="hz-text">
-                  <span class="hz-name" data-i18n="hazards.disasters">Floods, storms, fires</span>
-                  <span class="hz-note" id="disaster-status" data-i18n="hazards.checking">Checking…</span>
+                  <span class="hz-name" data-i18n="hazards.floods">Floods</span>
+                  <span class="hz-note" id="flood-status" data-i18n="hazards.checking">Checking…</span>
                 </span>
-                <span class="hz-source">GDACS</span>
+              </label>
+
+              <label class="hazard-row">
+                <input type="checkbox" id="cyclone-toggle" checked />
+                <span class="hz-mark" data-hazard-sign="cyclone" aria-hidden="true"></span>
+                <span class="hz-text">
+                  <span class="hz-name" data-i18n="hazards.storms">Storms</span>
+                  <span class="hz-note" id="cyclone-status" data-i18n="hazards.checking">Checking…</span>
+                </span>
+              </label>
+
+              <label class="hazard-row">
+                <input type="checkbox" id="wildfire-toggle" checked />
+                <span class="hz-mark" data-hazard-sign="wildfire" aria-hidden="true"></span>
+                <span class="hz-text">
+                  <span class="hz-name" data-i18n="hazards.fires">Wildfires</span>
+                  <span class="hz-note" id="wildfire-status" data-i18n="hazards.checking">Checking…</span>
+                </span>
               </label>
 
               <label class="hazard-row">
@@ -168,21 +185,22 @@
                   <span class="hz-name" data-i18n="hazards.volcanoes">Volcanoes</span>
                   <span class="hz-note" id="volcano-status" data-i18n="hazards.checking">Checking…</span>
                 </span>
-                <span class="hz-source">GDACS</span>
               </label>
-
-              <p class="hp-group" data-i18n="hazards.forCountry">For the country in view</p>
 
               <label class="hazard-row">
-                <input type="checkbox" id="weather-toggle" checked />
-                <span class="hz-mark hz-weather" aria-hidden="true"></span>
+                <input type="checkbox" id="drought-toggle" checked />
+                <span class="hz-mark" data-hazard-sign="drought" aria-hidden="true"></span>
                 <span class="hz-text">
-                  <span class="hz-name" data-i18n="hazards.weather">Weather warnings</span>
-                  <span class="hz-note" id="weather-status" data-i18n="hazards.checking">Checking…</span>
+                  <span class="hz-name" data-i18n="hazards.droughts">Droughts</span>
+                  <span class="hz-note" id="drought-status" data-i18n="hazards.checking">Checking…</span>
                 </span>
-                <span class="hz-source">MeteoAlarm</span>
               </label>
 
+              <!-- The weather warnings have no switch: they are the chip above
+                   the map, not a layer here. This line is what the switch's
+                   status text used to say, which was the useful half of it —
+                   "Europe only" is a very different claim from "none here". -->
+              <p class="hp-foot" id="weather-note"></p>
               <p class="hp-foot" data-i18n="hazards.notOurs">
                 Published by national agencies. We show what they issued and nothing of our own.
               </p>

@@ -378,22 +378,9 @@ export function setDisasters(map, rows) {
   map.getSource('disasters')?.setData(toDisasterFeatures(rows));
 }
 
-const setVisible = (map, ids, visible) => {
-  for (const id of ids) {
-    if (map.getLayer?.(id)) {
-      map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
-    }
-  }
-};
-
-export const setHazardsVisible = (map, visible) =>
-  setVisible(map, ['hazard-ring', 'hazard-core'], visible);
-
-export const setVolcanoesVisible = (map, visible) =>
-  setVisible(map, ['volcano-icon'], visible);
-
-export const setDisastersVisible = (map, visible) =>
-  setVisible(map, ['disaster-icon'], visible);
+// The hazard layers have no visibility switches of their own: every one of
+// them draws whatever is in its source, and the panel decides what goes in.
+// Two ways to hide the same marker is one way too many.
 
 export function setSafetyVisible(map, visible) {
   if (map.getLayer?.('safety-icon')) {

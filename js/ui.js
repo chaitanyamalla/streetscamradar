@@ -100,6 +100,29 @@ export function toast(message, { error = false } = {}) {
   }, TOAST_MS);
 }
 
+/**
+ * Put a toast that is already up back on top of the top layer.
+ *
+ * Call this after opening a dialog. The top layer paints in the order things
+ * enter it, so a dialog opened after a toast covers it — which is what
+ * happened to the refusal for a pin at the poles: it is decided the instant
+ * you click, before the report window reopens behind it, where the refusal
+ * for a pin at sea arrives a second later with the window already there.
+ */
+export function liftToast() {
+  const el = document.querySelector('#toast');
+  if (!el || typeof el.showPopover !== 'function') return;
+  try {
+    // Asked of the popover itself rather than the .show class: the class is
+    // added a frame later, so a dialog opening in the same tick as the toast —
+    // which is exactly what happens when a pin is refused on the spot — would
+    // find it not yet "showing" and leave it underneath.
+    if (!el.matches(':popover-open')) return;
+    el.hidePopover();
+    el.showPopover();
+  } catch { /* fine */ }
+}
+
 /** A category's name and blurb in the reader's language, or the database's
  *  own wording for a slug we do not have a string for. */
 export const categoryLabel = (cat, slug) =>

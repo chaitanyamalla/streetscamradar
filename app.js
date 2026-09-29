@@ -24,7 +24,7 @@ import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          setHazards, setHazardsVisible, setVolcanoes, setVolcanoesVisible,
          maplibregl } from './js/map.js';
 import { fetchQuakes, quakesIn, quakeTone, hazardLabel } from './js/hazards.js';
-import { esc, toast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
+import { esc, toast, liftToast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
          categoryLabel, advisoryDialogHTML, quakePopupHTML, volcanoPopupHTML,
          disasterDialogHTML } from './js/ui.js';
@@ -283,6 +283,9 @@ function openDialog(selector) {
   if (!dialog || dialog.open) return;
   document.querySelectorAll('dialog[open]').forEach(closeQuietly);
   dialog.showModal();
+  // A dialog joins the top layer above anything already in it, so a message
+  // put up a moment ago would now be behind this window. Lift it back.
+  liftToast();
   history.pushState({ dialog: selector }, '');
 }
 

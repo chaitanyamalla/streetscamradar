@@ -3,6 +3,7 @@
 // reaches innerHTML — report text is untrusted input from strangers.
 // ---------------------------------------------------------------------------
 import { PIN_COLOR } from './config.js';
+import { hazardSignSVG } from './hazard-signs.js';
 import { t, tn, plural, tOr, formatDate } from './i18n.js';
 import { STRINGS as ADVISORY, officialUrl, countryTitle, levelLabel, levelExplain,
          emergencyLine, contextLine } from './advisory.js';
@@ -544,12 +545,10 @@ const PLACEMENT = {
 export function disasterPopupHTML(props) {
   const kind = String(props.kind ?? 'flood');
   const when = props.from_date ? timeAgo(props.from_date) : '';
-  const glyph = { volcano: '\u{1F30B}', flood: '\u{1F30A}', cyclone: '\u{1F300}',
-                  wildfire: '\u{1F525}', drought: '\u{1F3DC}' }[kind] ?? '\u26A0';
 
   return `
     <div class="popup-head">
-      <span class="popup-glyph is-hazard" aria-hidden="true">${glyph}</span>
+      <span class="popup-glyph is-hazard">${hazardSignSVG(kind, { size: 26 })}</span>
       <div>
         <p class="popup-kicker">${esc(t(`hazard.kind.${kind}`))}</p>
         <p class="popup-title">${esc(props.name ?? '')}</p>

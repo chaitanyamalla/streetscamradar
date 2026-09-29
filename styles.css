@@ -236,6 +236,8 @@ em { font-style:italic; }
 .hazard-row input { flex:none; width:17px; height:17px; accent-color:var(--brand); }
 .hz-mark { flex:none; width:17px; height:17px; display:flex; align-items:center;
   justify-content:center; font-size:13px; line-height:1; }
+/* Warning signs are drawn, not typed — js/hazard-signs.js. */
+.hazard-sign { display:block; }
 /* The same ring the map draws, so the panel is a real key to it. */
 .hz-quake { border:2.2px solid #5c2d91; border-radius:50%;
   background:rgba(92,45,145,.09); }
@@ -276,7 +278,9 @@ em { font-style:italic; }
   font-size:12px; font-weight:700; }
 
 /* Hazards. The ring on the map is drawn by MapLibre; these are the popup. */
-.popup-glyph.is-hazard { background:rgba(197,56,44,.12); }
+/* A warning sign is already a badge; a tinted disc around it was a badge on a
+   badge, and at 34px it cropped the corners off the triangle. */
+.popup-glyph.is-hazard { width:30px; height:30px; background:none; border:0; }
 .hazard-tsunami { margin-top:7px; padding:6px 9px; border-radius:4px;
   background:rgba(197,56,44,.1); color:var(--danger); font-size:12px; font-weight:700; }
 /* Said on every hazard, not buried in a page nobody opens: this is a signal

@@ -25,6 +25,7 @@ import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          setHazards, setHazardsVisible, setDisasters, setVolcanoesVisible,
          setDisastersVisible, maplibregl } from './js/map.js';
 import { fetchQuakes, quakesIn, inBounds, quakeTone, hazardLabel } from './js/hazards.js';
+import { hazardSignSVG } from './js/hazard-signs.js';
 import { esc, toast, liftToast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
          categoryLabel, advisoryDialogHTML, quakePopupHTML, disasterPopupHTML,
@@ -1320,6 +1321,13 @@ function wireUI() {
     quakes: '#quake-toggle', volcanoes: '#volcano-toggle',
     disasters: '#disaster-toggle', weather: '#weather-toggle',
   };
+
+  // The key beside each switch is drawn from the same paths as the marker on
+  // the map. A legend redrawn by hand stops matching the map the first time
+  // either one changes, and then it is worse than no legend.
+  for (const mark of document.querySelectorAll('[data-hazard-sign]')) {
+    mark.innerHTML = hazardSignSVG(mark.dataset.hazardSign, { size: 17 });
+  }
   for (const [layer, selector] of Object.entries(LAYER_BOXES)) {
     const stored = readSetting(`ssr.layer.${layer}`);
     if (stored !== null) state.layers[layer] = stored === 'true';

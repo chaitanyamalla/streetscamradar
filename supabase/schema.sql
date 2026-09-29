@@ -903,10 +903,11 @@ create table if not exists public.disaster_alerts (
   from_date    timestamptz,
   to_date      timestamptz,
   url          text,
-  -- Where GDACS puts the event. Only meaningful for a volcano, which IS a
-  -- point on the ground; for a flood or a cyclone this is the centroid of
-  -- everything affected, which is open water or empty country as often as not.
-  -- The page draws volcanoes and nothing else from it, for that reason.
+  -- Where GDACS puts the event. What it MEANS differs by kind: a volcano and
+  -- a wildfire are at the point; a cyclone is where the storm was last
+  -- placed; a flood or a drought is the centroid of everything affected,
+  -- which is open water or empty country as often as not. The page draws all
+  -- of them and says which in the popup, rather than implying a street.
   lat          double precision,
   lng          double precision,
   refreshed_at timestamptz not null default now(),

@@ -7,6 +7,7 @@
 // popup, never on the pin — map label fonts have no emoji coverage.
 // ---------------------------------------------------------------------------
 import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
+import { paintHazardSign } from './hazard-signs.js';
 import { MAP_STYLE, WORLD_VIEW, PIN_COLOR, CLUSTER_COLOR,
          SAFETY_MIN_ZOOM } from './config.js';
 
@@ -47,6 +48,9 @@ const VOLCANO_ICON = 'hazard-icon-volcano';
 const DISASTER_ICONS = {
   flood: 'hazard-icon-flood', cyclone: 'hazard-icon-cyclone',
   wildfire: 'hazard-icon-wildfire', drought: 'hazard-icon-drought',
+  // GDACS could publish a kind we have not drawn. Better a sign that says
+  // "something here" than a marker that silently fails to appear.
+  unknown: 'hazard-icon-unknown',
 };
 
 // Earthquakes are drawn in a colour used nowhere else here, so the mark cannot
@@ -212,7 +216,7 @@ export function addLayers(map) {
 
   // --- What GDACS is tracking ----------------------------------------------
   //
-  // Drawn where GDACS puts it, with a glyph per kind. What that point MEANS
+  // Drawn where GDACS puts it, as a warning sign per kind. What that point MEANS
   // differs by kind, and the popup says so rather than letting the marker
   // imply more than it knows: a volcano and a wildfire are where they are, a
   // cyclone is where the storm was last placed, and a flood or a drought is
@@ -233,8 +237,8 @@ export function addLayers(map) {
         'cyclone', DISASTER_ICONS.cyclone,
         'wildfire', DISASTER_ICONS.wildfire,
         'drought', DISASTER_ICONS.drought,
-        DISASTER_ICONS.flood],
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.42, 8, 0.58, 14, 0.7],
+        DISASTER_ICONS.unknown],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.38, 8, 0.5, 14, 0.6],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
@@ -245,7 +249,7 @@ export function addLayers(map) {
     filter: ['==', ['get', 'kind'], 'volcano'],
     layout: {
       'icon-image': VOLCANO_ICON,
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.42, 8, 0.58, 14, 0.7],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.38, 8, 0.5, 14, 0.6],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
@@ -434,7 +438,10 @@ export function registerCategoryIcons(map, categories) {
     if (image) map.addImage(id, image, { pixelRatio: 2 });
   };
 
-  add(FALLBACK_ICON, '\u26A0');
+  // A pin, not a warning triangle: the triangle now means a natural hazard
+  // from an official feed, and a category we have no glyph for is still just
+  // somebody's report.
+  add(FALLBACK_ICON, '\uD83D\uDCCD');   // 📍
   categories.forEach(c => add(`scam-icon-${c.slug}`, c.glyph));
 
   // ['match', category, slug, image, ..., fallback]
@@ -460,9 +467,30 @@ export function registerSafetyIcons(map) {
     if (image) map.addImage(id, image, { pixelRatio: 2 });
   };
   add(HOSPITAL_ICON, '\uD83C\uDFE5');   // 🏥
-  add(VOLCANO_ICON, '\uD83C\uDF0B');    // 🌋
-  add(DISASTER_ICONS.flood, '\uD83C\uDF0A');      // 🌊
-  add(DISASTER_ICONS.cyclone, '\uD83C\uDF00');    // 🌀
-  add(DISASTER_ICONS.wildfire, '\uD83D\uDD25');   // 🔥
-  add(DISASTER_ICONS.drought, '\uD83C\uDFDC');    // 🏜
+
+  // Every hazard is a warning sign instead — see js/hazard-signs.js for why a
+  // triangle and not the emoji that used to be here.
+  const sign = (id, kind) => {
+    if (map.hasImage?.(id)) return;
+    const image = drawSign(kind);
+    if (image) map.addImage(id, image, { pixelRatio: 2 });
+  };
+  sign(VOLCANO_ICON, 'volcano');
+  sign(DISASTER_ICONS.flood, 'flood');
+  sign(DISASTER_ICONS.cyclone, 'cyclone');
+  sign(DISASTER_ICONS.wildfire, 'wildfire');
+  sign(DISASTER_ICONS.drought, 'drought');
+  sign(DISASTER_ICONS.unknown, 'unknown');
+}
+
+/** A hazard sign at the size MapLibre wants it: 46px drawn at 2×. */
+function drawSign(kind) {
+  const size = 46, ratio = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size * ratio;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.scale(ratio, ratio);
+  paintHazardSign(ctx, kind, size);
+  return ctx.getImageData(0, 0, canvas.width, canvas.height);
 }

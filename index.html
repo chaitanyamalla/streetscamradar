@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0d1b26" />
-    <meta name="description" content="Plan your trip, travel informed. StreetScamRadar maps scams reported by travellers and locals worldwide — search any city, town or postcode and see what happened there in the last 7 days." />
+    <meta name="description" content="Plan your trip, travel informed. One map for street scams reported by travellers, official government travel advice, severe weather warnings, earthquakes and the nearest hospital — anywhere in the world." />
     <title>StreetScamRadar — plan your trip, travel informed</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -59,9 +59,10 @@
     <main>
       <section class="map-area" id="map" data-i18n-aria="map.area" aria-label="Worldwide scam map">
         <aside class="map-intro">
-          <h1 data-i18n-html="intro.heading">Scams,<br /><em>street by street.</em></h1>
+          <h1 data-i18n-html="intro.heading">Plan your trip,<br /><em>street by street.</em></h1>
           <p class="intro-copy" data-i18n="intro.copy">
-            Reported by travellers and locals. The last 7 days, anywhere on Earth.
+            Scams reported by travellers, official travel advice, weather warnings
+            and the nearest hospital — on one map.
           </p>
 
           <form class="place-search" id="place-form" role="search">
@@ -196,12 +197,17 @@
 
           <div class="filter-section safety-filter">
             <p class="filter-title" data-i18n="filters.safety">Safety &amp; support</p>
+            <!-- The status sits under the label rather than on a line of its
+                 own: same information, one row instead of two, and it reads as
+                 being about the hospitals rather than about the panel. -->
             <label class="filter-row">
               <input type="checkbox" id="safety-toggle" checked />
               <span class="safety-glyphs" aria-hidden="true">🏥</span>
-              <span data-i18n="filters.hospitals">Hospitals nearby</span>
+              <span class="fr-text">
+                <span data-i18n="filters.hospitals">Hospitals nearby</span>
+                <span class="fr-note" id="safety-status" data-i18n="safety.zoomIn">Zoom in to see hospitals</span>
+              </span>
             </label>
-            <p class="muted-note" id="safety-status" data-i18n="safety.zoomIn">Zoom in to see hospitals</p>
             <!-- Natural hazards used to have a row here. They are not a filter
                  on our reports — they are other people's official data laid
                  over the map — so they have their own control on the map

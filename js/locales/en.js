@@ -23,8 +23,8 @@ export default {
   'header.language': 'Language',
 
   // --- intro ---------------------------------------------------------------
-  'intro.heading': 'Scams,<br /><em>street by street.</em>',
-  'intro.copy': 'Reported by travellers and locals. The last 7 days, anywhere on Earth.',
+  'intro.heading': 'Plan your trip,<br /><em>street by street.</em>',
+  'intro.copy': 'Scams reported by travellers, official travel advice, weather warnings and the nearest hospital — on one map.',
   'intro.search.label': 'Search a city, town, postcode or address',
   'intro.search.placeholder': 'Try Lisbon, 10115 Berlin, or Khao San Road',
   'intro.search.go': 'Search',
@@ -232,6 +232,8 @@ export default {
   'toast.needAddress': 'Could not find that address.',
   'toast.typeAddress': 'Type an address first.',
   'toast.needPlaceFirst': 'Choose where it happened first.',
+  'toast.pinOnWater': 'That is open water. Pick the street, station or market where it happened.',
+  'toast.pinPolar': 'That is outside where people travel. Pick the place where it happened.',
   'toast.needWhen': 'Tell us when it happened.',
   'toast.whenFuture': 'That is in the future. Pick when it actually happened.',
   'toast.whenTooOld': 'Reports drop off the map after {days} days, so this one would not show.',

@@ -24,8 +24,8 @@ export default {
   'header.language': 'Idioma',
 
   // --- intro ---------------------------------------------------------------
-  'intro.heading': 'Burlas,<br /><em>rua a rua.</em>',
-  'intro.copy': 'Relatadas por viajantes e residentes. Os últimos 7 dias, em qualquer parte do mundo.',
+  'intro.heading': 'Planear a viagem,<br /><em>rua a rua.</em>',
+  'intro.copy': 'Burlas relatadas por viajantes, conselhos oficiais de viagem, avisos meteorológicos e o hospital mais próximo — num só mapa.',
   'intro.search.label': 'Pesquise uma cidade, vila, código postal ou morada',
   'intro.search.placeholder': 'Experimente Lisboa, 10115 Berlim ou Khao San Road',
   'intro.search.go': 'Pesquisar',
@@ -233,6 +233,8 @@ export default {
   'toast.needAddress': 'Não foi possível encontrar essa morada.',
   'toast.typeAddress': 'Escreva primeiro uma morada.',
   'toast.needPlaceFirst': 'Escolha primeiro onde aconteceu.',
+  'toast.pinOnWater': 'Isso é água aberta. Escolha a rua, a estação ou o mercado onde aconteceu.',
+  'toast.pinPolar': 'Isso fica fora das zonas onde se viaja. Escolha o local onde aconteceu.',
   'toast.needWhen': 'Diga-nos quando aconteceu.',
   'toast.whenFuture': 'Isso é no futuro. Escolha quando aconteceu mesmo.',
   'toast.whenTooOld': 'Os relatos saem do mapa ao fim de {days} dias, por isso este não apareceria.',

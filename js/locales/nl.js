@@ -23,8 +23,8 @@ export default {
   'header.language': 'Taal',
 
   // --- intro ---------------------------------------------------------------
-  'intro.heading': 'Oplichting,<br /><em>straat voor straat.</em>',
-  'intro.copy': 'Gemeld door reizigers en bewoners. De afgelopen 7 dagen, waar ook ter wereld.',
+  'intro.heading': 'Plan je reis,<br /><em>straat voor straat.</em>',
+  'intro.copy': 'Door reizigers gemelde oplichting, officieel reisadvies, weerwaarschuwingen en het dichtstbijzijnde ziekenhuis — op één kaart.',
   'intro.search.label': 'Zoek een stad, dorp, postcode of adres',
   'intro.search.placeholder': 'Probeer Lissabon, 10115 Berlijn of Khao San Road',
   'intro.search.go': 'Zoeken',
@@ -232,6 +232,8 @@ export default {
   'toast.needAddress': 'Kon dat adres niet vinden.',
   'toast.typeAddress': 'Typ eerst een adres.',
   'toast.needPlaceFirst': 'Kies eerst waar het gebeurde.',
+  'toast.pinOnWater': 'Dat is open water. Kies de straat, het station of de markt waar het gebeurde.',
+  'toast.pinPolar': 'Dat ligt buiten waar mensen reizen. Kies de plek waar het gebeurde.',
   'toast.needWhen': 'Vertel ons wanneer het gebeurde.',
   'toast.whenFuture': 'Dat ligt in de toekomst. Kies wanneer het echt gebeurde.',
   'toast.whenTooOld': 'Meldingen verdwijnen na {days} dagen van de kaart, dus deze zou niet verschijnen.',

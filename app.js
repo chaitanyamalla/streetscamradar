@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS,
          REPORT_MOVE_WINDOW_HOURS, SAFETY_MIN_ZOOM, EMERGENCY_MIN_ZOOM,
-         SUGGEST_MIN_CHARS, SUGGEST_DEBOUNCE_MS } from './js/config.js';
+         SUGGEST_MIN_CHARS, SUGGEST_DEBOUNCE_MS, REPORT_BOUNDS } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, myConfirmedReports, editMyReport,
@@ -962,7 +962,36 @@ function stopPicking() {
   document.getElementById('city-map').classList.remove('is-picking');
 }
 
+/**
+ * Where a report cannot be.
+ *
+ * Nobody is pickpocketed in the middle of the Atlantic, and a pin there is
+ * either a mis-tap or somebody playing. Two checks, in order of what they
+ * cost: the latitude band is free and local, the rest waits for the geocoder
+ * that was being asked for the address anyway.
+ *
+ * A geocoder that could not answer is never treated as "you are at sea" —
+ * see describePoint. Being unable to name a street must not stop a report.
+ */
+function refusePin(place) {
+  if (place?.countryCode === 'AQ') return 'toast.pinPolar';
+  if (place?.known && place?.onWater) return 'toast.pinOnWater';
+  return null;
+}
+
+const outsideBounds = (lat) => lat < REPORT_BOUNDS.minLat || lat > REPORT_BOUNDS.maxLat;
+
+function clearPin(reason) {
+  state.pin = null;
+  const status = $('#pin-status');
+  status.classList.remove('is-set');
+  status.textContent = t('report.noPin');
+  if (reason) toast(t(reason), { error: true });
+}
+
 function setPin({ lat, lng, label }) {
+  if (outsideBounds(lat)) { clearPin('toast.pinPolar'); return Promise.resolve(); }
+
   state.pin = { lat, lng, address: null, city: null, countryCode: null };
   const status = $('#pin-status');
   status.classList.add('is-set');
@@ -973,6 +1002,10 @@ function setPin({ lat, lng, label }) {
   // submitting quickly waits for it rather than posting without a city.
   state.pinPending = describePoint(lat, lng).then(place => {
     if (state.pin?.lat !== lat || state.pin?.lng !== lng) return;   // pin moved on
+
+    const refusal = refusePin(place);
+    if (refusal) { clearPin(refusal); return; }
+
     state.pin = { lat, lng, address: place.address, city: place.city, countryCode: place.countryCode };
     status.textContent = place.label
       ? `📍 ${place.address ? place.address + ', ' : ''}${place.label}`
@@ -1084,6 +1117,12 @@ function goToPlace(place) {
   flyToPlace(map, place, PLACE_ZOOM);
   state.placeLabel = place.label;
   $('#place-label').textContent = place.label;
+
+  // The box says what was chosen, not what was typed. Leaving "lisbo" sitting
+  // there after picking Lisbon reads as though nothing was taken.
+  const box = $('#place-search');
+  box.value = place.fullName ?? place.label;
+  box.__lastSuggested = box.value;      // so this does not ask for suggestions again
   $('#search-results').hidden = true;
 }
 
@@ -1130,6 +1169,9 @@ function wireUI() {
 
   searchBox.addEventListener('input', e => askForSuggestions(e.target.value));
   searchBox.addEventListener('focus', e => {
+    // Not after a suggestion was taken: the box holds a chosen place, and
+    // reopening the list over it is noise.
+    if (e.target.value === e.target.__lastSuggested) return;
     if ((e.target.value ?? '').trim().length >= SUGGEST_MIN_CHARS
         && ($('#search-results').__hits ?? []).length) {
       $('#search-results').hidden = false;
@@ -1405,6 +1447,10 @@ function wireUI() {
         const [place] = await searchPlaces(query, 1);
         if (!place) { status.textContent = t('toast.needAddress'); return; }
         const detail = await describePoint(place.lat, place.lng);
+        // Moving a report is the same claim as filing one, so it answers to
+        // the same rule: not into the sea, not into the ice.
+        const refusal = outsideBounds(place.lat) ? 'toast.pinPolar' : refusePin(detail);
+        if (refusal) { status.textContent = t(refusal); return; }
         form.dataset.lat = place.lat;
         form.dataset.lng = place.lng;
         form.dataset.city = detail.city ?? '';
@@ -1642,6 +1688,9 @@ function wireUI() {
     btn.disabled = true; btn.textContent = t('report.posting');
     try {
       if (state.pinPending) await state.pinPending;   // let the address land first
+      // That wait is where a pin in the sea is thrown out, so the pin has to
+      // be checked again rather than trusted from before the await.
+      if (!state.pin) { toast(t('toast.needPlaceFirst'), { error: true }); return; }
       await submitReport({
         category: $('#scam-category').value,
         impacts,
@@ -1673,5 +1722,6 @@ function wireUI() {
   });
 }
 
-// Exposed for quick console poking during development.
-window.__ssr = { state, map, supabase };
+// Exposed for quick console poking during development, and for the tests to
+// drive the parts a mouse would otherwise have to reach.
+window.__ssr = { state, map, supabase, setPin };

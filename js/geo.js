@@ -42,6 +42,11 @@ export async function searchPlaces(query, limit = 6) {
   const rows = await throttled(url);
   return (rows ?? []).map(p => ({
     label: pickName(p),
+    // What goes back into the search box once this one is chosen. For a
+    // Nominatim hit the label already names the city, region and country;
+    // `detail` here is the full display_name, which is far too long to put in
+    // an input somebody may want to edit.
+    fullName: pickName(p),
     detail: p.display_name,
     lat: parseFloat(p.lat),
     lng: parseFloat(p.lon),
@@ -111,6 +116,8 @@ export async function suggestPlaces(query, { near = null, signal } = {}) {
       ? props.extent.map(Number) : null;
     places.push({
       label,
+      // Photon splits the name from where it is, so the box gets both.
+      fullName: [label, ...new Set(where)].join(', '),
       detail: [...new Set(where)].join(', '),
       lat: Number(point[1]),
       lng: Number(point[0]),
@@ -131,22 +138,62 @@ const suggestLanguage = () => {
   return ['de', 'en', 'fr', 'it'].includes(code) ? code : 'en';
 };
 
-/** What is at this point? Used to label a pin dropped on the map. */
+/**
+ * The kinds of place a scam cannot be reported at, as OpenStreetMap classifies
+ * them. Nothing here is a judgement about water: a pier, a bridge, a ferry
+ * terminal and a harbour wall are all man-made or highway features and stay
+ * perfectly reportable. This is the open water itself.
+ */
+const WATER = {
+  natural: ['water', 'bay', 'strait', 'sea', 'ocean', 'shoal', 'reef'],
+  waterway: ['river', 'stream', 'canal', 'riverbank', 'ditch', 'drain'],
+  place: ['sea', 'ocean'],
+};
+
+const looksLikeWater = (p) => {
+  const kind = String(p?.category ?? p?.class ?? '').toLowerCase();
+  const type = String(p?.type ?? '').toLowerCase();
+  return (WATER[kind] ?? []).includes(type);
+};
+
+/**
+ * What is at this point? Used to label a pin dropped on the map, and to tell
+ * whether a pin can be there at all.
+ *
+ * `onWater` is answered from what the geocoder says is there, not from a
+ * coastline of ours. Nominatim covers every piece of land on Earth, so a point
+ * it cannot name at all is open sea — that is what its "Unable to geocode"
+ * means — and a point it names as a river or a bay is a river or a bay.
+ *
+ * `known` says whether the lookup worked. It matters: a geocoder having a bad
+ * day must not be read as "you are in the ocean" and stop somebody filing a
+ * real report.
+ */
 export async function describePoint(lat, lng) {
+  const nowhere = { address: null, city: null, countryCode: null, label: null };
   try {
     const url = `${GEOCODER.reverse}?lat=${lat}&lon=${lng}&format=jsonv2&addressdetails=1&zoom=18`;
     const p = await throttled(url);
-    const a = p.address ?? {};
+
+    // Nominatim answers 200 with an error body for a point with nothing on it.
+    if (!p || p.error || !p.address) return { ...nowhere, known: true, onWater: true };
+
+    const a = p.address;
     const street = [a.road, a.house_number].filter(Boolean).join(' ');
+    const countryCode = (a.country_code ?? '').toUpperCase().slice(0, 2) || null;
     return {
       address: street || p.display_name?.split(',').slice(0, 2).join(',') || null,
       city: a.city || a.town || a.village || a.municipality || null,
-      countryCode: (a.country_code ?? '').toUpperCase().slice(0, 2) || null,
+      countryCode,
       label: pickName(p),
+      known: true,
+      // No country at all is international water; the rest is the feature
+      // itself being water.
+      onWater: !countryCode || looksLikeWater(p),
     };
   } catch {
     // Never block a report because the geocoder is having a bad day.
-    return { address: null, city: null, countryCode: null, label: null };
+    return { ...nowhere, known: false, onWater: false };
   }
 }
 

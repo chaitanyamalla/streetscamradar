@@ -163,7 +163,17 @@ create table if not exists public.reports (
   -- a 20-character floor here only ever blocked someone with little to add.
   description   text not null check (char_length(btrim(description)) between 1 and 1200),
 
-  lat           double precision not null check (lat between -90 and 90),
+  -- The habitable band. Nobody is pickpocketed on the Antarctic ice, and a
+  -- report there is a mis-tap or somebody playing. 60°S is the Antarctic
+  -- Treaty line — Puerto Williams, the southernmost town on Earth, is at 55°S
+  -- — and 84°N is past the northern tip of Greenland, so Svalbard, Tromsø and
+  -- Murmansk stay inside it. The page checks this too; this is the one that
+  -- holds, because the page can be bypassed and a table cannot.
+  --
+  -- Water is NOT checked here: knowing a point is in the Seine rather than on
+  -- the bridge over it needs coastlines, which is a geocoder's job. The page
+  -- asks one. See describePoint in js/geo.js.
+  lat           double precision not null check (lat between -60 and 84),
   lng           double precision not null check (lng between -180 and 180),
   address       text,
   city          text,
@@ -184,6 +194,18 @@ create index if not exists reports_lat_idx      on public.reports (lat);
 create index if not exists reports_lng_idx      on public.reports (lng);
 create index if not exists reports_status_idx   on public.reports (status);
 create index if not exists reports_reporter_idx on public.reports (reporter_id);
+
+-- Existing installs: the same band, applied to a table that is already there.
+-- Wrapped because a single stray row must not stop the rest of the schema from
+-- being applied; the warning says what happened and nothing is lost.
+do $$
+begin
+  alter table public.reports drop constraint if exists reports_lat_habitable;
+  alter table public.reports add constraint reports_lat_habitable
+    check (lat between -60 and 84);
+exception when check_violation then
+  raise warning 'reports exist outside 60S-84N; latitude constraint not applied';
+end $$;
 
 alter table public.reports enable row level security;
 

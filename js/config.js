@@ -105,6 +105,20 @@ export const SUGGEST = {
 export const SUGGEST_MIN_CHARS = 3;
 export const SUGGEST_DEBOUNCE_MS = 280;
 
+// --- Where a report can be -----------------------------------------------
+// Two rules, and they do different jobs.
+//
+// This band is the crude one, checked in the browser before anything is asked
+// of a geocoder and again by a check constraint in the database, which is the
+// one that actually holds. 60°S is the Antarctic Treaty line — the southernmost
+// town on Earth, Puerto Williams, is at 55°S, and everything below 60° is
+// research stations and ice. 84°N is past the northern tip of Greenland, so
+// Svalbard, Tromsø and Murmansk — real places people visit — stay inside it.
+//
+// The precise rule is the geocoder's: a point it cannot name is open sea, and
+// a point it names as a river or a bay is water. See describePoint.
+export const REPORT_BOUNDS = { minLat: -60, maxLat: 84 };
+
 // --- Safety & support --------------------------------------------------------
 // Hospitals live in our own safety_places table, refreshed
 // from OpenStreetMap by .github/workflows/safety-data.yml. They were once read

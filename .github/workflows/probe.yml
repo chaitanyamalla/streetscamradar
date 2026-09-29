@@ -1,0 +1,37 @@
+# ---------------------------------------------------------------------------
+# Look at an outside service before writing code against it.
+#
+# Why this exists: the development sandbox has no route to most of the
+# internet, so the only way to see what a service actually sends is from a
+# runner. Building a parser from documentation instead cost us a whole release
+# once — the travel advisory interface said `countryCode` where its published
+# schema said `CountryCode`, and the first real run rejected all 200 entries.
+#
+# Reads only. No secrets, no database, nothing written anywhere.
+# ---------------------------------------------------------------------------
+name: Probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: 'Which probe to run (a file in tools/)'
+        required: true
+        default: 'probe_geocoder.py'
+        type: choice
+        options:
+          - probe_geocoder.py
+
+concurrency:
+  group: probe
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Look at the source
+        run: python3 "tools/${{ inputs.script }}"

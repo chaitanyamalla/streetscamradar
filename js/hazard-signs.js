@@ -17,6 +17,10 @@
  * here", and it survives being 20 pixels wide, printed grey, or seen by
  * someone who cannot separate orange from red.
  *
+ * Every glyph is a list of parts: a path to fill, a path to stroke at a width,
+ * or either of those marked `cut`, which paints in the sign's own amber — the
+ * way a printed sign knocks windows out of a solid building.
+ *
  * Geometry lives in a 24×24 box so the same paths draw the marker on the map
  * (canvas, via Path2D), the key in the hazard panel, and the glyph in the
  * popup. A key that is redrawn by hand stops matching the map the first time
@@ -42,11 +46,16 @@ const circle = (cx, cy, r) =>
  * that is actually wide enough to hold a drawing.
  */
 const GLYPHS = {
-  // Water, not a house half under it: two strokes stay readable at 20px where
-  // a roofline turns to mud.
+  // A building standing in water. Waves alone said "water"; a flood is water
+  // where the buildings are, and that is the whole difference. The roof is
+  // flat on purpose — a gable is a triangle inside a triangle, which at 20px
+  // is just a smudge in the middle of the sign.
   flood: [
-    { d: 'M8.6 14.0q1.15-1.5 2.3 0t2.3 0t2.3 0', stroke: 1.95 },
-    { d: 'M7.4 17.6q1.15-1.5 2.3 0t2.3 0t2.3 0t2.3 0', stroke: 1.95 },
+    { d: 'M8.9 9.8h6.2v6.8H8.9z' },
+    { d: 'M10.2 11.2h1.35v1.35h-1.35zM12.75 11.2h1.35v1.35h-1.35z'
+       + 'M10.2 13.7h1.35v1.35h-1.35zM12.75 13.7h1.35v1.35h-1.35z', cut: true },
+    { d: 'M6.8 16.8q1.3-.95 2.6 0t2.6 0t2.6 0t2.6 0', stroke: 1.45 },
+    { d: 'M6.8 18.5q1.3-.95 2.6 0t2.6 0t2.6 0t2.6 0', stroke: 1.45 },
   ],
   // A spiral wound in twice, which is what a storm looks like from above and
   // what every forecast prints. Two arms around an eye turned to a blob the
@@ -73,11 +82,14 @@ const GLYPHS = {
        + 'M8.75 11.15l1.1 1.1M14.15 16.55l1.1 1.1M15.25 11.15l-1.1 1.1'
        + 'M9.85 16.55l-1.1 1.1', stroke: 1.45 },
   ],
+  // A squat cone with a wide crater, for the same reason the house has a flat
+  // roof: a tall cone is a triangle inside a triangle. The eruption is three
+  // sparks rather than one plume, which came out looking like an ice cream.
   volcano: [
-    { d: 'M7.2 18.8l3.3-5.6h3l3.3 5.6z' },
-    { d: circle(12, 11.3, .95) },
-    { d: circle(9.9, 10.0, .7) },
-    { d: circle(14.1, 10.1, .7) },
+    { d: 'M6.9 18.9l2.8-4.7h4.6l2.8 4.7z' },
+    { d: circle(12, 11.9, 1.0) },
+    { d: circle(9.7, 10.6, .72) },
+    { d: circle(14.3, 10.7, .72) },
   ],
   // Anything GDACS starts publishing that we have not drawn yet. A sign with
   // no glyph would look broken; a sign saying "something" is the truth.
@@ -86,6 +98,7 @@ const GLYPHS = {
     { d: circle(12, 18.2, 1.2) },
   ],
 };
+
 
 export const HAZARD_SIGN_KINDS = Object.keys(GLYPHS).filter(k => k !== 'unknown');
 
@@ -98,9 +111,9 @@ export const hazardGlyph = (kind) => GLYPHS[kind] ?? GLYPHS.unknown;
  */
 export function hazardSignSVG(kind, { size = 18, label = '' } = {}) {
   const parts = hazardGlyph(kind).map(p => p.stroke
-    ? `<path d="${p.d}" fill="none" stroke="${SIGN_INK}" stroke-width="${p.stroke}"`
-      + ' stroke-linecap="round" stroke-linejoin="round"/>'
-    : `<path d="${p.d}" fill="${SIGN_INK}"/>`).join('');
+    ? `<path d="${p.d}" fill="none" stroke="${p.cut ? SIGN_FILL : SIGN_INK}"`
+      + ` stroke-width="${p.stroke}" stroke-linecap="round" stroke-linejoin="round"/>`
+    : `<path d="${p.d}" fill="${p.cut ? SIGN_FILL : SIGN_INK}"/>`).join('');
 
   return `<svg class="hazard-sign" viewBox="0 0 24 24" width="${size}" height="${size}"`
     + (label ? ` role="img" aria-label="${label}">` : ' aria-hidden="true" focusable="false">')
@@ -132,12 +145,13 @@ export function paintHazardSign(ctx, kind, box = 24) {
 
   for (const part of hazardGlyph(kind)) {
     const path = new Path2D(part.d);
+    const paint = part.cut ? SIGN_FILL : SIGN_INK;
     if (part.stroke) {
       ctx.lineWidth = part.stroke;
-      ctx.strokeStyle = SIGN_INK;
+      ctx.strokeStyle = paint;
       ctx.stroke(path);
     } else {
-      ctx.fillStyle = SIGN_INK;
+      ctx.fillStyle = paint;
       ctx.fill(path);
     }
   }

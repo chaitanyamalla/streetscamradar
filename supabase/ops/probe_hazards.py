@@ -195,12 +195,113 @@ def probe_meteoalarm():
                     print(f"    contains {marker!r} x{body.count(marker)}")
 
 
+# The countries MeteoAlarm covers, as its feed slugs spell them. Taken from its
+# own country list rather than guessed; the probe says which of them answer.
+METEO_COUNTRIES = [
+    "austria", "belgium", "bosnia-herzegovina", "bulgaria", "croatia", "cyprus",
+    "czechia", "denmark", "estonia", "finland", "france", "germany", "greece",
+    "hungary", "iceland", "ireland", "israel", "italy", "latvia", "lithuania",
+    "luxembourg", "malta", "moldova", "montenegro", "netherlands", "north-macedonia",
+    "norway", "poland", "portugal", "romania", "serbia", "slovakia", "slovenia",
+    "spain", "sweden", "switzerland", "ukraine", "united-kingdom",
+]
+METEO_FEED = "https://feeds.meteoalarm.org/api/v1/warnings/feeds-{}"
+
+
+def cap_parameters(info):
+    """MeteoAlarm hides the awareness type and level in CAP `parameter` pairs."""
+    out = {}
+    for entry in info.get("parameter") or []:
+        if isinstance(entry, dict) and entry.get("valueName"):
+            out[str(entry["valueName"])] = str(entry.get("value"))
+    return out
+
+
+def probe_meteoalarm_detail():
+    """What one country's warnings actually look like, and how many there are.
+
+    A parser needs four things from this: where the country lives in the
+    response, where the severity lives, where the times live, and whether an
+    alert names an area a traveller would recognise. Everything printed here is
+    one of those.
+    """
+    print(f"\n{'=' * 72}\nMETEOALARM — what one country sends\n{'=' * 72}")
+
+    shown = 0
+    totals, levels, events, failures = {}, {}, {}, []
+    for slug in METEO_COUNTRIES:
+        status, headers, body = fetch(METEO_FEED.format(slug))
+        if status != 200:
+            failures.append(f"{slug} ({status})")
+            continue
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError as err:
+            failures.append(f"{slug} (not JSON: {err})")
+            continue
+
+        warnings = payload.get("warnings") if isinstance(payload, dict) else None
+        if not isinstance(warnings, list):
+            failures.append(f"{slug} (no 'warnings' array: {shape(payload)})")
+            continue
+        totals[slug] = len(warnings)
+
+        for warning in warnings:
+            alert = (warning or {}).get("alert") or {}
+            for info in alert.get("info") or []:
+                params = cap_parameters(info)
+                level = params.get("awareness_level", "—")
+                kind = params.get("awareness_type", info.get("event", "—"))
+                levels[level] = levels.get(level, 0) + 1
+                events[kind] = events.get(kind, 0) + 1
+
+        # The full shape, for the first two countries that have anything.
+        if warnings and shown < 2:
+            shown += 1
+            alert = (warnings[0] or {}).get("alert") or {}
+            info_list = alert.get("info") or []
+            info = info_list[0] if info_list else {}
+            print(f"\n  {slug}: {len(warnings)} warnings")
+            print(f"    a warning        : {shape(warnings[0])}")
+            print(f"    alert keys       : {sorted(alert)}")
+            for key in ("identifier", "sender", "sent", "status", "msgType", "scope"):
+                if key in alert:
+                    print(f"      {key:<14} = {str(alert[key])[:70]!r}")
+            print(f"    info entries     : {len(info_list)}"
+                  f"  languages {[i.get('language') for i in info_list][:8]}")
+            print(f"    info keys        : {sorted(info)}")
+            for key in ("language", "category", "event", "responseType", "urgency",
+                        "severity", "certainty", "effective", "onset", "expires",
+                        "senderName", "headline", "web", "contact"):
+                if key in info:
+                    print(f"      {key:<14} = {str(info[key])[:78]!r}")
+            print(f"    parameters       : {cap_parameters(info)}")
+            areas = info.get("area") or []
+            print(f"    areas            : {len(areas)}")
+            for area in areas[:3]:
+                keys = sorted(area) if isinstance(area, dict) else "—"
+                desc = (area or {}).get("areaDesc") if isinstance(area, dict) else area
+                print(f"      keys {keys} areaDesc {str(desc)[:60]!r}")
+
+    print("\n  -- how much there is, right now --")
+    busy = {k: v for k, v in sorted(totals.items(), key=lambda kv: -kv[1]) if v}
+    print(f"    countries answering : {len(totals)} of {len(METEO_COUNTRIES)}")
+    print(f"    countries with any  : {len(busy)}")
+    print(f"    warnings in total   : {sum(totals.values())}")
+    print(f"    busiest             : {list(busy.items())[:8]}")
+    print(f"    awareness_level     : {levels}")
+    print(f"    awareness_type      : {dict(list(events.items())[:14])}")
+    if failures:
+        print(f"    did not answer      : {failures}")
+
+
 def main():
     print("Probing the hazard sources. Nothing is written.")
     everything = {}
     for name, url in SOURCES.items():
         everything[name] = report(name, url)
     probe_meteoalarm()
+    probe_meteoalarm_detail()
 
     print(f"\n{'=' * 72}\nHOW CROWDED WOULD THE MAP GET\n{'=' * 72}")
     print(f"  A city view here is +/-{CITY_BOX} degrees, about a city and its suburbs.")

@@ -505,7 +505,7 @@ export function quakePopupHTML(props) {
 
   return `
     <div class="popup-head">
-      <span class="popup-glyph is-hazard" aria-hidden="true">\u{1F30D}</span>
+      <span class="popup-glyph is-hazard">${hazardSignSVG('earthquake', { size: 26 })}</span>
       <div>
         <p class="popup-kicker">${esc(t('hazard.kind.earthquake'))}</p>
         <p class="popup-title">${esc(t('hazard.magnitude', {
@@ -601,6 +601,7 @@ export function weatherDialogHTML(rows) {
     const when = row.to_date ? t('weather.until', { when: until(row.to_date) }) : '';
     return `
       <div class="disaster-row is-${esc(row.severity)}">
+        <span class="disaster-sign">${hazardSignSVG(row.kind, { size: 26 })}</span>
         <p class="disaster-kind">${esc(t(`hazard.kind.${row.kind}`))}</p>
         <p class="disaster-name">${esc(rest > 0 ? `${shown} +${rest}` : shown)}</p>
         ${when ? `<p class="disaster-when">${esc(when)}</p>` : ''}

@@ -238,7 +238,7 @@ export function addLayers(map) {
         'wildfire', DISASTER_ICONS.wildfire,
         'drought', DISASTER_ICONS.drought,
         DISASTER_ICONS.unknown],
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.38, 8, 0.5, 14, 0.6],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.42, 8, 0.55, 14, 0.66],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
@@ -249,7 +249,7 @@ export function addLayers(map) {
     filter: ['==', ['get', 'kind'], 'volcano'],
     layout: {
       'icon-image': VOLCANO_ICON,
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.38, 8, 0.5, 14, 0.6],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.42, 8, 0.55, 14, 0.66],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },

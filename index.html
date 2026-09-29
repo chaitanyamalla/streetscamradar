@@ -84,7 +84,7 @@
                  desktop where that corner is free, top left on a phone where
                  the zoom buttons own the right. Inside .map-frame so it is
                  positioned against the map itself rather than against the
-                 column the map sits in. A stack rather than two absolutely
+                 column the map sits in. A stack rather than three absolutely
                  placed chips, so whichever of them is hidden today leaves no
                  gap behind it. -->
             <div class="map-chips">
@@ -107,109 +107,127 @@
                   <span class="ac-level" id="weather-kinds"></span>
                 </span>
               </button>
+
+              <!-- The hazard layers open from here, beside the chips they
+                   belong with. They used to open from a third button under the
+                   zoom controls, where a bare glyph in a column of + and − read
+                   as another map control rather than as something to open. A
+                   chip can say what it holds and how many are in view, and it
+                   opens and closes the way the advisory chip beside it does. -->
+              <div class="hazard-menu">
+                <!-- No aria-label: the two lines inside it ARE the name, and
+                     "Natural hazard layers, 4 in view, collapsed" tells a screen
+                     reader more than a label that hides the count from it. -->
+                <button class="advisory-chip hazard-chip" id="hazard-layers" type="button"
+                        aria-expanded="false" aria-controls="hazard-panel">
+                  <span class="hz-mark" data-hazard-sign="unknown" aria-hidden="true"></span>
+                  <span class="ac-text">
+                    <span class="ac-kicker" data-i18n="hazards.layers">Natural hazard layers</span>
+                    <span class="ac-level" id="hazard-summary" data-i18n="hazards.checking">Checking…</span>
+                  </span>
+                  <span class="hazard-caret" aria-hidden="true">▾</span>
+                </button>
+                <!-- The hazard layers, with what draws them and who publishes them.
+                     A legend and a set of switches in one: every row shows its own
+                     mark, so the map can be read without a separate key, and names
+                     the agency, because that — not us — is the authority for any
+                     of this. -->
+                <section class="hazard-panel" id="hazard-panel" hidden aria-labelledby="hazard-panel-title">
+                  <div class="hp-head">
+                    <h2 id="hazard-panel-title" data-i18n="hazards.layers">Natural hazard layers</h2>
+                    <button class="close-button" id="hazard-panel-close" type="button"
+                            data-i18n-aria="auth.close" aria-label="Close">×</button>
+                  </div>
+
+                  <!-- One row per kind GDACS publishes. It used to be three rows
+                       with the floods, storms and fires bundled into one, plus a
+                       switch for the weather warnings — but those are a chip above
+                       the map that appears when you zoom into a country, not a
+                       layer, so a switch for them here was a switch for something
+                       that is not on this list.
+
+                       Every row is GDACS now, so the per-row source label went as
+                       well; the footer says whose data this is. -->
+                  <label class="hazard-row">
+                    <input type="checkbox" id="earthquake-toggle" />
+                    <span class="hz-mark hz-quake" aria-hidden="true"></span>
+                    <span class="hz-text">
+                      <span class="hz-name" data-i18n="filters.quakes">Earthquakes</span>
+                      <span class="hz-note" id="earthquake-status" data-i18n="safety.off">Turned off</span>
+                    </span>
+                  </label>
+
+                  <label class="hazard-row">
+                    <input type="checkbox" id="flood-toggle" checked />
+                    <span class="hz-mark" data-hazard-sign="flood" aria-hidden="true"></span>
+                    <span class="hz-text">
+                      <span class="hz-name" data-i18n="hazards.floods">Floods</span>
+                      <span class="hz-note" id="flood-status" data-i18n="hazards.checking">Checking…</span>
+                    </span>
+                  </label>
+
+                  <label class="hazard-row">
+                    <input type="checkbox" id="cyclone-toggle" checked />
+                    <span class="hz-mark" data-hazard-sign="cyclone" aria-hidden="true"></span>
+                    <span class="hz-text">
+                      <span class="hz-name" data-i18n="hazards.storms">Storms</span>
+                      <span class="hz-note" id="cyclone-status" data-i18n="hazards.checking">Checking…</span>
+                    </span>
+                  </label>
+
+                  <label class="hazard-row">
+                    <input type="checkbox" id="wildfire-toggle" checked />
+                    <span class="hz-mark" data-hazard-sign="wildfire" aria-hidden="true"></span>
+                    <span class="hz-text">
+                      <span class="hz-name" data-i18n="hazards.fires">Wildfires</span>
+                      <span class="hz-note" id="wildfire-status" data-i18n="hazards.checking">Checking…</span>
+                    </span>
+                  </label>
+
+                  <label class="hazard-row">
+                    <input type="checkbox" id="volcano-toggle" checked />
+                    <span class="hz-mark" data-hazard-sign="volcano" aria-hidden="true"></span>
+                    <span class="hz-text">
+                      <span class="hz-name" data-i18n="hazards.volcanoes">Volcanoes</span>
+                      <span class="hz-note" id="volcano-status" data-i18n="hazards.checking">Checking…</span>
+                    </span>
+                  </label>
+
+                  <label class="hazard-row">
+                    <input type="checkbox" id="drought-toggle" checked />
+                    <span class="hz-mark" data-hazard-sign="drought" aria-hidden="true"></span>
+                    <span class="hz-text">
+                      <span class="hz-name" data-i18n="hazards.droughts">Droughts</span>
+                      <span class="hz-note" id="drought-status" data-i18n="hazards.checking">Checking…</span>
+                    </span>
+                  </label>
+
+                  <!-- The weather warnings have no switch: they are the chip above
+                       the map, not a layer here. This line is what the switch's
+                       status text used to say, which was the useful half of it —
+                       "Europe only" is a very different claim from "none here". -->
+                  <p class="hp-foot" id="weather-note"></p>
+                  <!-- Naming them is the whole of it. A paragraph explaining that we
+                       add nothing of our own said in many words what one line says
+                       by simply crediting somebody else. -->
+                  <p class="hp-foot" data-i18n="hazards.source">Source: GDACS · MeteoAlarm</p>
+                  <!-- Its English lives here and onLanguageChanged rewrites it, the
+                       same as #when-hint: the sentence carries a number, so a
+                       plain data-i18n cannot fill it. -->
+                  <p class="hp-foot" id="hazard-window">Ongoing events and the last 7 days.</p>
+                  <p class="hp-foot" data-i18n="hazard.notAlert">
+                    Not an alert service — check official sources before you travel.
+                  </p>
+                </section>
+              </div>
             </div>
 
             <div id="city-map" class="city-map" data-i18n-aria="map.label" aria-label="Interactive world map of reported scams"></div>
             <div class="floating-controls">
               <button id="zoom-in" class="icon-button" type="button" data-i18n-aria="map.zoomIn" aria-label="Zoom in">+</button>
               <button id="zoom-out" class="icon-button" type="button" data-i18n-aria="map.zoomOut" aria-label="Zoom out">−</button>
-              <button id="hazard-layers" class="icon-button hazard-button" type="button"
-                      aria-expanded="false" aria-controls="hazard-panel"
-                      data-i18n-aria="hazards.layers" aria-label="Natural hazard layers">⛰</button>
             </div>
 
-            <!-- The hazard layers, with what draws them and who publishes them.
-                 A legend and a set of switches in one: every row shows its own
-                 mark, so the map can be read without a separate key, and names
-                 the agency, because that — not us — is the authority for any
-                 of this. -->
-            <section class="hazard-panel" id="hazard-panel" hidden aria-labelledby="hazard-panel-title">
-              <div class="hp-head">
-                <h2 id="hazard-panel-title" data-i18n="hazards.layers">Natural hazard layers</h2>
-                <button class="close-button" id="hazard-panel-close" type="button"
-                        data-i18n-aria="auth.close" aria-label="Close">×</button>
-              </div>
-
-              <!-- One row per kind GDACS publishes. It used to be three rows
-                   with the floods, storms and fires bundled into one, plus a
-                   switch for the weather warnings — but those are a chip above
-                   the map that appears when you zoom into a country, not a
-                   layer, so a switch for them here was a switch for something
-                   that is not on this list.
-
-                   Every row is GDACS now, so the per-row source label went as
-                   well; the footer says whose data this is. -->
-              <label class="hazard-row">
-                <input type="checkbox" id="earthquake-toggle" />
-                <span class="hz-mark hz-quake" aria-hidden="true"></span>
-                <span class="hz-text">
-                  <span class="hz-name" data-i18n="filters.quakes">Earthquakes</span>
-                  <span class="hz-note" id="earthquake-status" data-i18n="safety.off">Turned off</span>
-                </span>
-              </label>
-
-              <label class="hazard-row">
-                <input type="checkbox" id="flood-toggle" checked />
-                <span class="hz-mark" data-hazard-sign="flood" aria-hidden="true"></span>
-                <span class="hz-text">
-                  <span class="hz-name" data-i18n="hazards.floods">Floods</span>
-                  <span class="hz-note" id="flood-status" data-i18n="hazards.checking">Checking…</span>
-                </span>
-              </label>
-
-              <label class="hazard-row">
-                <input type="checkbox" id="cyclone-toggle" checked />
-                <span class="hz-mark" data-hazard-sign="cyclone" aria-hidden="true"></span>
-                <span class="hz-text">
-                  <span class="hz-name" data-i18n="hazards.storms">Storms</span>
-                  <span class="hz-note" id="cyclone-status" data-i18n="hazards.checking">Checking…</span>
-                </span>
-              </label>
-
-              <label class="hazard-row">
-                <input type="checkbox" id="wildfire-toggle" checked />
-                <span class="hz-mark" data-hazard-sign="wildfire" aria-hidden="true"></span>
-                <span class="hz-text">
-                  <span class="hz-name" data-i18n="hazards.fires">Wildfires</span>
-                  <span class="hz-note" id="wildfire-status" data-i18n="hazards.checking">Checking…</span>
-                </span>
-              </label>
-
-              <label class="hazard-row">
-                <input type="checkbox" id="volcano-toggle" checked />
-                <span class="hz-mark" data-hazard-sign="volcano" aria-hidden="true"></span>
-                <span class="hz-text">
-                  <span class="hz-name" data-i18n="hazards.volcanoes">Volcanoes</span>
-                  <span class="hz-note" id="volcano-status" data-i18n="hazards.checking">Checking…</span>
-                </span>
-              </label>
-
-              <label class="hazard-row">
-                <input type="checkbox" id="drought-toggle" checked />
-                <span class="hz-mark" data-hazard-sign="drought" aria-hidden="true"></span>
-                <span class="hz-text">
-                  <span class="hz-name" data-i18n="hazards.droughts">Droughts</span>
-                  <span class="hz-note" id="drought-status" data-i18n="hazards.checking">Checking…</span>
-                </span>
-              </label>
-
-              <!-- The weather warnings have no switch: they are the chip above
-                   the map, not a layer here. This line is what the switch's
-                   status text used to say, which was the useful half of it —
-                   "Europe only" is a very different claim from "none here". -->
-              <p class="hp-foot" id="weather-note"></p>
-              <!-- Naming them is the whole of it. A paragraph explaining that we
-                   add nothing of our own said in many words what one line says
-                   by simply crediting somebody else. -->
-              <p class="hp-foot" data-i18n="hazards.source">Source: GDACS · MeteoAlarm</p>
-              <!-- Its English lives here and onLanguageChanged rewrites it, the
-                   same as #when-hint: the sentence carries a number, so a
-                   plain data-i18n cannot fill it. -->
-              <p class="hp-foot" id="hazard-window">Ongoing events and the last 7 days.</p>
-              <p class="hp-foot" data-i18n="hazard.notAlert">
-                Not an alert service — check official sources before you travel.
-              </p>
-            </section>
           <!-- Emergency numbers for whatever country is on screen. Inside the
                map frame on purpose: it is how you reach the police, who come
                to you, while the hospital pins are places you go. -->

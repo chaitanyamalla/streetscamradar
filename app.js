@@ -545,15 +545,18 @@ async function refreshHazards() {
  * nineteen green magnitude-fives a hundred kilometres down that GDACS lists on
  * an ordinary day are the ones nobody felt, and they are filtered out at the
  * refresh rather than here — see supabase/ops/fetch_disasters.py.
+ *
+ * Returns how many are in view, so the chip can count them with the rest
+ * rather than counting the same rows a second time.
  */
 function paintQuakes() {
   const status = $('#earthquake-status');
   if (!state.layers.earthquake) {
     setHazards(map, []);
     status.textContent = t('safety.off');
-    return;
+    return 0;
   }
-  if (!state.disasters) { status.textContent = t('hazards.failed'); return; }
+  if (!state.disasters) { status.textContent = t('hazards.failed'); return 0; }
 
   // Number(null) is 0, which is a perfectly finite magnitude and a lie. A row
   // with no magnitude has nothing to size a ring by, and a default would be a
@@ -575,6 +578,7 @@ function paintQuakes() {
   setHazards(map, inView);
   status.textContent = inView.length ? plural('hazards.inView', inView.length)
                                      : t('hazards.noneInView');
+  return inView.length;
 }
 
 /**
@@ -624,6 +628,7 @@ async function refreshCountryHazards(ticket) {
         const status = $(`#${kind}-status`);
         if (status) status.textContent = t('hazards.failed');
       }
+      $('#hazard-summary').textContent = t('hazards.failed');
       return;
     }
     if (ticket !== hazardTicket) return;
@@ -689,7 +694,7 @@ async function refreshCountryHazards(ticket) {
 function paintDisasterMarkers() {
   // Earthquakes have a layer of their own — rings sized by magnitude, which is
   // information a symbol cannot carry.
-  paintQuakes();
+  let inView = paintQuakes();
 
   const rows = uniqueEvents(row => row.kind !== 'earthquake');
   state.disasterMarkers = rows.filter(r => state.layers[r.kind]);
@@ -703,10 +708,20 @@ function paintDisasterMarkers() {
     const status = $(`#${kind}-status`);
     if (!status) continue;
     const here = inBounds(rows.filter(r => r.kind === kind), bounds).length;
+    if (state.layers[kind]) inView += here;
     status.textContent = !state.layers[kind] ? t('safety.off')
       : here ? plural('hazards.inView', here)
       : t('hazards.noneInView');
   }
+
+  // The chip says the same thing the rows say, added up — so a closed panel
+  // still answers "is there anything here". "None in view" and "all off" are
+  // different answers, and a reader who switched everything off deserves the
+  // second rather than being told the world is quiet.
+  $('#hazard-summary').textContent =
+    !Object.values(state.layers).some(Boolean) ? t('safety.off')
+    : inView ? plural('hazards.inView', inView)
+    : t('hazards.noneInView');
 }
 
 /**

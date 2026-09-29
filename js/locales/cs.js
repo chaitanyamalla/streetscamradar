@@ -342,4 +342,12 @@ export default {
   'weather.zoomIn': 'Přibližte na jednu zemi',
   'weather.until': 'Do {when}',
   'weather.source': 'Vydal {who}, přes MeteoAlarm',
+  'hazards.onMap': 'Na mapě',
+  'hazards.forCountry': 'Pro zobrazenou zemi',
+  'hazards.disasters': 'Povodně, bouře, požáry',
+  'disasters.count.one': '1 probíhá',
+  'disasters.count.few': '{n} probíhají',
+  'disasters.count.other': '{n} probíhá',
+  'disasters.none': 'Žádné zde',
+  'weather.notCovered': 'Jen Evropa',
 };

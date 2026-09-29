@@ -55,13 +55,49 @@ export function timeAgo(iso) {
 }
 
 let toastTimer;
+/**
+ * How long a toast stays up. Short on purpose: it is an acknowledgement, not
+ * something to read twice, and one lingering over a dialog somebody is trying
+ * to use is in the way.
+ */
+const TOAST_MS = 2000;
+
+/**
+ * A message over everything, including an open dialog.
+ *
+ * The z-index used to lose to the report dialog, and the refusal for a pin in
+ * the sea appeared behind the very window it was about. A modal <dialog> is in
+ * the browser's top layer, which sits above every z-index there is, so the
+ * only way over it is to be in the top layer too — which is what a popover is.
+ *
+ * Browsers without popover support fall back to the class alone: the toast is
+ * then exactly as it was, which is worse than this but not broken.
+ */
 export function toast(message, { error = false } = {}) {
   const el = document.querySelector('#toast');
   el.textContent = message;
   el.classList.toggle('is-error', error);
-  el.classList.add('show');
+
+  if (typeof el.showPopover === 'function') {
+    // Closed and reopened even when it is already up. The top layer stacks in
+    // the order things enter it and showPopover() on something already open
+    // does nothing, so a toast left over from a moment ago would sit UNDER a
+    // dialog opened since. Re-entering puts it back on top.
+    try { if (el.matches(':popover-open')) el.hidePopover(); } catch { /* fine */ }
+    try { el.showPopover(); } catch { /* fine */ }
+  }
+  // A frame later, so the slide-up animates from the hidden position rather
+  // than being skipped along with the display change the popover just made.
+  requestAnimationFrame(() => el.classList.add('show'));
+
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), error ? 6000 : 4000);
+  toastTimer = setTimeout(() => {
+    el.classList.remove('show');
+    if (typeof el.hidePopover === 'function') {
+      // After it has slid away, not during.
+      setTimeout(() => { try { el.hidePopover(); } catch { /* already closed */ } }, 300);
+    }
+  }, TOAST_MS);
 }
 
 /** A category's name and blurb in the reader's language, or the database's

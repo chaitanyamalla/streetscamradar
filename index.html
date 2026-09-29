@@ -132,12 +132,20 @@
                         data-i18n-aria="auth.close" aria-label="Close">×</button>
               </div>
 
+              <!-- Two groups, because they answer differently. The first two
+                   are drawn where they are; the second two have no single
+                   place on a street map and are reported for the country in
+                   view — which is what the chip above the map is. Without the
+                   split, a cyclone showing on the chip while the panel listed
+                   nothing looked like a bug. -->
+              <p class="hp-group" data-i18n="hazards.onMap">On the map</p>
+
               <label class="hazard-row">
-                <input type="checkbox" id="quake-toggle" checked />
+                <input type="checkbox" id="quake-toggle" />
                 <span class="hz-mark hz-quake" aria-hidden="true"></span>
                 <span class="hz-text">
                   <span class="hz-name" data-i18n="filters.quakes">Earthquakes</span>
-                  <span class="hz-note" id="quake-status" data-i18n="hazards.checking">Checking…</span>
+                  <span class="hz-note" id="quake-status" data-i18n="safety.off">Turned off</span>
                 </span>
                 <span class="hz-source">USGS</span>
               </label>
@@ -148,6 +156,18 @@
                 <span class="hz-text">
                   <span class="hz-name" data-i18n="hazards.volcanoes">Volcanoes</span>
                   <span class="hz-note" id="volcano-status" data-i18n="hazards.checking">Checking…</span>
+                </span>
+                <span class="hz-source">GDACS</span>
+              </label>
+
+              <p class="hp-group" data-i18n="hazards.forCountry">For the country in view</p>
+
+              <label class="hazard-row">
+                <input type="checkbox" id="disaster-toggle" checked />
+                <span class="hz-mark hz-disaster" aria-hidden="true"></span>
+                <span class="hz-text">
+                  <span class="hz-name" data-i18n="hazards.disasters">Floods, storms, fires</span>
+                  <span class="hz-note" id="disaster-status" data-i18n="hazards.checking">Checking…</span>
                 </span>
                 <span class="hz-source">GDACS</span>
               </label>
@@ -488,7 +508,9 @@
       </div>
     </dialog>
 
-    <div id="toast" role="status" aria-live="polite"></div>
+    <!-- popover=manual puts it in the top layer, above an open dialog, and
+         keeps it from being dismissed by a click meant for something else. -->
+    <div id="toast" role="status" aria-live="polite" popover="manual"></div>
     <script type="module" src="app.js"></script>
   </body>
 </html>

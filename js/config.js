@@ -105,6 +105,22 @@ export const SUGGEST = {
 export const SUGGEST_MIN_CHARS = 3;
 export const SUGGEST_DEBOUNCE_MS = 280;
 
+// --- Where the weather warnings come from --------------------------------
+// MeteoAlarm is a European system, and the page has to be able to say so.
+// Without this list, a traveller looking at Mexico would read "no warnings"
+// where the honest answer is "nobody is telling us" — a silence that means
+// something very different.
+//
+// Kept in step with COUNTRIES in supabase/ops/fetch_weather.py by
+// parity-test.mjs, which fails if the two ever drift apart.
+export const WEATHER_COUNTRIES = new Set([
+  'AT', 'BA', 'BE', 'BG', 'CH', 'CY', 'CZ', 'DE',
+  'DK', 'EE', 'ES', 'FI', 'FR', 'GB', 'GR', 'HR',
+  'HU', 'IE', 'IL', 'IS', 'IT', 'LT', 'LU', 'LV',
+  'MD', 'ME', 'MK', 'MT', 'NL', 'NO', 'PL', 'PT',
+  'RO', 'RS', 'SE', 'SI', 'SK', 'UA'
+]);
+
 // --- Where a report can be -----------------------------------------------
 // Two rules, and they do different jobs.
 //

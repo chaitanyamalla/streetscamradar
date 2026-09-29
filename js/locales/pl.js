@@ -342,4 +342,12 @@ export default {
   'weather.zoomIn': 'Przybliż do kraju',
   'weather.until': 'Do {when}',
   'weather.source': 'Wydane przez {who}, przez MeteoAlarm',
+  'hazards.onMap': 'Na mapie',
+  'hazards.forCountry': 'Dla widocznego kraju',
+  'hazards.disasters': 'Powodzie, burze, pożary',
+  'disasters.count.one': '1 trwa',
+  'disasters.count.few': '{n} trwają',
+  'disasters.count.other': '{n} trwa',
+  'disasters.none': 'Brak tutaj',
+  'weather.notCovered': 'Tylko Europa',
 };

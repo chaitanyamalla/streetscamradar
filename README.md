@@ -45,12 +45,24 @@ map's key — and names the agency that publishes it. **Everything there was
 issued by a national agency; none of it is ours, and we add no judgement of
 our own to any of it.**
 
-| Layer | Source | Shape |
-|---|---|---|
-| Earthquakes | USGS | rings, where the ground moved |
-| Volcanoes | GDACS | pins, on the volcano |
-| Weather warnings | national met services, via MeteoAlarm | a chip for the country |
-| Floods, cyclones, droughts, wildfires | GDACS | a chip for the country |
+| Layer | Source | Shape | Default |
+|---|---|---|---|
+| Earthquakes | USGS | rings, where the ground moved | **off** |
+| Volcanoes | GDACS | pins, on the volcano | on |
+| Floods, cyclones, droughts, wildfires | GDACS | a chip for the country | on |
+| Weather warnings | national met services, via MeteoAlarm | a chip for the country | on |
+
+The panel is split into what is drawn on the map and what is reported for the
+country in view, because a cyclone appearing on the chip while the panel
+listed nothing that could account for it read as a bug. Earthquakes start off:
+this is a street scam map first, and a ring across a city centre for a quake
+nobody felt competes with the pins the site exists for. Whatever a reader
+switches is remembered between visits.
+
+Weather warnings say **"Europe only"** outside MeteoAlarm's countries rather
+than "none here" — silence because nobody is telling us is a different claim
+from silence because nothing is happening. The covered list lives in
+`js/config.js` and `parity-test.mjs` fails if it drifts from the fetcher's.
 
 The split is by SHAPE, because that decides how a thing can honestly be drawn.
 A point can be a pin. A flood cannot: GDACS gives a whole event one

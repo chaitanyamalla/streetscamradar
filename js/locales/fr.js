@@ -335,4 +335,11 @@ export default {
   'weather.zoomIn': 'Zoomez sur un pays',
   'weather.until': 'Jusqu’à {when}',
   'weather.source': 'Émis par {who}, via MeteoAlarm',
+  'hazards.onMap': 'Sur la carte',
+  'hazards.forCountry': 'Pour le pays affiché',
+  'hazards.disasters': 'Crues, tempêtes, incendies',
+  'disasters.count.one': '1 en cours',
+  'disasters.count.other': '{n} en cours',
+  'disasters.none': 'Aucun ici',
+  'weather.notCovered': 'Europe uniquement',
 };

@@ -8,7 +8,8 @@
 // ---------------------------------------------------------------------------
 import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS,
          REPORT_MOVE_WINDOW_HOURS, SAFETY_MIN_ZOOM, EMERGENCY_MIN_ZOOM,
-         SUGGEST_MIN_CHARS, SUGGEST_DEBOUNCE_MS, REPORT_BOUNDS } from './js/config.js';
+         SUGGEST_MIN_CHARS, SUGGEST_DEBOUNCE_MS, REPORT_BOUNDS,
+         WEATHER_COUNTRIES } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, myConfirmedReports, editMyReport,
@@ -50,10 +51,14 @@ const state = {
   disasters: null,    // country_code -> rows, mirrored from GDACS every few hours
   weather: null,      // country_code -> rows, mirrored from MeteoAlarm
   volcanoes: [],      // the ones with a usable position, drawn on the map
-  // Which hazard layers are switched on. Everything on by default: measured
-  // across ten cities, a view holds about one hazard at a time, so none of
-  // this competes with the scam pins the map exists for.
-  layers: { quakes: true, volcanoes: true, weather: true },
+  // Which hazard layers are switched on.
+  //
+  // Earthquakes start OFF. This is a street scam map before it is anything
+  // else, and a ring drawn across a city centre for a quake nobody felt
+  // competes with the pins the site exists for. The others cost the map
+  // nothing: a volcano is a single point somewhere remote, and the country
+  // rows are a chip in the corner. Whatever the reader switches is remembered.
+  layers: { quakes: false, volcanoes: true, disasters: true, weather: true },
   countryHazards: null,    // { code, disasters, weather } for the chip and dialog
   advisoryCountry: null,   // whose advisory the chip is currently showing
   pin: null,          // { lat, lng, address, city, countryCode }
@@ -579,10 +584,21 @@ async function refreshCountryHazards(ticket) {
   const weather = state.layers.weather && code ? state.weather?.get(code) ?? [] : [];
   $('#weather-status').textContent = !state.layers.weather ? t('safety.off')
     : !code ? t('weather.zoomIn')
+    // Europe only, and saying "none here" for Mexico would be a different
+    // claim entirely: nobody is telling us, rather than nothing is happening.
+    : !WEATHER_COUNTRIES.has(code) ? t('weather.notCovered')
     : weather.length ? plural('weather.count', weather.length)
     : t('weather.none');
 
-  const rows = code ? state.disasters.get(code) ?? [] : [];
+  const rows = state.layers.disasters && code ? state.disasters.get(code) ?? [] : [];
+  // Volcanoes have a row and a mark of their own, so they are not counted
+  // twice here; what is left is the floods, cyclones, droughts and fires.
+  const named = rows.filter(r => r.kind !== 'volcano');
+  $('#disaster-status').textContent = !state.layers.disasters ? t('safety.off')
+    : !code ? t('weather.zoomIn')
+    : named.length ? plural('disasters.count', named.length)
+    : t('disasters.none');
+
   state.countryHazards = { code, disasters: rows, weather };
   if ($('#disaster-dialog').open) paintDisasterDialog();
 
@@ -1254,22 +1270,27 @@ function wireUI() {
     refreshSafety();
   });
 
-  $('#quake-toggle').addEventListener('change', e => {
-    state.layers.quakes = e.target.checked;
-    setHazardsVisible(map, state.layers.quakes);
-    refreshHazards();
-  });
-
-  $('#volcano-toggle').addEventListener('change', e => {
-    state.layers.volcanoes = e.target.checked;
-    setVolcanoesVisible(map, state.layers.volcanoes);
-    paintVolcanoes();
-  });
-
-  $('#weather-toggle').addEventListener('change', e => {
-    state.layers.weather = e.target.checked;
-    refreshHazards();
-  });
+  // The switches, and the memory of them. A reader who turned the earthquakes
+  // on should not have to do it again tomorrow — nor should one who turned
+  // something off have it come back.
+  const LAYER_BOXES = {
+    quakes: '#quake-toggle', volcanoes: '#volcano-toggle',
+    disasters: '#disaster-toggle', weather: '#weather-toggle',
+  };
+  for (const [layer, selector] of Object.entries(LAYER_BOXES)) {
+    const stored = readSetting(`ssr.layer.${layer}`);
+    if (stored !== null) state.layers[layer] = stored === 'true';
+    $(selector).checked = state.layers[layer];
+    $(selector).addEventListener('change', e => {
+      state.layers[layer] = e.target.checked;
+      writeSetting(`ssr.layer.${layer}`, String(e.target.checked));
+      if (layer === 'quakes') setHazardsVisible(map, e.target.checked);
+      if (layer === 'volcanoes') setVolcanoesVisible(map, e.target.checked);
+      refreshHazards();
+    });
+  }
+  setHazardsVisible(map, state.layers.quakes);
+  setVolcanoesVisible(map, state.layers.volcanoes);
 
   $('#hazard-layers').addEventListener('click', () => toggleHazardPanel());
   $('#hazard-panel-close').addEventListener('click', () => toggleHazardPanel(false));

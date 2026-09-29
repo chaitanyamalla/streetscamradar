@@ -355,4 +355,11 @@ export default {
   'weather.zoomIn': 'Zoom in op een land',
   'weather.until': 'Tot {when}',
   'weather.source': 'Uitgegeven door {who}, via MeteoAlarm',
+  'hazards.onMap': 'Op de kaart',
+  'hazards.forCountry': 'Voor het land in beeld',
+  'hazards.disasters': 'Overstromingen, stormen, branden',
+  'disasters.count.one': '1 actief',
+  'disasters.count.other': '{n} actief',
+  'disasters.none': 'Geen hier',
+  'weather.notCovered': 'Alleen Europa',
 };

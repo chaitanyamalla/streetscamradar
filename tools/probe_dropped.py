@@ -2,10 +2,11 @@
 # ---------------------------------------------------------------------------
 # Why is something on gdacs.org missing from our map?
 #
-# An orange flood in India shows on their live map and not on ours. Rather than
-# read our filters and reason about them, this runs them: it fetches the same
-# list the refresh does, applies the real fetch_disasters rules to every event,
-# and prints what each one was kept or dropped FOR.
+# It answered the orange flood in India, and now it is pointed at the
+# earthquakes, of which the table holds none. Rather than read our filters and
+# reason about them, this runs them: it fetches the same list the refresh does,
+# applies the real fetch_disasters rules to every event, and prints what each
+# one was kept or dropped FOR.
 #
 # It imports the generator itself, so there is no second copy of the rules to
 # drift out of step with the first.
@@ -86,25 +87,36 @@ def main():
         print(f"  {str(props.get('eventtype')):<3} {str(props.get('alertlevel')):<7} "
               f"{str(props.get('country'))[:26]:<28} {str(props.get('name'))[:34]:<36} {why}")
 
-    # --- and specifically: anything at all touching India --------------------
-    print(f"\n{'=' * 78}\nINDIA, in full\n{'=' * 78}")
+    # --- and specifically: every earthquake, in full -------------------------
+    #
+    # None of them reach the table, and there are two very different reasons
+    # that could be true: GDACS graded them all Green and none was magnitude 6
+    # (which is an ordinary week, and the filter working), or the magnitude is
+    # not being read at all (which would drop every earthquake forever, and
+    # look exactly the same from outside). The only way to tell them apart is
+    # to print what severity_numbers made of each one.
+    print(f"\n{'=' * 78}\nEARTHQUAKES, in full\n{'=' * 78}")
     found = 0
     for feature in features:
         props = (feature or {}).get("properties") or {}
-        blob = (str(props.get("country")) + str(props.get("affectedcountries"))
-                + str(props.get("name")))
-        if "India" not in blob and "'IN'" not in blob:
+        if str(props.get("eventtype") or "").strip().upper() != "EQ":
             continue
         found += 1
+        magnitude, depth = fd.severity_numbers(props)
         state, why = verdict(props, feature)
         print(f"\n  {state}  {why or 'on the map'}")
-        for key in ("eventtype", "alertlevel", "episodealertlevel", "name", "country",
-                    "affectedcountries", "fromdate", "todate", "iscurrent",
-                    "severitydata", "eventid", "episodeid"):
+        print(f"      read as              = M{magnitude}, depth {depth} km")
+        for key in ("alertlevel", "episodealertlevel", "name", "country",
+                    "fromdate", "todate", "iscurrent", "severitydata",
+                    "eventid", "episodeid"):
             print(f"      {key:<20} = {str(props.get(key))[:110]!r}")
-        print(f"      geometry             = {((feature or {}).get('geometry') or {}).get('coordinates')}")
     if not found:
-        print("  GDACS's event list carries nothing for India at all.")
+        print("  GDACS's event list carries no earthquakes at all.")
+    else:
+        quakes = [(f.get("properties") or {}) for f in features
+                  if str((f.get("properties") or {}).get("eventtype") or "").upper() == "EQ"]
+        read = sum(1 for q in quakes if fd.severity_numbers(q)[0] is not None)
+        print(f"\n  {found} earthquakes seen, a magnitude read for {read} of them.")
 
     print("\nDone.")
 

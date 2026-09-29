@@ -41,12 +41,13 @@ insert into public.app_settings (key, value, note) values
   ('public_detail_max_span',   '0.35',   'Signed-out visitors see individual reports only when the map spans fewer degrees than this.'),
   -- Where reporting is closed. Set from the dashboard, no deploy needed:
   --   update public.app_settings
-  --      set value = '{"countries": ["XX"], "continents": ["AN"]}'
+  --      set value = '{"countries": [], "groups": ["south-eastern-asia"]}'
   --    where key = 'blocked_regions';
-  -- Reading is unaffected: what is already on the map stays readable
-  -- everywhere. See public.reporting_allowed().
-  ('blocked_regions', '{"countries": [], "continents": []}',
-   'Countries and continents where new reports are refused. Reading is unaffected.')
+  -- A group is a continent, a zone or a union — select * from
+  -- public.region_catalog for the whole menu. Reading is never affected: what
+  -- is on the map stays readable everywhere.
+  ('blocked_regions', '{"countries": [], "groups": []}',
+   'Countries and groups where new reports are refused. Reading is unaffected.')
 on conflict (key) do nothing;
 
 alter table public.app_settings enable row level security;
@@ -68,74 +69,187 @@ returns interval language sql stable as $$
 $$;
 
 -- ---------------------------------------------------------------------------
--- Which continent each country is on.
+-- Country groups: the handles an administrator actually uses.
 --
--- Only here so that closing a continent to reporting means something. Every
--- current ISO 3166-1 country is present; the list was checked against the
--- region codes the browser itself knows, so a typo or an omission would have
--- shown up rather than silently leaving a country unblockable.
+-- Closing somewhere should not mean listing forty countries by hand, so a
+-- country belongs to several groups at once and any of them can be closed:
 --
--- Continent codes are ours: AF AN AS EU NA OC SA. Two of them collide with
--- country codes (AS is American Samoa, NA is Namibia), which is why countries
--- and continents are named separately in blocked_regions rather than thrown
--- into one list.
+--   continent  AF AN AS EU NA OC SA
+--   zone       the UN M49 sub-regions — western-europe, south-eastern-asia,
+--              caribbean, northern-africa and so on. A published standard,
+--              not groupings of our own invention.
+--   union      the ones people name out loud: eu, schengen.
 --
--- The awkward ones, decided once and written down: Russia and Cyprus sit in
--- Europe, Turkey in Asia, and the sub-Antarctic islands — Bouvet, Heard and
--- McDonald, South Georgia, the French Southern Territories — in Antarctica.
+-- Every current ISO 3166-1 country is here, on exactly one continent and in
+-- exactly one zone; the lists were checked against the region codes the
+-- browser itself knows, so a typo or an omission would have shown up rather
+-- than leaving a country quietly unblockable.
+--
+-- Two zones deliberately cross a continent, because the standard does: Cyprus
+-- is in western-asia while sitting on our Europe continent, and M49 files
+-- Christmas Island and Heard Island under australia-and-new-zealand. Such a
+-- country is in both groups, and closing either closes it.
+--
+-- The other calls, made once and written here: Russia and Cyprus on the
+-- Europe continent, Turkey on Asia, the sub-Antarctic islands on Antarctica.
+-- Schengen includes Bulgaria and Romania, full members since January 2025.
 -- ---------------------------------------------------------------------------
-create table if not exists public.country_continents (
-  country_code char(2) primary key,
-  continent    char(2) not null check (continent in ('AF','AN','AS','EU','NA','OC','SA'))
+drop table if exists public.country_continents;   -- an earlier, narrower shape
+
+create table if not exists public.country_groups (
+  group_code   text    not null,
+  kind         text    not null check (kind in ('continent','zone','union')),
+  country_code char(2) not null,
+  primary key (group_code, country_code)
 );
 
-insert into public.country_continents (country_code, continent) values
-  ('AD','EU'), ('AE','AS'), ('AF','AS'), ('AG','NA'), ('AI','NA'), ('AL','EU'),
-  ('AM','AS'), ('AO','AF'), ('AQ','AN'), ('AR','SA'), ('AS','OC'), ('AT','EU'),
-  ('AU','OC'), ('AW','NA'), ('AX','EU'), ('AZ','AS'), ('BA','EU'), ('BB','NA'),
-  ('BD','AS'), ('BE','EU'), ('BF','AF'), ('BG','EU'), ('BH','AS'), ('BI','AF'),
-  ('BJ','AF'), ('BL','NA'), ('BM','NA'), ('BN','AS'), ('BO','SA'), ('BQ','NA'),
-  ('BR','SA'), ('BS','NA'), ('BT','AS'), ('BV','AN'), ('BW','AF'), ('BY','EU'),
-  ('BZ','NA'), ('CA','NA'), ('CC','AS'), ('CD','AF'), ('CF','AF'), ('CG','AF'),
-  ('CH','EU'), ('CI','AF'), ('CK','OC'), ('CL','SA'), ('CM','AF'), ('CN','AS'),
-  ('CO','SA'), ('CR','NA'), ('CU','NA'), ('CV','AF'), ('CW','NA'), ('CX','AS'),
-  ('CY','EU'), ('CZ','EU'), ('DE','EU'), ('DJ','AF'), ('DK','EU'), ('DM','NA'),
-  ('DO','NA'), ('DZ','AF'), ('EC','SA'), ('EE','EU'), ('EG','AF'), ('EH','AF'),
-  ('ER','AF'), ('ES','EU'), ('ET','AF'), ('FI','EU'), ('FJ','OC'), ('FK','SA'),
-  ('FM','OC'), ('FO','EU'), ('FR','EU'), ('GA','AF'), ('GB','EU'), ('GD','NA'),
-  ('GE','AS'), ('GF','SA'), ('GG','EU'), ('GH','AF'), ('GI','EU'), ('GL','NA'),
-  ('GM','AF'), ('GN','AF'), ('GP','NA'), ('GQ','AF'), ('GR','EU'), ('GS','AN'),
-  ('GT','NA'), ('GU','OC'), ('GW','AF'), ('GY','SA'), ('HK','AS'), ('HM','AN'),
-  ('HN','NA'), ('HR','EU'), ('HT','NA'), ('HU','EU'), ('ID','AS'), ('IE','EU'),
-  ('IL','AS'), ('IM','EU'), ('IN','AS'), ('IO','AS'), ('IQ','AS'), ('IR','AS'),
-  ('IS','EU'), ('IT','EU'), ('JE','EU'), ('JM','NA'), ('JO','AS'), ('JP','AS'),
-  ('KE','AF'), ('KG','AS'), ('KH','AS'), ('KI','OC'), ('KM','AF'), ('KN','NA'),
-  ('KP','AS'), ('KR','AS'), ('KW','AS'), ('KY','NA'), ('KZ','AS'), ('LA','AS'),
-  ('LB','AS'), ('LC','NA'), ('LI','EU'), ('LK','AS'), ('LR','AF'), ('LS','AF'),
-  ('LT','EU'), ('LU','EU'), ('LV','EU'), ('LY','AF'), ('MA','AF'), ('MC','EU'),
-  ('MD','EU'), ('ME','EU'), ('MF','NA'), ('MG','AF'), ('MH','OC'), ('MK','EU'),
-  ('ML','AF'), ('MM','AS'), ('MN','AS'), ('MO','AS'), ('MP','OC'), ('MQ','NA'),
-  ('MR','AF'), ('MS','NA'), ('MT','EU'), ('MU','AF'), ('MV','AS'), ('MW','AF'),
-  ('MX','NA'), ('MY','AS'), ('MZ','AF'), ('NA','AF'), ('NC','OC'), ('NE','AF'),
-  ('NF','OC'), ('NG','AF'), ('NI','NA'), ('NL','EU'), ('NO','EU'), ('NP','AS'),
-  ('NR','OC'), ('NU','OC'), ('NZ','OC'), ('OM','AS'), ('PA','NA'), ('PE','SA'),
-  ('PF','OC'), ('PG','OC'), ('PH','AS'), ('PK','AS'), ('PL','EU'), ('PM','NA'),
-  ('PN','OC'), ('PR','NA'), ('PS','AS'), ('PT','EU'), ('PW','OC'), ('PY','SA'),
-  ('QA','AS'), ('RE','AF'), ('RO','EU'), ('RS','EU'), ('RU','EU'), ('RW','AF'),
-  ('SA','AS'), ('SB','OC'), ('SC','AF'), ('SD','AF'), ('SE','EU'), ('SG','AS'),
-  ('SH','AF'), ('SI','EU'), ('SJ','EU'), ('SK','EU'), ('SL','AF'), ('SM','EU'),
-  ('SN','AF'), ('SO','AF'), ('SR','SA'), ('SS','AF'), ('ST','AF'), ('SV','NA'),
-  ('SX','NA'), ('SY','AS'), ('SZ','AF'), ('TC','NA'), ('TD','AF'), ('TF','AN'),
-  ('TG','AF'), ('TH','AS'), ('TJ','AS'), ('TK','OC'), ('TL','AS'), ('TM','AS'),
-  ('TN','AF'), ('TO','OC'), ('TR','AS'), ('TT','NA'), ('TV','OC'), ('TW','AS'),
-  ('TZ','AF'), ('UA','EU'), ('UG','AF'), ('UM','OC'), ('US','NA'), ('UY','SA'),
-  ('UZ','AS'), ('VA','EU'), ('VC','NA'), ('VE','SA'), ('VG','NA'), ('VI','NA'),
-  ('VN','AS'), ('VU','OC'), ('WF','OC'), ('WS','OC'), ('XK','EU'), ('YE','AS'),
-  ('YT','AF'), ('ZA','AF'), ('ZM','AF'), ('ZW','AF')
-on conflict (country_code) do update set continent = excluded.continent;
+create index if not exists country_groups_country_idx
+  on public.country_groups (country_code);
 
-alter table public.country_continents enable row level security;
-revoke all on table public.country_continents from anon, authenticated;
+insert into public.country_groups (group_code, kind, country_code) values
+  ('AF','continent','AO'), ('AF','continent','BF'), ('AF','continent','BI'), ('AF','continent','BJ'),
+  ('AF','continent','BW'), ('AF','continent','CD'), ('AF','continent','CF'), ('AF','continent','CG'),
+  ('AF','continent','CI'), ('AF','continent','CM'), ('AF','continent','CV'), ('AF','continent','DJ'),
+  ('AF','continent','DZ'), ('AF','continent','EG'), ('AF','continent','EH'), ('AF','continent','ER'),
+  ('AF','continent','ET'), ('AF','continent','GA'), ('AF','continent','GH'), ('AF','continent','GM'),
+  ('AF','continent','GN'), ('AF','continent','GQ'), ('AF','continent','GW'), ('AF','continent','KE'),
+  ('AF','continent','KM'), ('AF','continent','LR'), ('AF','continent','LS'), ('AF','continent','LY'),
+  ('AF','continent','MA'), ('AF','continent','MG'), ('AF','continent','ML'), ('AF','continent','MR'),
+  ('AF','continent','MU'), ('AF','continent','MW'), ('AF','continent','MZ'), ('AF','continent','NA'),
+  ('AF','continent','NE'), ('AF','continent','NG'), ('AF','continent','RE'), ('AF','continent','RW'),
+  ('AF','continent','SC'), ('AF','continent','SD'), ('AF','continent','SH'), ('AF','continent','SL'),
+  ('AF','continent','SN'), ('AF','continent','SO'), ('AF','continent','SS'), ('AF','continent','ST'),
+  ('AF','continent','SZ'), ('AF','continent','TD'), ('AF','continent','TG'), ('AF','continent','TN'),
+  ('AF','continent','TZ'), ('AF','continent','UG'), ('AF','continent','YT'), ('AF','continent','ZA'),
+  ('AF','continent','ZM'), ('AF','continent','ZW'), ('AN','continent','AQ'), ('AN','continent','BV'),
+  ('AN','continent','GS'), ('AN','continent','HM'), ('AN','continent','TF'), ('antarctica','zone','AQ'),
+  ('antarctica','zone','BV'), ('antarctica','zone','GS'), ('antarctica','zone','TF'), ('AS','continent','AE'),
+  ('AS','continent','AF'), ('AS','continent','AM'), ('AS','continent','AZ'), ('AS','continent','BD'),
+  ('AS','continent','BH'), ('AS','continent','BN'), ('AS','continent','BT'), ('AS','continent','CC'),
+  ('AS','continent','CN'), ('AS','continent','CX'), ('AS','continent','GE'), ('AS','continent','HK'),
+  ('AS','continent','ID'), ('AS','continent','IL'), ('AS','continent','IN'), ('AS','continent','IO'),
+  ('AS','continent','IQ'), ('AS','continent','IR'), ('AS','continent','JO'), ('AS','continent','JP'),
+  ('AS','continent','KG'), ('AS','continent','KH'), ('AS','continent','KP'), ('AS','continent','KR'),
+  ('AS','continent','KW'), ('AS','continent','KZ'), ('AS','continent','LA'), ('AS','continent','LB'),
+  ('AS','continent','LK'), ('AS','continent','MM'), ('AS','continent','MN'), ('AS','continent','MO'),
+  ('AS','continent','MV'), ('AS','continent','MY'), ('AS','continent','NP'), ('AS','continent','OM'),
+  ('AS','continent','PH'), ('AS','continent','PK'), ('AS','continent','PS'), ('AS','continent','QA'),
+  ('AS','continent','SA'), ('AS','continent','SG'), ('AS','continent','SY'), ('AS','continent','TH'),
+  ('AS','continent','TJ'), ('AS','continent','TL'), ('AS','continent','TM'), ('AS','continent','TR'),
+  ('AS','continent','TW'), ('AS','continent','UZ'), ('AS','continent','VN'), ('AS','continent','YE'),
+  ('australia-and-new-zealand','zone','AU'), ('australia-and-new-zealand','zone','CC'), ('australia-and-new-zealand','zone','CX'), ('australia-and-new-zealand','zone','HM'),
+  ('australia-and-new-zealand','zone','NF'), ('australia-and-new-zealand','zone','NZ'), ('caribbean','zone','AG'), ('caribbean','zone','AI'),
+  ('caribbean','zone','AW'), ('caribbean','zone','BB'), ('caribbean','zone','BL'), ('caribbean','zone','BQ'),
+  ('caribbean','zone','BS'), ('caribbean','zone','CU'), ('caribbean','zone','CW'), ('caribbean','zone','DM'),
+  ('caribbean','zone','DO'), ('caribbean','zone','GD'), ('caribbean','zone','GP'), ('caribbean','zone','HT'),
+  ('caribbean','zone','JM'), ('caribbean','zone','KN'), ('caribbean','zone','KY'), ('caribbean','zone','LC'),
+  ('caribbean','zone','MF'), ('caribbean','zone','MQ'), ('caribbean','zone','MS'), ('caribbean','zone','PR'),
+  ('caribbean','zone','SX'), ('caribbean','zone','TC'), ('caribbean','zone','TT'), ('caribbean','zone','VC'),
+  ('caribbean','zone','VG'), ('caribbean','zone','VI'), ('central-america','zone','BZ'), ('central-america','zone','CR'),
+  ('central-america','zone','GT'), ('central-america','zone','HN'), ('central-america','zone','MX'), ('central-america','zone','NI'),
+  ('central-america','zone','PA'), ('central-america','zone','SV'), ('central-asia','zone','KG'), ('central-asia','zone','KZ'),
+  ('central-asia','zone','TJ'), ('central-asia','zone','TM'), ('central-asia','zone','UZ'), ('eastern-africa','zone','BI'),
+  ('eastern-africa','zone','DJ'), ('eastern-africa','zone','ER'), ('eastern-africa','zone','ET'), ('eastern-africa','zone','KE'),
+  ('eastern-africa','zone','KM'), ('eastern-africa','zone','MG'), ('eastern-africa','zone','MU'), ('eastern-africa','zone','MW'),
+  ('eastern-africa','zone','MZ'), ('eastern-africa','zone','RE'), ('eastern-africa','zone','RW'), ('eastern-africa','zone','SC'),
+  ('eastern-africa','zone','SO'), ('eastern-africa','zone','SS'), ('eastern-africa','zone','TZ'), ('eastern-africa','zone','UG'),
+  ('eastern-africa','zone','YT'), ('eastern-africa','zone','ZM'), ('eastern-africa','zone','ZW'), ('eastern-asia','zone','CN'),
+  ('eastern-asia','zone','HK'), ('eastern-asia','zone','JP'), ('eastern-asia','zone','KP'), ('eastern-asia','zone','KR'),
+  ('eastern-asia','zone','MN'), ('eastern-asia','zone','MO'), ('eastern-asia','zone','TW'), ('eastern-europe','zone','BG'),
+  ('eastern-europe','zone','BY'), ('eastern-europe','zone','CZ'), ('eastern-europe','zone','HU'), ('eastern-europe','zone','MD'),
+  ('eastern-europe','zone','PL'), ('eastern-europe','zone','RO'), ('eastern-europe','zone','RU'), ('eastern-europe','zone','SK'),
+  ('eastern-europe','zone','UA'), ('eu','union','AT'), ('eu','union','BE'), ('eu','union','BG'),
+  ('eu','union','CY'), ('eu','union','CZ'), ('eu','union','DE'), ('eu','union','DK'),
+  ('eu','union','EE'), ('eu','union','ES'), ('eu','union','FI'), ('eu','union','FR'),
+  ('eu','union','GR'), ('eu','union','HR'), ('eu','union','HU'), ('eu','union','IE'),
+  ('eu','union','IT'), ('eu','union','LT'), ('eu','union','LU'), ('eu','union','LV'),
+  ('eu','union','MT'), ('eu','union','NL'), ('eu','union','PL'), ('eu','union','PT'),
+  ('eu','union','RO'), ('eu','union','SE'), ('eu','union','SI'), ('eu','union','SK'),
+  ('EU','continent','AD'), ('EU','continent','AL'), ('EU','continent','AT'), ('EU','continent','AX'),
+  ('EU','continent','BA'), ('EU','continent','BE'), ('EU','continent','BG'), ('EU','continent','BY'),
+  ('EU','continent','CH'), ('EU','continent','CY'), ('EU','continent','CZ'), ('EU','continent','DE'),
+  ('EU','continent','DK'), ('EU','continent','EE'), ('EU','continent','ES'), ('EU','continent','FI'),
+  ('EU','continent','FO'), ('EU','continent','FR'), ('EU','continent','GB'), ('EU','continent','GG'),
+  ('EU','continent','GI'), ('EU','continent','GR'), ('EU','continent','HR'), ('EU','continent','HU'),
+  ('EU','continent','IE'), ('EU','continent','IM'), ('EU','continent','IS'), ('EU','continent','IT'),
+  ('EU','continent','JE'), ('EU','continent','LI'), ('EU','continent','LT'), ('EU','continent','LU'),
+  ('EU','continent','LV'), ('EU','continent','MC'), ('EU','continent','MD'), ('EU','continent','ME'),
+  ('EU','continent','MK'), ('EU','continent','MT'), ('EU','continent','NL'), ('EU','continent','NO'),
+  ('EU','continent','PL'), ('EU','continent','PT'), ('EU','continent','RO'), ('EU','continent','RS'),
+  ('EU','continent','RU'), ('EU','continent','SE'), ('EU','continent','SI'), ('EU','continent','SJ'),
+  ('EU','continent','SK'), ('EU','continent','SM'), ('EU','continent','UA'), ('EU','continent','VA'),
+  ('EU','continent','XK'), ('melanesia','zone','FJ'), ('melanesia','zone','NC'), ('melanesia','zone','PG'),
+  ('melanesia','zone','SB'), ('melanesia','zone','VU'), ('micronesia','zone','FM'), ('micronesia','zone','GU'),
+  ('micronesia','zone','KI'), ('micronesia','zone','MH'), ('micronesia','zone','MP'), ('micronesia','zone','NR'),
+  ('micronesia','zone','PW'), ('micronesia','zone','UM'), ('middle-africa','zone','AO'), ('middle-africa','zone','CD'),
+  ('middle-africa','zone','CF'), ('middle-africa','zone','CG'), ('middle-africa','zone','CM'), ('middle-africa','zone','GA'),
+  ('middle-africa','zone','GQ'), ('middle-africa','zone','ST'), ('middle-africa','zone','TD'), ('NA','continent','AG'),
+  ('NA','continent','AI'), ('NA','continent','AW'), ('NA','continent','BB'), ('NA','continent','BL'),
+  ('NA','continent','BM'), ('NA','continent','BQ'), ('NA','continent','BS'), ('NA','continent','BZ'),
+  ('NA','continent','CA'), ('NA','continent','CR'), ('NA','continent','CU'), ('NA','continent','CW'),
+  ('NA','continent','DM'), ('NA','continent','DO'), ('NA','continent','GD'), ('NA','continent','GL'),
+  ('NA','continent','GP'), ('NA','continent','GT'), ('NA','continent','HN'), ('NA','continent','HT'),
+  ('NA','continent','JM'), ('NA','continent','KN'), ('NA','continent','KY'), ('NA','continent','LC'),
+  ('NA','continent','MF'), ('NA','continent','MQ'), ('NA','continent','MS'), ('NA','continent','MX'),
+  ('NA','continent','NI'), ('NA','continent','PA'), ('NA','continent','PM'), ('NA','continent','PR'),
+  ('NA','continent','SV'), ('NA','continent','SX'), ('NA','continent','TC'), ('NA','continent','TT'),
+  ('NA','continent','US'), ('NA','continent','VC'), ('NA','continent','VG'), ('NA','continent','VI'),
+  ('northern-africa','zone','DZ'), ('northern-africa','zone','EG'), ('northern-africa','zone','EH'), ('northern-africa','zone','LY'),
+  ('northern-africa','zone','MA'), ('northern-africa','zone','SD'), ('northern-africa','zone','TN'), ('northern-america','zone','BM'),
+  ('northern-america','zone','CA'), ('northern-america','zone','GL'), ('northern-america','zone','PM'), ('northern-america','zone','US'),
+  ('northern-europe','zone','AX'), ('northern-europe','zone','DK'), ('northern-europe','zone','EE'), ('northern-europe','zone','FI'),
+  ('northern-europe','zone','FO'), ('northern-europe','zone','GB'), ('northern-europe','zone','GG'), ('northern-europe','zone','IE'),
+  ('northern-europe','zone','IM'), ('northern-europe','zone','IS'), ('northern-europe','zone','JE'), ('northern-europe','zone','LT'),
+  ('northern-europe','zone','LV'), ('northern-europe','zone','NO'), ('northern-europe','zone','SE'), ('northern-europe','zone','SJ'),
+  ('OC','continent','AS'), ('OC','continent','AU'), ('OC','continent','CK'), ('OC','continent','FJ'),
+  ('OC','continent','FM'), ('OC','continent','GU'), ('OC','continent','KI'), ('OC','continent','MH'),
+  ('OC','continent','MP'), ('OC','continent','NC'), ('OC','continent','NF'), ('OC','continent','NR'),
+  ('OC','continent','NU'), ('OC','continent','NZ'), ('OC','continent','PF'), ('OC','continent','PG'),
+  ('OC','continent','PN'), ('OC','continent','PW'), ('OC','continent','SB'), ('OC','continent','TK'),
+  ('OC','continent','TO'), ('OC','continent','TV'), ('OC','continent','UM'), ('OC','continent','VU'),
+  ('OC','continent','WF'), ('OC','continent','WS'), ('polynesia','zone','AS'), ('polynesia','zone','CK'),
+  ('polynesia','zone','NU'), ('polynesia','zone','PF'), ('polynesia','zone','PN'), ('polynesia','zone','TK'),
+  ('polynesia','zone','TO'), ('polynesia','zone','TV'), ('polynesia','zone','WF'), ('polynesia','zone','WS'),
+  ('SA','continent','AR'), ('SA','continent','BO'), ('SA','continent','BR'), ('SA','continent','CL'),
+  ('SA','continent','CO'), ('SA','continent','EC'), ('SA','continent','FK'), ('SA','continent','GF'),
+  ('SA','continent','GY'), ('SA','continent','PE'), ('SA','continent','PY'), ('SA','continent','SR'),
+  ('SA','continent','UY'), ('SA','continent','VE'), ('schengen','union','AT'), ('schengen','union','BE'),
+  ('schengen','union','BG'), ('schengen','union','CH'), ('schengen','union','CZ'), ('schengen','union','DE'),
+  ('schengen','union','DK'), ('schengen','union','EE'), ('schengen','union','ES'), ('schengen','union','FI'),
+  ('schengen','union','FR'), ('schengen','union','GR'), ('schengen','union','HR'), ('schengen','union','HU'),
+  ('schengen','union','IS'), ('schengen','union','IT'), ('schengen','union','LI'), ('schengen','union','LT'),
+  ('schengen','union','LU'), ('schengen','union','LV'), ('schengen','union','MT'), ('schengen','union','NL'),
+  ('schengen','union','NO'), ('schengen','union','PL'), ('schengen','union','PT'), ('schengen','union','RO'),
+  ('schengen','union','SE'), ('schengen','union','SI'), ('schengen','union','SK'), ('south-america','zone','AR'),
+  ('south-america','zone','BO'), ('south-america','zone','BR'), ('south-america','zone','CL'), ('south-america','zone','CO'),
+  ('south-america','zone','EC'), ('south-america','zone','FK'), ('south-america','zone','GF'), ('south-america','zone','GY'),
+  ('south-america','zone','PE'), ('south-america','zone','PY'), ('south-america','zone','SR'), ('south-america','zone','UY'),
+  ('south-america','zone','VE'), ('south-eastern-asia','zone','BN'), ('south-eastern-asia','zone','ID'), ('south-eastern-asia','zone','KH'),
+  ('south-eastern-asia','zone','LA'), ('south-eastern-asia','zone','MM'), ('south-eastern-asia','zone','MY'), ('south-eastern-asia','zone','PH'),
+  ('south-eastern-asia','zone','SG'), ('south-eastern-asia','zone','TH'), ('south-eastern-asia','zone','TL'), ('south-eastern-asia','zone','VN'),
+  ('southern-africa','zone','BW'), ('southern-africa','zone','LS'), ('southern-africa','zone','NA'), ('southern-africa','zone','SZ'),
+  ('southern-africa','zone','ZA'), ('southern-asia','zone','AF'), ('southern-asia','zone','BD'), ('southern-asia','zone','BT'),
+  ('southern-asia','zone','IN'), ('southern-asia','zone','IO'), ('southern-asia','zone','IR'), ('southern-asia','zone','LK'),
+  ('southern-asia','zone','MV'), ('southern-asia','zone','NP'), ('southern-asia','zone','PK'), ('southern-europe','zone','AD'),
+  ('southern-europe','zone','AL'), ('southern-europe','zone','BA'), ('southern-europe','zone','ES'), ('southern-europe','zone','GI'),
+  ('southern-europe','zone','GR'), ('southern-europe','zone','HR'), ('southern-europe','zone','IT'), ('southern-europe','zone','ME'),
+  ('southern-europe','zone','MK'), ('southern-europe','zone','MT'), ('southern-europe','zone','PT'), ('southern-europe','zone','RS'),
+  ('southern-europe','zone','SI'), ('southern-europe','zone','SM'), ('southern-europe','zone','VA'), ('southern-europe','zone','XK'),
+  ('western-africa','zone','BF'), ('western-africa','zone','BJ'), ('western-africa','zone','CI'), ('western-africa','zone','CV'),
+  ('western-africa','zone','GH'), ('western-africa','zone','GM'), ('western-africa','zone','GN'), ('western-africa','zone','GW'),
+  ('western-africa','zone','LR'), ('western-africa','zone','ML'), ('western-africa','zone','MR'), ('western-africa','zone','NE'),
+  ('western-africa','zone','NG'), ('western-africa','zone','SH'), ('western-africa','zone','SL'), ('western-africa','zone','SN'),
+  ('western-africa','zone','TG'), ('western-asia','zone','AE'), ('western-asia','zone','AM'), ('western-asia','zone','AZ'),
+  ('western-asia','zone','BH'), ('western-asia','zone','CY'), ('western-asia','zone','GE'), ('western-asia','zone','IL'),
+  ('western-asia','zone','IQ'), ('western-asia','zone','JO'), ('western-asia','zone','KW'), ('western-asia','zone','LB'),
+  ('western-asia','zone','OM'), ('western-asia','zone','PS'), ('western-asia','zone','QA'), ('western-asia','zone','SA'),
+  ('western-asia','zone','SY'), ('western-asia','zone','TR'), ('western-asia','zone','YE'), ('western-europe','zone','AT'),
+  ('western-europe','zone','BE'), ('western-europe','zone','CH'), ('western-europe','zone','DE'), ('western-europe','zone','FR'),
+  ('western-europe','zone','LI'), ('western-europe','zone','LU'), ('western-europe','zone','MC'), ('western-europe','zone','NL')
+on conflict (group_code, country_code) do update set kind = excluded.kind;
+
+alter table public.country_groups enable row level security;
+revoke all on table public.country_groups from anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Where reporting is closed.
@@ -146,9 +260,9 @@ revoke all on table public.country_continents from anon, authenticated;
 --
 -- The honest limit: a report carries the country its reporter's browser was
 -- told it was in, so the check is only as good as that. Hence the second
--- clause — while any block is in force, a report with no country at all is
--- refused, because "I could not tell you where this is" is exactly what a
--- bypass would say. With nothing blocked, nothing changes for anybody.
+-- clause in reporting_allowed — while any block is in force, a report with no
+-- country at all is refused, because "I could not tell you where this is" is
+-- exactly what a bypass would say. With nothing blocked, nothing changes.
 -- ---------------------------------------------------------------------------
 create or replace function public.blocked_countries()
 returns text[] language sql stable security definer set search_path = public as $$
@@ -157,13 +271,14 @@ returns text[] language sql stable security definer set search_path = public as 
       from public.app_settings where key = 'blocked_regions'
   )
   select coalesce(array(
-    select jsonb_array_elements_text(coalesce((select value->'countries' from setting), '[]'::jsonb))
+    select jsonb_array_elements_text(
+      coalesce((select value->'countries' from setting), '[]'::jsonb))
     union
-    select c.country_code
-      from public.country_continents c
-     where c.continent in (
+    select g.country_code
+      from public.country_groups g
+     where g.group_code in (
        select jsonb_array_elements_text(
-         coalesce((select value->'continents' from setting), '[]'::jsonb)))
+         coalesce((select value->'groups' from setting), '[]'::jsonb)))
   ), '{}'::text[]);
 $$;
 
@@ -179,6 +294,14 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 
 grant execute on function public.reporting_allowed(text) to anon, authenticated;
+
+-- Every handle there is, so an administrator can read the menu rather than
+-- guess at it. Admin-only, like the table behind it.
+create or replace view public.region_catalog as
+  select group_code, kind, count(*)::int as countries,
+         string_agg(country_code, ' ' order by country_code) as members
+    from public.country_groups
+   group by group_code, kind;
 
 -- ---------------------------------------------------------------------------
 -- Scam categories. A table, not an enum, so you can add one from the Supabase

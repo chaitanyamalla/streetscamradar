@@ -240,9 +240,12 @@ select * from (
               then 'PASS' else 'FAIL' end
 
   union all
-  select 28, 'every country placed on a continent',
-         (select count(*) || ' countries' from public.country_continents),
-         case when (select count(*) from public.country_continents) >= 240
+  select 28, 'country groups seeded',
+         (select count(distinct group_code) || ' groups over '
+               || count(distinct country_code) || ' countries'
+            from public.country_groups),
+         case when (select count(distinct country_code) from public.country_groups) >= 240
+               and (select count(distinct group_code) from public.country_groups) >= 25
               then 'PASS' else 'INCOMPLETE' end
 
   union all

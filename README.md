@@ -109,18 +109,31 @@ a parser — it is what these were written from.
 
 ### Closing a region to reporting
 
-An administrator can close any country or continent to **new reports**, with no
-deploy:
+An administrator can close somewhere to **new reports** with no deploy. You
+should almost never name countries one at a time — close a group:
+
+| Kind | Handles |
+|---|---|
+| continent | `AF` `AN` `AS` `EU` `NA` `OC` `SA` |
+| zone | `western-europe`, `south-eastern-asia`, `caribbean`, `western-asia`, `northern-africa` … the 23 UN M49 sub-regions |
+| union | `eu`, `schengen` |
 
 ```sql
 update public.app_settings
-   set value = '{"countries": ["TH"], "continents": ["AN"]}'
+   set value = '{"countries": [], "groups": ["south-eastern-asia"]}'
  where key = 'blocked_regions';
 ```
 
+`select * from public.region_catalog` lists every handle with its members, and
 `supabase/ops/set_blocked_regions.sql` has the whole thing with checks either
-side of it. Continent codes are ours — AF AN AS EU NA OC SA — and expand
-through `public.country_continents`, which places all 250 countries.
+side. The `countries` list is for the odd exception, not the usual case.
+
+All 250 countries sit on exactly one continent and in exactly one zone; the
+lists were checked against the region codes the browser itself knows, so a
+typo would have shown up rather than leaving a country quietly unblockable.
+Two zones cross a continent because the standard does — Cyprus is in
+`western-asia` while sitting on the `EU` continent — and a country in both is
+closed by either.
 
 **Reading is never affected.** Everything already on the map stays visible to
 everyone, everywhere. What changes is that the report button says the region is

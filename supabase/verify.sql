@@ -53,9 +53,20 @@ select * from (
     from public.scam_categories
 
   union all
-  select 6, 'settings seeded', count(*) || ' settings',
-         case when count(*) = 5 then 'PASS' else 'FAIL' end
-    from public.app_settings
+  -- Named rather than counted. A magic number here went stale the moment a
+  -- sixth setting was added, and a FAIL that only means "somebody added a
+  -- setting" teaches you to ignore the column.
+  select 6, 'settings seeded',
+         (select count(*)::text || ' present' from public.app_settings),
+         case when not exists (
+                select 1 from (values ('report_window_days'),
+                                      ('auto_hide_flag_threshold'),
+                                      ('report_move_window_hours'),
+                                      ('public_sample_limit'),
+                                      ('public_detail_max_span'),
+                                      ('blocked_regions')) as wanted(key)
+                 where wanted.key not in (select key from public.app_settings))
+              then 'PASS' else 'MISSING' end
 
   union all
   -- The important one: signed-out visitors must NOT be able to read reports.

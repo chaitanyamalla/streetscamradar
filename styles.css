@@ -160,7 +160,10 @@ em { font-style:italic; }
    a phone where the zoom controls own the right.
    Two tiers of colour, not four: scanning a map, you need "is this serious"
    before you need the exact gradation, and the words carry the gradation. */
-.map-chips { position:absolute; z-index:3; top:14px; right:66px;
+/* Above the zoom controls rather than beside them: the hazard panel opens
+   from a chip in this stack now, and on a phone it is wide enough to reach
+   across the map to where those buttons are. */
+.map-chips { position:absolute; z-index:4; top:14px; right:66px;
   display:flex; flex-direction:column; align-items:flex-end; gap:8px;
   max-width:230px; }
 .advisory-chip { display:flex; align-items:center; gap:9px; max-width:100%;
@@ -211,14 +214,26 @@ em { font-style:italic; }
    watching what it draws is the whole point, and because these are somebody
    else's official data rather than a filter on our reports.
    --------------------------------------------------------------------------- */
-.hazard-button { font-size:15px; border-top:0; border-radius:0 0 var(--radius) var(--radius); }
-.hazard-button[aria-expanded="true"] { background:var(--brand); color:#fff;
-  border-color:var(--brand); }
+/* The chip that opens it, built out of the advisory chip so the two read as
+   one family. The caret is the whole of the open/close affordance: a chip that
+   only highlights when open leaves you guessing whether it opens anything. */
+.hazard-chip { width:100%; }
+.hazard-chip .ac-text { flex:1; }
+.hazard-chip[aria-expanded="true"] { border-color:var(--brand); }
+.hazard-caret { flex:none; color:var(--muted); font-size:10px; line-height:1;
+  transition:transform .15s ease; }
+.hazard-chip[aria-expanded="true"] .hazard-caret { color:var(--brand);
+  transform:rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .hazard-caret { transition:none; } }
+
+/* Hung off the chip rather than placed against the map, so it stays under the
+   thing that opened it however many chips are showing above it today. */
+.hazard-menu { position:relative; max-width:100%; }
 
 /* Six rows now, one per kind, so every millimetre of it is tighter than when
    it held three. It still has to sit over the map without covering it. */
-.hazard-panel { position:absolute; z-index:4; top:118px; right:14px; width:272px;
-  max-width:calc(100% - 28px); padding:11px 12px 9px;
+.hazard-panel { position:absolute; z-index:4; top:calc(100% + 8px); right:0;
+  width:272px; padding:11px 12px 9px;
   border:1px solid var(--line-strong); border-radius:var(--radius);
   background:var(--surface); box-shadow:var(--shadow); }
 .hazard-panel[hidden] { display:none; }
@@ -732,7 +747,11 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   .map-chips { top:12px; left:12px; right:auto; align-items:flex-start;
     max-width:min(58%, 210px); gap:6px; }
   .advisory-chip { gap:7px; padding:6px 9px; }
-  .hazard-panel { top:108px; right:10px; width:min(280px, calc(100% - 20px)); }
+  /* The stack is on the left here, so the panel opens down the left too — and
+     it is allowed to be wider than the chip that opened it, because the layer
+     names need the room and there is nothing under it but map. */
+  .hazard-panel { left:0; right:auto;
+    width:min(280px, calc(100vw - 24px)); }
   /* Narrower here, so a long layer name wraps rather than being cut off — a
      truncated label is worse than an uneven row. */
   .hz-name { white-space:normal; }

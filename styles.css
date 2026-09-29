@@ -153,8 +153,10 @@ em { font-style:italic; }
    a phone where the zoom controls own the right.
    Two tiers of colour, not four: scanning a map, you need "is this serious"
    before you need the exact gradation, and the words carry the gradation. */
-.advisory-chip { position:absolute; z-index:3; top:14px; right:66px;
-  display:flex; align-items:center; gap:9px; max-width:230px;
+.map-chips { position:absolute; z-index:3; top:14px; right:66px;
+  display:flex; flex-direction:column; align-items:flex-end; gap:8px;
+  max-width:230px; }
+.advisory-chip { display:flex; align-items:center; gap:9px;
   padding:8px 12px; border:1px solid var(--line-strong); border-radius:var(--radius);
   background:var(--surface); box-shadow:var(--shadow-sm);
   font:inherit; text-align:left; cursor:pointer; }
@@ -194,6 +196,18 @@ em { font-style:italic; }
 .advisory-context { margin-bottom:14px; color:var(--muted); font-size:11.5px;
   line-height:1.5; }
 .advisory-link { display:block; margin-bottom:10px; text-align:center; text-decoration:none; }
+
+/* One row per ongoing hazard inside the dialog. */
+.disaster-row { padding:11px 0; border-bottom:1px solid var(--line); }
+.disaster-row:first-child { padding-top:2px; }
+.disaster-kind { color:var(--ink-soft); font:500 10px/1.3 'DM Mono',monospace;
+  letter-spacing:.08em; text-transform:uppercase; }
+.disaster-row.is-severe .disaster-kind { color:var(--danger); }
+.disaster-name { margin-top:3px; color:var(--ink); font-size:14.5px; font-weight:700;
+  line-height:1.35; }
+.disaster-when { margin-top:3px; color:var(--muted); font:11px/1.5 'DM Mono',monospace; }
+.disaster-link { display:inline-block; margin-top:6px; color:var(--brand);
+  font-size:12px; font-weight:700; }
 
 /* Hazards. The ring on the map is drawn by MapLibre; these are the popup. */
 .popup-glyph.is-hazard { background:rgba(197,56,44,.12); }
@@ -621,8 +635,9 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
      left. Smaller than on a desktop: it sits on the map rather than beside it,
      and a phone's map has less to give away. The width cap keeps it clear of
      the zoom buttons however long a country's name runs. */
-  .advisory-chip { top:12px; left:12px; right:auto; max-width:min(58%, 210px);
-    gap:7px; padding:6px 9px; }
+  .map-chips { top:12px; left:12px; right:auto; align-items:flex-start;
+    max-width:min(58%, 210px); gap:6px; }
+  .advisory-chip { gap:7px; padding:6px 9px; }
   .ac-dot { width:8px; height:8px; }
   .ac-kicker { font-size:8.5px; }
   .ac-level { font-size:11.5px; }

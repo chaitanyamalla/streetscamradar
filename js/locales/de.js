@@ -304,4 +304,9 @@ export default {
   'hazard.official': 'Amtliche Details',
   'hazard.notAlert': 'Kein Warndienst — prüfe vor der Reise die amtlichen Quellen.',
   'hazard.source.quake': 'über USGS',
+  'filters.quakes': 'Erdbeben',
+  'quakes.none': 'Keine im Kartenausschnitt',
+  'disaster.title': 'Laufende Naturgefahren',
+  'disaster.reported': 'Gemeldet {when}',
+  'disaster.source': 'über GDACS',
 };

@@ -322,4 +322,9 @@ export default {
   'hazard.official': 'Official details',
   'hazard.notAlert': 'Not an alert service — check official sources before you travel.',
   'hazard.source.quake': 'via USGS',
+  'filters.quakes': 'Earthquakes',
+  'quakes.none': 'None in view',
+  'disaster.title': 'Ongoing natural hazards',
+  'disaster.reported': 'Reported {when}',
+  'disaster.source': 'via GDACS',
 };

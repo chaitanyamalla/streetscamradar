@@ -463,6 +463,33 @@ export function quakePopupHTML(props) {
     <p class="popup-fine">${esc(t('hazard.notAlert'))}</p>`;
 }
 
+/**
+ * The ongoing-disasters dialog: what GDACS currently lists for this country.
+ *
+ * One entry each, with the dates GDACS gave and a link to its report. No
+ * advice and no prose of ours — this is a pointer to somebody else's work,
+ * and the line saying it is not an alert service is said rather than implied.
+ */
+export function disasterDialogHTML(rows) {
+  if (!rows?.length) return `<p class="empty-note">${esc(t('hazards.none'))}</p>`;
+
+  const entries = rows.map(row => {
+    const when = row.from_date ? t('disaster.reported', { when: timeAgo(row.from_date) }) : '';
+    return `
+      <div class="disaster-row is-${esc(row.severity)}">
+        <p class="disaster-kind">${esc(t(`hazard.kind.${row.kind}`))}</p>
+        <p class="disaster-name">${esc(row.name)}</p>
+        ${when ? `<p class="disaster-when">${esc(when)}</p>` : ''}
+        ${row.url ? `<a class="disaster-link" href="${esc(row.url)}"
+             target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>` : ''}
+      </div>`;
+  }).join('');
+
+  return `${entries}
+    <p class="popup-meta">${esc(t('disaster.source'))}</p>
+    <p class="fine-print">${esc(t('hazard.notAlert'))}</p>`;
+}
+
 export function setGateNote(host, { mode, shown = 0, hiddenCount = 0, signedIn }) {
   if (signedIn) { host.hidden = true; return; }
   host.hidden = false;

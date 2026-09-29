@@ -309,4 +309,9 @@ export default {
   'hazard.official': 'Úřední podrobnosti',
   'hazard.notAlert': 'Nejde o výstražnou službu — před cestou si ověřte úřední zdroje.',
   'hazard.source.quake': 'přes USGS',
+  'filters.quakes': 'Zemětřesení',
+  'quakes.none': 'Žádné v zobrazení',
+  'disaster.title': 'Probíhající přírodní rizika',
+  'disaster.reported': 'Nahlášeno {when}',
+  'disaster.source': 'přes GDACS',
 };

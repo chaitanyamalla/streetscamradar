@@ -86,14 +86,29 @@
                  desktop where that corner is free, top left on a phone where
                  the zoom buttons own the right. Inside .map-frame so it is
                  positioned against the map itself rather than against the
-                 column the map sits in. -->
-            <button class="advisory-chip" id="advisory-chip" type="button" lang="de" hidden>
-              <span class="ac-dot" aria-hidden="true"></span>
-              <span class="ac-text">
-                <span class="ac-kicker" id="advisory-kicker">Reisehinweise</span>
-                <span class="ac-level" id="advisory-level"></span>
-              </span>
-            </button>
+                 column the map sits in. A stack rather than two absolutely
+                 placed chips, so whichever of them is hidden today leaves no
+                 gap behind it. -->
+            <div class="map-chips">
+              <button class="advisory-chip" id="advisory-chip" type="button" lang="de" hidden>
+                <span class="ac-dot" aria-hidden="true"></span>
+                <span class="ac-text">
+                  <span class="ac-kicker" id="advisory-kicker">Reisehinweise</span>
+                  <span class="ac-level" id="advisory-level"></span>
+                </span>
+              </button>
+
+              <!-- Only when something is actually happening. A country with no
+                   ongoing disaster is the normal case, and a chip that says so
+                   every day is a chip nobody reads. -->
+              <button class="advisory-chip disaster-chip" id="disaster-chip" type="button" hidden>
+                <span class="ac-dot" aria-hidden="true"></span>
+                <span class="ac-text">
+                  <span class="ac-kicker" id="disaster-country"></span>
+                  <span class="ac-level" id="disaster-kinds"></span>
+                </span>
+              </button>
+            </div>
 
             <div id="city-map" class="city-map" data-i18n-aria="map.label" aria-label="Interactive world map of reported scams"></div>
             <div class="floating-controls">
@@ -134,10 +149,12 @@
               <span data-i18n="filters.hospitals">Hospitals nearby</span>
             </label>
             <p class="muted-note" id="safety-status" data-i18n="safety.zoomIn">Zoom in to see hospitals</p>
-            <!-- No switch. Measured across ten major cities, a view holds no
-                 hazards at all almost all of the time, so there is nothing to
-                 turn off — and one line costs the panel far less than a row
-                 and a line did. -->
+
+            <label class="filter-row">
+              <input type="checkbox" id="quake-toggle" checked />
+              <span class="safety-glyphs" aria-hidden="true">🌍</span>
+              <span data-i18n="filters.quakes">Earthquakes</span>
+            </label>
             <p class="muted-note" id="hazard-status" data-i18n="hazards.checking">Checking…</p>
           </div>
         </details>
@@ -396,6 +413,21 @@
         </div>
 
         <div id="advisory-body"></div>
+      </div>
+    </dialog>
+
+    <!-- ---------------------------------------------------------------- -->
+    <dialog id="disaster-dialog" aria-labelledby="disaster-title">
+      <div class="dialog-body">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow" id="disaster-eyebrow"></p>
+            <h2 id="disaster-title">Ongoing natural hazards</h2>
+          </div>
+          <button class="close-button" data-close="disaster-dialog" type="button"
+                  data-i18n-aria="auth.close" aria-label="Close">×</button>
+        </div>
+        <div id="disaster-body"></div>
       </div>
     </dialog>
 

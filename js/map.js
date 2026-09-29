@@ -255,6 +255,12 @@ export function setHazards(map, quakes) {
   map.getSource('hazards')?.setData(toHazardFeatures(quakes));
 }
 
+export function setHazardsVisible(map, visible) {
+  if (map.getLayer?.('hazard-ring')) {
+    map.setLayoutProperty('hazard-ring', 'visibility', visible ? 'visible' : 'none');
+  }
+}
+
 export function setSafetyVisible(map, visible) {
   if (map.getLayer?.('safety-icon')) {
     map.setLayoutProperty('safety-icon', 'visibility', visible ? 'visible' : 'none');

@@ -304,4 +304,9 @@ export default {
   'hazard.official': 'Detalles oficiales',
   'hazard.notAlert': 'No es un servicio de alertas: consulta las fuentes oficiales antes de viajar.',
   'hazard.source.quake': 'vía USGS',
+  'filters.quakes': 'Terremotos',
+  'quakes.none': 'Ninguno a la vista',
+  'disaster.title': 'Riesgos naturales en curso',
+  'disaster.reported': 'Notificado {when}',
+  'disaster.source': 'vía GDACS',
 };

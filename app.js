@@ -12,18 +12,20 @@ import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, myConfirmedReports, editMyReport,
          deleteMyAccount, getProfile, saveDisplayName, saveLocale, fetchAdvisories,
-         supabase } from './js/data.js';
+         fetchDisasters, supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
          signInWithGoogle, signOut, enabledProviders, changePassword } from './js/auth.js';
 import { searchPlaces, describePoint, locateMe } from './js/geo.js';
 import { emergencyFor } from './js/emergency.js';
 import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
-         setHazards, maplibregl } from './js/map.js';
-import { fetchHazards, quakesIn, quakeTone, hazardLabel } from './js/hazards.js';
+         setHazards, setHazardsVisible, maplibregl } from './js/map.js';
+import { fetchQuakes, quakesIn, quakeTone, hazardLabel } from './js/hazards.js';
 import { esc, toast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
-         categoryLabel, advisoryDialogHTML, quakePopupHTML } from './js/ui.js';
+         categoryLabel, advisoryDialogHTML, quakePopupHTML,
+         disasterDialogHTML } from './js/ui.js';
+import { countryName } from './js/i18n.js';
 import { STRINGS as ADVISORY, advisoryLevel, advisoryTone, levelLabel, countryTitle,
          changedOn, chipAria, advisoryStats, copyAgeDays } from './js/advisory.js';
 import { t, plural, formatDate, setLanguage, preferredLanguage, currentLanguage,
@@ -42,7 +44,11 @@ const state = {
   profile: null,      // display_name and home area, read once at sign-in
   safetyPlaces: [],   // what the safety layer last loaded, for the country lookup
   advisories: null,   // country_code -> row, read once per session
-  hazards: null,      // { quakes, alerts } read once per session, straight from the agencies
+  quakes: null,       // read once per session, straight from USGS
+  quakesOn: true,     // a layer you can switch off, like the hospitals
+  disasters: null,    // country_code -> rows, mirrored from GDACS every few hours
+  disasterCountry: null,   // the rows the chip is currently showing
+  disasterCode: null,      // and which country they belong to
   advisoryCountry: null,   // whose advisory the chip is currently showing
   pin: null,          // { lat, lng, address, city, countryCode }
   pinPending: null,   // in-flight reverse geocode for that pin
@@ -466,58 +472,95 @@ async function refreshSafety() {
 // ---------------------------------------------------------------------------
 // Natural hazards
 //
-// Fetched straight from USGS and GDACS — both send permissive CORS headers, so
-// there is no table of ours to go stale and no job to silently stop. What a
-// reader sees is what the agency published, at the moment they looked.
+// Two halves, because they are two different questions.
 //
-// Earthquakes are drawn where they happened. GDACS events are not: it gives a
-// whole flood or cyclone one centroid point, so "Flood in Guinea" sits at the
-// country's centre rather than on the flooded ground. Those are matched by
-// country instead — the same lookup the emergency bar uses — and counted in
-// the panel rather than drawn as a pin that would be in the wrong place.
+// Earthquakes are a place: USGS gives each one a real position, so they are
+// rings on the map, fetched straight from USGS — which serves them with
+// permissive CORS and a 60-second cache — and switchable like the hospitals.
+//
+// Everything else is a country. A flood or a cyclone is not somewhere you can
+// point at on a street map, and GDACS gives each one a single centroid that
+// would put the marker hundreds of kilometres from the water. Those come from
+// our own table, refreshed every few hours, and appear as a chip for whichever
+// country is in view — the same shape of answer as the travel advisory, to the
+// same question: is anything going on where I am going.
 // ---------------------------------------------------------------------------
 let hazardTicket = 0;
 
 async function refreshHazards() {
   const status = $('#hazard-status');
-
   const ticket = ++hazardTicket;
-  if (!state.hazards) {
+
+  // --- earthquakes, on the map ---------------------------------------------
+  if (state.quakesOn) {
+    if (!state.quakes) {
+      try {
+        state.quakes = await fetchQuakes();
+      } catch (err) {
+        console.error(err);
+        status.textContent = t('hazards.failed');
+        return;
+      }
+      if (ticket !== hazardTicket) return;
+    }
+    const inView = quakesIn(state.quakes.quakes, boundsOf(map))
+      .map(q => ({ ...q, tone: quakeTone(q.magnitude) }));
+    setHazards(map, inView);
+    status.textContent = !state.quakes.known ? t('hazards.failed')
+      : inView.length ? plural('hazards.quakes', inView.length)
+      : t('quakes.none');
+  } else {
+    setHazards(map, []);
+    status.textContent = t('safety.off');
+  }
+
+  await refreshDisasters(ticket);
+}
+
+/** The chip for the country in view. Hidden unless something is happening,
+ *  because a country with no ongoing disaster is the ordinary case. */
+async function refreshDisasters(ticket) {
+  const chip = $('#disaster-chip');
+  if (!isConfigured()) { chip.hidden = true; return; }
+
+  const code = viewIsOneCountry() ? await currentCountry() : null;
+  if (ticket !== hazardTicket) return;
+  if (!code) { chip.hidden = true; state.disasterCountry = null; return; }
+
+  if (!state.disasters) {
     try {
-      state.hazards = await fetchHazards();
+      state.disasters = await fetchDisasters();
     } catch (err) {
-      console.error(err);
-      status.textContent = t('hazards.failed');
+      console.error(err);      // quiet: a missing hazard list is not worth
+      chip.hidden = true;      // interrupting a map for
       return;
     }
     if (ticket !== hazardTicket) return;
   }
 
-  const { quakes, alerts, quakesKnown, alertsKnown } = state.hazards;
-  const inView = quakesIn(quakes, boundsOf(map))
-    .map(q => ({ ...q, tone: quakeTone(q.magnitude) }));
-  setHazards(map, inView);
+  const rows = state.disasters.get(code) ?? [];
+  state.disasterCountry = rows;
+  state.disasterCode = code;
+  if (!rows.length) { chip.hidden = true; return; }
 
-  // The country's own alerts, whether or not its centroid is on screen.
-  const code = viewIsOneCountry() ? await currentCountry() : null;
-  if (ticket !== hazardTicket) return;
-  const countryAlerts = code ? alerts.get(code) ?? [] : [];
+  const kinds = [...new Set(rows.map(r => r.kind))].map(hazardLabel);
+  const worst = rows.some(r => r.severity === 'severe') ? 'is-severe' : 'is-notice';
+  chip.hidden = false;
+  chip.className = `advisory-chip disaster-chip ${worst}`;
+  $('#disaster-country').textContent = countryName(code, code);
+  $('#disaster-kinds').textContent = kinds.join(', ');
+  chip.setAttribute('aria-label',
+    `${t('disaster.title')}: ${countryName(code, code)} — ${kinds.join(', ')}`);
 
-  // "Nothing" and "we could not find out" are different things to show, and
-  // only one of them is reassuring.
-  if (!quakesKnown && !alertsKnown) { status.textContent = t('hazards.failed'); return; }
+  if ($('#disaster-dialog').open) paintDisasterDialog();
+}
 
-  // Name what is happening, not just how many. "Flood, Cyclone" is the answer
-  // to the question somebody is actually asking; "2 active alerts" makes them
-  // go and look.
-  const parts = [];
-  if (countryAlerts.length) {
-    const kinds = [...new Set(countryAlerts.map(a => a.kind))].map(hazardLabel);
-    parts.push(kinds.join(', '));
-  }
-  if (inView.length) parts.push(plural('hazards.quakes', inView.length));
-  status.textContent = parts.length ? parts.join(' \u00b7 ') : t('hazards.none');
-  status.classList.toggle('is-warning', countryAlerts.length > 0);
+function paintDisasterDialog() {
+  // The country in the eyebrow, because the chip is about a country and the
+  // reader has just crossed one to get here.
+  $('#disaster-eyebrow').textContent = countryName(state.disasterCode, state.disasterCode ?? '');
+  $('#disaster-title').textContent = t('disaster.title');
+  $('#disaster-body').innerHTML = disasterDialogHTML(state.disasterCountry);
 }
 
 /**
@@ -962,6 +1005,17 @@ function wireUI() {
     state.safetyOn = e.target.checked;
     setSafetyVisible(map, state.safetyOn);
     refreshSafety();
+  });
+
+  $('#quake-toggle').addEventListener('change', e => {
+    state.quakesOn = e.target.checked;
+    setHazardsVisible(map, state.quakesOn);
+    refreshHazards();
+  });
+
+  $('#disaster-chip').addEventListener('click', () => {
+    paintDisasterDialog();
+    openDialog('#disaster-dialog');
   });
 
   $('#reset-filters').addEventListener('click', () => {

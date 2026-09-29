@@ -324,4 +324,9 @@ export default {
   'hazard.official': 'Officiële details',
   'hazard.notAlert': 'Geen waarschuwingsdienst — raadpleeg officiële bronnen voordat je reist.',
   'hazard.source.quake': 'via USGS',
+  'filters.quakes': 'Aardbevingen',
+  'quakes.none': 'Geen in beeld',
+  'disaster.title': 'Lopende natuurrampen',
+  'disaster.reported': 'Gemeld {when}',
+  'disaster.source': 'via GDACS',
 };

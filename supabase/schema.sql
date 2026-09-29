@@ -609,6 +609,50 @@ create index if not exists safety_places_lng_idx on public.safety_places (lng);
 create index if not exists safety_places_kind_idx on public.safety_places (kind);
 
 -- ---------------------------------------------------------------------------
+-- Ongoing natural disasters, from GDACS.
+--
+-- Mirrored rather than read from the browser, even though GDACS allows that.
+-- It sends no cache headers, so a direct fetch means every visitor's session
+-- hits a public service run for emergency response; this way it is asked once
+-- every few hours no matter how many people are looking. It also means a
+-- disaster still shows when GDACS is having a bad day.
+--
+-- One row per event PER COUNTRY. A cyclone crossing a coast or a river
+-- flooding two states is one event to GDACS and two answers to "is anything
+-- happening where I am going", which is the only question this table exists
+-- to answer.
+--
+-- Written only by the refresh workflow, which connects as the database owner.
+-- ---------------------------------------------------------------------------
+create table if not exists public.disaster_alerts (
+  event_id     text    not null,          -- GDACS eventtype-eventid-episodeid
+  country_code char(2) not null,
+  kind         text    not null check (kind in
+                 ('earthquake','cyclone','flood','volcano','drought','wildfire')),
+  -- GDACS grades Red / Orange / Green; Green is the routine background of a
+  -- working planet and never reaches this table.
+  severity     text    not null check (severity in ('severe','notice')),
+  name         text    not null,          -- GDACS's own words, in English
+  from_date    timestamptz,
+  to_date      timestamptz,
+  url          text,
+  refreshed_at timestamptz not null default now(),
+  primary key (event_id, country_code)
+);
+
+create index if not exists disaster_alerts_country_idx
+  on public.disaster_alerts (country_code);
+
+alter table public.disaster_alerts enable row level security;
+
+drop policy if exists "disasters are public" on public.disaster_alerts;
+create policy "disasters are public" on public.disaster_alerts
+  for select to anon, authenticated using (true);
+
+grant select on table public.disaster_alerts to anon, authenticated;
+revoke insert, update, delete on table public.disaster_alerts from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Travel advisories, from the German Federal Foreign Office.
 --
 -- One row per country, mirrored from their open-data interface. We store the

@@ -309,4 +309,9 @@ export default {
   'hazard.official': 'Oficjalne szczegóły',
   'hazard.notAlert': 'To nie jest serwis ostrzegawczy — przed podróżą sprawdź oficjalne źródła.',
   'hazard.source.quake': 'przez USGS',
+  'filters.quakes': 'Trzęsienia ziemi',
+  'quakes.none': 'Brak w widoku',
+  'disaster.title': 'Trwające zagrożenia naturalne',
+  'disaster.reported': 'Zgłoszono {when}',
+  'disaster.source': 'przez GDACS',
 };

@@ -1,11 +1,14 @@
 # ---------------------------------------------------------------------------
-# Natural hazards: GDACS, USGS and MeteoAlarm.
+# Ongoing natural disasters, from GDACS, into public.disaster_alerts.
 #
-# Runs here rather than in the browser for the same reason the other data jobs
-# do: this sandbox and, most likely, the page itself cannot reach these hosts
-# directly. The probe below answers that for real — if a source turns out to
-# send CORS headers, the page can call it itself and this job stops needing to
-# mirror it.
+# Mirrored rather than fetched by the page. GDACS sends no cache headers, so a
+# direct fetch would mean every visitor's session hitting a service run for
+# emergency response; this asks once every few hours however many people are
+# looking, and keeps showing a disaster when GDACS is having a bad day.
+#
+# Earthquakes are NOT here. USGS serves its feeds with permissive CORS and a
+# 60-second cache, built to be read from a page, and an earthquake's position
+# matters — so those are fetched in the browser and drawn where they happened.
 #
 # Needs the same SUPABASE_DB_URL secret as the other database workflows.
 # ---------------------------------------------------------------------------
@@ -17,8 +20,17 @@ on:
       probe:
         description: 'Only look at the sources and report what they send. Writes nothing.'
         required: false
-        default: true
+        default: false
         type: boolean
+  schedule:
+    # Every three hours. A flood or a cyclone is a thing that lasts days, so
+    # this is about being roughly current rather than live; the page shows the
+    # event's own dates so a reader can see for themselves.
+    - cron: '41 */3 * * *'
+
+concurrency:
+  group: hazards
+  cancel-in-progress: false
 
 jobs:
   hazards:
@@ -26,9 +38,83 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Deliberately the whole job for now. Before writing a parser against
-      # these, look at what they actually send: the travel advisory work shipped
-      # a parser built from a published schema that the live interface did not
-      # match, and every row was rejected on the first real run.
+      # Before changing a parser, look at what the source actually sends. The
+      # travel advisory work shipped one built from a published schema the live
+      # interface did not match, and the first real run rejected every entry.
       - name: Look at the sources
+        if: ${{ inputs.probe }}
         run: python3 supabase/ops/probe_hazards.py
+
+      - name: Check the secret is set
+        if: ${{ !inputs.probe }}
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "${SUPABASE_DB_URL}" ]; then
+            echo "::error::SUPABASE_DB_URL is not set."
+            exit 1
+          fi
+
+      - name: Install psql
+        if: ${{ !inputs.probe }}
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          fi
+
+      - name: Resolve a reachable host
+        if: ${{ !inputs.probe }}
+        env:
+          PGURL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python3 - <<'PY' > resolved.env
+          import os, sys, urllib.parse, subprocess
+          u = os.environ["PGURL"].strip().strip('"').strip("'")
+          p = urllib.parse.urlparse(u)
+          host, pwd = p.hostname or "", p.password or ""
+          print(f"::add-mask::{pwd}", file=sys.stderr)
+
+          if "pooler.supabase.com" in host or not host.startswith("db."):
+              print(f"PGURL_FINAL={u}")
+              sys.exit(0)
+
+          ref = host[len("db."):-len(".supabase.co")]
+          regions = ["eu-central-1","eu-west-1","eu-west-2","eu-west-3","eu-north-1","eu-central-2",
+                     "ap-south-1","ap-southeast-1","ap-southeast-2","ap-northeast-1","ap-northeast-2",
+                     "us-east-1","us-east-2","us-west-1","us-west-2","ca-central-1","sa-east-1"]
+          quoted = urllib.parse.quote(pwd, safe="")
+          env = {**os.environ, "PGCONNECT_TIMEOUT": "6"}
+          for prefix in ("aws-0", "aws-1"):
+              for r in regions:
+                  ph = f"{prefix}-{r}.pooler.supabase.com"
+                  cand = f"postgresql://postgres.{ref}:{quoted}@{ph}:5432/postgres"
+                  if subprocess.run(["psql", cand, "-tAc", "select 1"],
+                                    capture_output=True, text=True, env=env).returncode == 0:
+                      print(f"Connected via {ph}", file=sys.stderr)
+                      print(f"PGURL_FINAL={cand}")
+                      sys.exit(0)
+          print("::error::Could not reach any pooler host.", file=sys.stderr)
+          sys.exit(1)
+          PY
+          cat resolved.env >> "$GITHUB_ENV"
+          rm -f resolved.env
+
+      # The only thing that writes to disaster_alerts, running unattended. The
+      # case worth guarding is GDACS answering badly, which taken literally
+      # means nothing is happening anywhere on Earth.
+      - name: Check the generator
+        if: ${{ !inputs.probe }}
+        run: python3 supabase/ops/fetch_disasters_test.py
+
+      - name: Fetch from GDACS
+        if: ${{ !inputs.probe }}
+        run: |
+          python3 supabase/ops/fetch_disasters.py > disasters.sql
+          head -1 disasters.sql
+
+      - name: Load into Supabase
+        if: ${{ !inputs.probe }}
+        env:
+          PGURL: ${{ env.PGURL_FINAL }}
+        run: |
+          psql "$PGURL" -v ON_ERROR_STOP=1 -f disasters.sql

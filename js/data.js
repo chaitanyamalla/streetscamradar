@@ -319,6 +319,51 @@ export function fetchAdvisories() {
   return advisoryCache;
 }
 
+/**
+ * Ongoing natural disasters, by country, read once and kept for the session.
+ *
+ * Small — a few dozen rows on an ordinary day — and the same shape of read as
+ * the travel advisories, for the same reason: the question is about a country,
+ * so the answer is fetched per country set rather than per view.
+ *
+ * Events whose own end date is more than a week past are left behind. GDACS
+ * normally drops them itself and our refresh follows, but a stale row outliving
+ * the thing it describes is the one failure that would show a flood that ended.
+ */
+let disasterCache = null;
+
+export function fetchDisasters() {
+  if (disasterCache) return disasterCache;
+  if (!supabase) return Promise.resolve(new Map());
+
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+  disasterCache = supabase
+    .from('disaster_alerts')
+    .select('event_id,country_code,kind,severity,name,from_date,to_date,url')
+    .or(`to_date.is.null,to_date.gte.${weekAgo}`)
+    .then(({ data, error }) => {
+      if (error) throw error;
+      const byCountry = new Map();
+      for (const row of data ?? []) {
+        const list = byCountry.get(row.country_code) ?? [];
+        list.push(row);
+        byCountry.set(row.country_code, list);
+      }
+      // Most serious first, so a chip that can only name a few names the worst.
+      for (const list of byCountry.values()) {
+        list.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === 'severe' ? -1 : 1));
+      }
+      return byCountry;
+    })
+    .catch(err => {
+      // A failed read must not poison the session: drop the cache so the next
+      // pan tries again rather than showing nothing until a reload.
+      disasterCache = null;
+      throw err;
+    });
+  return disasterCache;
+}
+
 export async function fetchSafetyPlaces(bounds) {
   need();
   const { minLat, minLng, maxLat, maxLng } = bounds;

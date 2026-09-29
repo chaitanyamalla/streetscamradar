@@ -6,7 +6,7 @@
 with expected_tables(t) as (
   values ('reports'),('profiles'),('scam_categories'),
          ('report_supports'),('report_flags'),('app_settings'),
-         ('safety_places')
+         ('safety_places'),('travel_advisories'),('disaster_alerts')
 ),
 expected_funcs(f) as (
   values ('public_area_summary'),('public_sample_reports'),('delete_my_report'),
@@ -16,25 +16,27 @@ expected_funcs(f) as (
 )
 select * from (
   select 1 as ord, 'tables created' as check,
-         count(*) || ' of 7' as detail,
-         case when count(*) = 7 then 'PASS' else 'MISSING' end as result
+         count(*) || ' of 9' as detail,
+         case when count(*) = 9 then 'PASS' else 'MISSING' end as result
     from expected_tables e
     join pg_tables p on p.tablename = e.t and p.schemaname = 'public'
 
   union all
   select 2, 'row level security on every table',
-         count(*) filter (where c.relrowsecurity) || ' of 7',
-         case when count(*) filter (where c.relrowsecurity) = 7 then 'PASS' else 'FAIL' end
+         count(*) filter (where c.relrowsecurity) || ' of 9',
+         case when count(*) filter (where c.relrowsecurity) = 9 then 'PASS' else 'FAIL' end
     from expected_tables e
     join pg_class c on c.relname = e.t
     join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
 
   union all
-  -- 11 policies: profiles 3, report_supports 3, report_flags 2,
-  -- reports 1 (insert only — reads go through the view), categories 1,
-  -- safety_places 1 (read by everyone, written by nobody).
-  select 3, 'security policies present', count(*) || ' of 11',
-         case when count(*) = 11 then 'PASS' else 'FAIL' end
+  -- 13 policies: profiles 3, report_supports 3, report_flags 2,
+  -- reports 1 (insert only — reads go through the view), categories 1, and one
+  -- each for the three mirrored tables — safety_places, travel_advisories and
+  -- disaster_alerts — which everybody reads and nobody but the refresh
+  -- workflows writes.
+  select 3, 'security policies present', count(*) || ' of 13',
+         case when count(*) = 13 then 'PASS' else 'FAIL' end
     from pg_policies where schemaname = 'public'
 
   union all
@@ -162,6 +164,34 @@ select * from (
               then 'PASS' else 'SUSPECT' end
 
   union all
-  select 20, 'reports currently stored', count(*) || ' reports', 'INFO'
+  -- Empty is a legitimate answer here, unlike the advisories: on a calm day
+  -- GDACS lists nothing Red or Orange anywhere. What would be wrong is rows
+  -- that stopped being refreshed, which the next two checks would show.
+  select 20, 'ongoing disasters stored',
+         (select coalesce(count(*) || ' country alerts across '
+                       || count(distinct country_code) || ' countries', '0')
+            from public.disaster_alerts), 'INFO'
+
+  union all
+  select 21, 'disasters readable by a signed-out visitor',
+         case when has_table_privilege('anon', 'public.disaster_alerts', 'SELECT')
+              then 'anon can select' else 'anon CANNOT select' end,
+         case when has_table_privilege('anon', 'public.disaster_alerts', 'SELECT')
+               and not has_table_privilege('anon', 'public.disaster_alerts', 'INSERT')
+              then 'PASS' else 'FAIL' end
+
+  union all
+  -- The refresh deletes whatever GDACS stopped listing, so every stored row
+  -- was seen on the last run. A refreshed_at that has stopped moving means the
+  -- workflow has stopped, and the map would be showing last week's floods.
+  select 22, 'disasters last refreshed',
+         (select coalesce(to_char(max(refreshed_at), 'YYYY-MM-DD HH24:MI') || ' UTC', 'never')
+            from public.disaster_alerts),
+         case when not exists (select 1 from public.disaster_alerts) then 'EMPTY'
+              when (select max(refreshed_at) from public.disaster_alerts)
+                   > now() - interval '12 hours' then 'PASS' else 'STALE' end
+
+  union all
+  select 23, 'reports currently stored', count(*) || ' reports', 'INFO'
     from public.reports
 ) x order by ord;

@@ -162,6 +162,39 @@ storm = next(r for r in fd.rows_from(payload(filler(40) + [
 check(storm["magnitude"] is None,
       "nor is a cyclone's wind speed, which shares the field and not the meaning")
 
+
+# --- and nothing GDACS has left alone for a week ----------------------------
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+NOW = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)
+ago = lambda d: (NOW - timedelta(days=d)).isoformat()
+
+rows = fd.rows_from(payload(filler(40) + [
+    event("TC", "Green", "Storm updated today", ("US",), 11, todate=ago(0.2)),
+    event("TC", "Green", "Storm nobody has touched", ("US",), 12, todate=ago(20)),
+    event("EQ", "Red", "Earthquake last month", ("JP",), 13, todate=ago(31),
+          severitydata="{'severity': 7.0, 'severitytext': 'Magnitude 7M, Depth:10km', "
+                       "'severityunit': 'M'}"),
+    event("FL", "Green", "Flood with no end date", ("GN",), 14, todate=""),
+]), now=NOW)
+names = {r["name"] for r in rows}
+check("Storm updated today" in names, "an event GDACS updated today is kept")
+check("Storm nobody has touched" not in names,
+      "one it has not touched in twenty days is not, whatever it still lists")
+check("Earthquake last month" not in names,
+      "and a month-old earthquake goes even though GDACS graded it Red")
+check("Flood with no end date" in names,
+      "a missing date is GDACS telling us nothing, which is not the same as telling us it is old")
+
+# The cut is on the last update, not on when it started: a cyclone GDACS has
+# tracked for a fortnight and updated an hour ago is a storm still happening.
+rows = fd.rows_from(payload(filler(40) + [
+    event("TC", "Red", "Long-running cyclone", ("MX",), 15,
+          fromdate=ago(16), todate=ago(0.1)),
+]), now=NOW)
+check("Long-running cyclone" in {r["name"] for r in rows},
+      "a storm running sixteen days but updated an hour ago stays on the map")
+
 # --- rubbish inside an otherwise good response ------------------------------
 rows = fd.rows_from(payload(filler(40) + [
     event("FL", "Orange", "Good", ("FR",), 1),

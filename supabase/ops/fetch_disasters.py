@@ -29,8 +29,16 @@
 # ---------------------
 # Whatever GDACS stops listing. It decides when a flood is over; we should not
 # second-guess that with a timer of our own, so anything absent from a run is
-# deleted at the end of it. Rows also carry to_date, so the page can ignore an
-# event whose own end date has long passed even if GDACS is slow to drop it.
+# deleted at the end of it.
+#
+# And anything it has not touched in a week. The probe says GDACS keeps its
+# list current — all hundred events had been updated within two days — so this
+# is a guard against a feed that goes quiet rather than a filter that fires on
+# an ordinary day. It is deliberately a cut on the LAST UPDATE and not on when
+# the event started: a cyclone GDACS has been tracking for fifteen days and
+# updated an hour ago is a storm that is still happening, and dropping it for
+# being old would be exactly wrong. For an earthquake the two dates are the
+# same instant, so there the week is a real window.
 #
 # Refusing to write rubbish
 # -------------------------
@@ -49,7 +57,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 SOURCE = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/EVENTS4APP"
 TIMEOUT = 45
@@ -64,6 +72,9 @@ KINDS = {
 
 # GDACS's three grades, kept as its own words mean them.
 SEVERITY = {"Red": "severe", "Orange": "notice", "Green": "routine"}
+
+# How long since GDACS last touched an event before we stop believing it.
+MAX_QUIET_DAYS = 7
 
 # An earthquake GDACS grades Green is kept only if it was this big anyway. A
 # magnitude 6 is felt over a wide area and makes the news wherever it happens,
@@ -194,7 +205,24 @@ def point_of(feature):
     return lat, lng
 
 
-def rows_from(payload):
+def is_stale(to_date, now=None):
+    """Has GDACS left this alone for longer than we will vouch for?
+
+    A missing date is not stale: it means GDACS told us nothing, which is not
+    the same as telling us the event is old.
+    """
+    if not to_date:
+        return False
+    try:
+        stamp = datetime.fromisoformat(str(to_date))
+    except ValueError:
+        return False
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+    return stamp < (now or datetime.now(timezone.utc)) - timedelta(days=MAX_QUIET_DAYS)
+
+
+def rows_from(payload, now=None):
     """Every (event, country) row worth storing."""
     if not isinstance(payload, dict):
         raise SourceProblem("payload is not a JSON object")
@@ -236,6 +264,10 @@ def rows_from(payload):
         if not name:
             continue
 
+        to_date = as_timestamp(props.get("todate"))
+        if is_stale(to_date, now):
+            continue
+
         event_id = "{}-{}-{}".format(
             str(props.get("eventtype") or "?").strip(),
             str(props.get("eventid") or "?").strip(),
@@ -253,7 +285,7 @@ def rows_from(payload):
                 "event_id": event_id, "country_code": code, "kind": kind,
                 "severity": severity, "name": name,
                 "from_date": as_timestamp(props.get("fromdate")),
-                "to_date": as_timestamp(props.get("todate")),
+                "to_date": to_date,
                 "url": url, "lat": lat, "lng": lng,
                 "magnitude": magnitude, "depth_km": depth,
             }

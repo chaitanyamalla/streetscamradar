@@ -45,6 +45,9 @@ export const ICON_ZOOM = 11.5;
 const FALLBACK_ICON = 'scam-icon-fallback';
 const HOSPITAL_ICON = 'safety-icon-hospital';
 const VOLCANO_ICON = 'hazard-icon-volcano';
+// Glued onto an image name for anything GDACS graded Green.
+const DULL_SUFFIX = '-dull';
+
 const DISASTER_ICONS = {
   flood: 'hazard-icon-flood', cyclone: 'hazard-icon-cyclone',
   wildfire: 'hazard-icon-wildfire', drought: 'hazard-icon-drought',
@@ -62,6 +65,7 @@ const GRADE_SIZE = ['match', ['get', 'severity'],
 // Earthquakes are drawn in a colour used nowhere else here, so the mark cannot
 // be mistaken for a scam report. See the layer for why that matters.
 const QUAKE_COLOR = '#5c2d91';
+const QUAKE_RING = ['case', ['==', ['get', 'severity'], 'routine'], '#8d949a', QUAKE_COLOR];
 
 export function createMap(container) {
   const map = new maplibregl.Map({
@@ -200,10 +204,11 @@ export function addLayers(map) {
       // start at M4.5, so the scale is drawn for the range that arrives.
       'circle-radius': ['interpolate', ['linear'], ['get', 'magnitude'],
         4, 7, 5, 11, 6, 16, 7.5, 24],
-      'circle-color': QUAKE_COLOR,
+      // Grey for a green-graded quake, for the same reason the symbols are.
+      'circle-color': QUAKE_RING,
       'circle-opacity': 0.09,
       'circle-stroke-width': 2.2,
-      'circle-stroke-color': QUAKE_COLOR,
+      'circle-stroke-color': QUAKE_RING,
       'circle-stroke-opacity': 0.9,
     },
   });
@@ -214,7 +219,7 @@ export function addLayers(map) {
     id: 'hazard-core', type: 'circle', source: 'hazards',
     paint: {
       'circle-radius': 2.6,
-      'circle-color': QUAKE_COLOR,
+      'circle-color': QUAKE_RING,
       'circle-stroke-width': 1.2,
       'circle-stroke-color': '#ffffff',
     },
@@ -238,12 +243,17 @@ export function addLayers(map) {
     id: 'disaster-icon', type: 'symbol', source: 'disasters',
     filter: ['!=', ['get', 'kind'], 'volcano'],
     layout: {
-      'icon-image': ['match', ['get', 'kind'],
-        'flood', DISASTER_ICONS.flood,
-        'cyclone', DISASTER_ICONS.cyclone,
-        'wildfire', DISASTER_ICONS.wildfire,
-        'drought', DISASTER_ICONS.drought,
-        DISASTER_ICONS.unknown],
+      // Two images per kind: its own colour, and a grey one for anything GDACS
+      // graded Green. The suffix is glued on rather than a second match, so a
+      // kind added later cannot get one variant and forget the other.
+      'icon-image': ['concat',
+        ['match', ['get', 'kind'],
+          'flood', DISASTER_ICONS.flood,
+          'cyclone', DISASTER_ICONS.cyclone,
+          'wildfire', DISASTER_ICONS.wildfire,
+          'drought', DISASTER_ICONS.drought,
+          DISASTER_ICONS.unknown],
+        ['case', ['==', ['get', 'severity'], 'routine'], DULL_SUFFIX, '']],
       // Size carries how GDACS graded it, because colour is already carrying
       // which kind it is. Most of what GDACS publishes is Green — seventy-two
       // wildfires on an ordinary day — and the one Red cyclone among them has
@@ -263,7 +273,8 @@ export function addLayers(map) {
     id: 'volcano-icon', type: 'symbol', source: 'disasters',
     filter: ['==', ['get', 'kind'], 'volcano'],
     layout: {
-      'icon-image': VOLCANO_ICON,
+      'icon-image': ['concat', VOLCANO_ICON,
+        ['case', ['==', ['get', 'severity'], 'routine'], DULL_SUFFIX, '']],
       // Size carries how GDACS graded it, because colour is already carrying
       // which kind it is. Most of what GDACS publishes is Green — seventy-two
       // wildfires on an ordinary day — and the one Red cyclone among them has
@@ -566,27 +577,30 @@ export function registerSafetyIcons(map) {
 
   // Every hazard is a warning sign instead — see js/hazard-signs.js for why a
   // triangle and not the emoji that used to be here.
-  const sign = (id, kind) => {
+  const sign = (id, kind, grade = null) => {
     if (map.hasImage?.(id)) return;
-    const image = drawSign(kind);
+    const image = drawSign(kind, grade);
     if (image) map.addImage(id, image, { pixelRatio: 2 });
   };
-  sign(VOLCANO_ICON, 'volcano');
-  sign(DISASTER_ICONS.flood, 'flood');
-  sign(DISASTER_ICONS.cyclone, 'cyclone');
-  sign(DISASTER_ICONS.wildfire, 'wildfire');
-  sign(DISASTER_ICONS.drought, 'drought');
-  sign(DISASTER_ICONS.unknown, 'unknown');
+  for (const [id, kind] of [[VOLCANO_ICON, 'volcano'],
+                           [DISASTER_ICONS.flood, 'flood'],
+                           [DISASTER_ICONS.cyclone, 'cyclone'],
+                           [DISASTER_ICONS.wildfire, 'wildfire'],
+                           [DISASTER_ICONS.drought, 'drought'],
+                           [DISASTER_ICONS.unknown, 'unknown']]) {
+    sign(id, kind);
+    sign(id + DULL_SUFFIX, kind, 'routine');
+  }
 }
 
 /** A hazard sign at the size MapLibre wants it: 46px drawn at 2×. */
-function drawSign(kind) {
+function drawSign(kind, grade = null) {
   const size = 46, ratio = 2;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size * ratio;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   ctx.scale(ratio, ratio);
-  paintHazardSign(ctx, kind, size);
+  paintHazardSign(ctx, kind, size, grade);
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
 }

@@ -39,6 +39,18 @@
 const WHITE = '#ffffff';
 const ACCENT = '#f5a623';          // lightning, lava — the one warm detail
 
+// What a hazard GDACS graded Green is drawn in, instead of its own colour.
+//
+// Green is most of what GDACS publishes — seventy-two wildfires on an ordinary
+// day — and if all of it arrives in full colour, the one Red cyclone among
+// them is just another bright mark. Drawn grey, the green ones read as
+// background and the colour on the map means something again.
+//
+// Still drawn, still clickable, still named in the popup: grey is quieter,
+// not hidden. And the accent goes grey with it — a green volcano with orange
+// lava would be the loudest thing on the map.
+const DULL = '#8d949a';
+
 // The white edge each glyph is cut out with. Not decoration: without it a
 // blue flood over a river, or a grey fog over a road, has no outline at all.
 const HALO = 'rgba(255,255,255,.96)';
@@ -222,18 +234,27 @@ export const ALL_SIGN_KINDS = Object.keys(SIGNS).filter(k => k !== 'unknown');
 export const hazardSign = (kind) => SIGNS[kind] ?? SIGNS.unknown;
 
 /** The colour a kind is drawn in, for a swatch or a border that must match. */
-export const hazardColor = (kind) => hazardSign(kind).color;
+export const hazardColor = (kind, grade = null) => colorFor(kind, grade);
 
-const paintOf = (part, color) =>
-  part.on ? WHITE : part.accent ? ACCENT : color;
+/** What a green-graded hazard is drawn in. */
+export const DULL_COLOR = DULL;
+
+const paintOf = (part, color, dull) =>
+  part.on ? WHITE : part.accent ? (dull ? DULL : ACCENT) : color;
+
+/** The colour a kind is drawn in at a given grade. */
+const colorFor = (kind, grade) =>
+  (grade === 'routine' ? DULL : hazardSign(kind).color);
 
 /**
  * The sign as an inline SVG, for a panel key, a popup or a list row.
  * Decorative by default: the row beside it already says what it is in words,
  * and a screen reader does not need to hear "warning triangle" twice.
  */
-export function hazardSignSVG(kind, { size = 18, label = '' } = {}) {
-  const { color, parts } = hazardSign(kind);
+export function hazardSignSVG(kind, { size = 18, label = '', grade = null } = {}) {
+  const { parts } = hazardSign(kind);
+  const dull = grade === 'routine';
+  const color = colorFor(kind, grade);
   const ends = ' stroke-linecap="round" stroke-linejoin="round"';
 
   // Two passes: every edge first, then every glyph. One pass and each part's
@@ -243,9 +264,9 @@ export function hazardSignSVG(kind, { size = 18, label = '' } = {}) {
     + ` stroke-width="${(p.stroke ?? 0) + HALO_WIDTH}"${ends}/>`).join('');
 
   const drawn = parts.map(p => p.stroke
-    ? `<path d="${p.d}" fill="none" stroke="${paintOf(p, color)}"`
+    ? `<path d="${p.d}" fill="none" stroke="${paintOf(p, color, dull)}"`
       + ` stroke-width="${p.stroke}"${ends}/>`
-    : `<path d="${p.d}" fill="${paintOf(p, color)}"/>`).join('');
+    : `<path d="${p.d}" fill="${paintOf(p, color, dull)}"/>`).join('');
 
   return `<svg class="hazard-sign" viewBox="0 0 24 24" width="${size}" height="${size}"`
     + (label ? ` role="img" aria-label="${label}">` : ' aria-hidden="true" focusable="false">')
@@ -257,8 +278,10 @@ export function hazardSignSVG(kind, { size = 18, label = '' } = {}) {
  * The white edge underneath is not decoration: without it a dark sign over a
  * dark park, or a blue one over water, loses its outline.
  */
-export function paintHazardSign(ctx, kind, box = 24) {
-  const { color, parts } = hazardSign(kind);
+export function paintHazardSign(ctx, kind, box = 24, grade = null) {
+  const { parts } = hazardSign(kind);
+  const dull = grade === 'routine';
+  const color = colorFor(kind, grade);
   ctx.save();
   ctx.scale(box / 24, box / 24);
   ctx.translate(12, 12);
@@ -280,7 +303,7 @@ export function paintHazardSign(ctx, kind, box = 24) {
 
   for (const part of parts) {
     const path = new Path2D(part.d);
-    const paint = paintOf(part, color);
+    const paint = paintOf(part, color, dull);
     if (part.stroke) {
       ctx.lineWidth = part.stroke;
       ctx.strokeStyle = paint;

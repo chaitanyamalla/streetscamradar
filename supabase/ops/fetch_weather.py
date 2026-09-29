@@ -39,14 +39,23 @@
 # ---------------------------------------------------------------------------
 import json
 import sys
-import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 FEED = "https://feeds.meteoalarm.org/api/v1/warnings/feeds-{}"
-TIMEOUT = 30
-RETRIES = 2
+
+# Thirty-eight requests, asked in parallel and given a short deadline each.
+#
+# Sequentially with a 30-second timeout and a retry, one unresponsive country
+# could hold the whole job for a minute and a handful of them for half an hour;
+# the first real run sat on this step for nine minutes and had to be killed. A
+# country that has not answered in fifteen seconds is a country we do without
+# this round — the next run is three hours away, and the floor below refuses to
+# write if too many of them go quiet at once.
+TIMEOUT = 15
+WORKERS = 8
 INSERT_BATCH = 200
 
 # MeteoAlarm's feed slugs, and the country each one is about. Its own country
@@ -97,21 +106,26 @@ def http_get(url, timeout=TIMEOUT):
         return response.read().decode("utf-8")
 
 
-def fetch_country(slug, retries=RETRIES):
+def fetch_country(slug):
     """One country's warnings, or None if it would not say."""
-    for attempt in range(1, retries + 1):
-        try:
-            return json.loads(http_get(FEED.format(slug)))
-        except urllib.error.HTTPError as err:
-            # A 404 is MeteoAlarm saying it has nothing for that country today,
-            # not a network problem worth retrying.
-            print(f"--   {slug}: HTTP {err.code}", file=sys.stderr)
-            return None
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as err:
-            print(f"--   {slug}: attempt {attempt}/{retries} failed: {err}", file=sys.stderr)
-            if attempt < retries:
-                time.sleep(2 ** attempt)
+    try:
+        return json.loads(http_get(FEED.format(slug)))
+    except urllib.error.HTTPError as err:
+        # A 404 is MeteoAlarm saying it publishes nothing for that country,
+        # not a network problem.
+        print(f"--   {slug}: HTTP {err.code}", file=sys.stderr)
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as err:
+        print(f"--   {slug}: {err}", file=sys.stderr)
     return None
+
+
+def fetch_all():
+    """Every country at once. Returns only the ones that answered."""
+    slugs = list(COUNTRIES)
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        answers = list(pool.map(fetch_country, slugs))
+    return {COUNTRIES[slug]: payload
+            for slug, payload in zip(slugs, answers) if payload is not None}
 
 
 def as_timestamp(value):
@@ -287,11 +301,7 @@ def main():
             # protects a real run would only get in the way here.
             globals()["MIN_COUNTRIES_ANSWERING"] = 1
     else:
-        payloads = {}
-        for slug, code in COUNTRIES.items():
-            payload = fetch_country(slug)
-            if payload is not None:
-                payloads[code] = payload
+        payloads = fetch_all()
 
     try:
         rows = rows_from(payloads)

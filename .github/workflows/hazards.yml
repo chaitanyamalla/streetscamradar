@@ -39,6 +39,8 @@ concurrency:
 jobs:
   hazards:
     runs-on: ubuntu-latest
+    # A source that stops answering must not hold a runner for six hours.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -132,6 +134,7 @@ jobs:
       # having a bad afternoon, the floods and cyclones still got in.
       - name: Fetch from MeteoAlarm
         if: ${{ !inputs.probe }}
+        timeout-minutes: 4
         run: |
           python3 supabase/ops/fetch_weather.py > weather.sql
           head -1 weather.sql

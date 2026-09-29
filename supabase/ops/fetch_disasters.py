@@ -55,6 +55,18 @@
 # being old would be exactly wrong. For an earthquake the two dates are the
 # same instant, so there the week is a real window.
 #
+# Earthquakes and `iscurrent`
+# ---------------------------
+# Every other kind is dropped when GDACS says iscurrent=false, which for a
+# flood or a cyclone means the agency has called it over. An earthquake is
+# never "current" for long — the shaking lasts a minute — and GDACS flips the
+# flag within a day or two, so applying it here hid every significant quake
+# almost as soon as it happened. A probe of the live list found 39 earthquakes
+# and dropped all 39: 24 for iscurrent, and 15 green ones below magnitude 6.
+# Of the 24, the most recent had happened 32 days earlier — the week's cut
+# would have removed every one of them on its own. So earthquakes are judged
+# on their date, which is the only thing about them that can be judged.
+#
 # Refusing to write rubbish
 # -------------------------
 # An empty or unparseable response would, taken literally, mean nothing is
@@ -290,10 +302,17 @@ def rows_from(payload, now=None):
         severity = SEVERITY.get(str(props.get("alertlevel") or "").strip())
         if not severity:
             continue
-        if str(props.get("iscurrent") or "true").strip().lower() == "false":
-            continue
         kind = KINDS.get(str(props.get("eventtype") or "").strip().upper())
         if not kind:
+            continue
+        # `iscurrent` asks whether the situation is still running, which is the
+        # right question for a flood and a category error for an earthquake:
+        # the shaking is over in a minute and GDACS flips the flag within a day
+        # or two, so this gate was quietly hiding every significant quake long
+        # before the week was up. For an earthquake the date is the whole of
+        # the question, and the window below asks it.
+        if kind != "earthquake" \
+                and str(props.get("iscurrent") or "true").strip().lower() == "false":
             continue
 
         magnitude, depth = severity_numbers(props)
@@ -310,6 +329,14 @@ def rows_from(payload, now=None):
         to_date = as_timestamp(props.get("todate"))
         if is_stale(to_date, now):
             continue
+        # With no `iscurrent` behind it, an earthquake has nothing else keeping
+        # a year-old one out: GDACS's list carries two dozen of them. A missing
+        # date is not stale for an event somebody is still updating, but an
+        # earthquake nobody dated is an earthquake we cannot place in time.
+        if kind == "earthquake":
+            when = to_date or as_timestamp(props.get("fromdate"))
+            if not when or is_stale(when, now):
+                continue
 
         event_id = "{}-{}-{}".format(
             str(props.get("eventtype") or "?").strip(),

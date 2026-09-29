@@ -247,6 +247,33 @@ rows = fd.rows_from(payload(filler(40) + [
 names = {r["name"] for r in rows}
 check(names == {"Good"}, f"only the usable event survives ({sorted(names)})")
 
+# --- iscurrent, which means something different for an earthquake -----------
+#
+# A probe of the live list found 39 earthquakes and stored none of them: 24 were
+# dropped for iscurrent=false, and the most recent of those had happened 32 days
+# earlier. The flag is right for a flood, where the agency is saying it is over.
+# It is a category error for an earthquake, which stops being "current" within a
+# day or two of the only minute it ever happened.
+BIG = "{'severity': 7.1, 'severitytext': 'Magnitude 7.1M, Depth:12km', 'severityunit': 'M'}"
+rows = fd.rows_from(payload(filler(40) + [
+    event("EQ", "Orange", "Quake two days ago", ("ID",), 7001, current="false",
+          fromdate="2026-09-27T04:00:00", todate="2026-09-27T04:00:00", severitydata=BIG),
+    event("EQ", "Orange", "Quake five weeks ago", ("ID",), 7002, current="false",
+          fromdate="2026-08-24T04:00:00", todate="2026-08-24T04:00:00", severitydata=BIG),
+    event("EQ", "Orange", "Quake with no date at all", ("ID",), 7003, current="false",
+          fromdate="", todate="", severitydata=BIG),
+    event("FL", "Red", "Flood the agency called over", ("FR",), 7004, current="false"),
+]), now=NOW)
+names = {r["name"] for r in rows}
+check("Quake two days ago" in names,
+      "a significant earthquake stays on the map after GDACS stops calling it current")
+check("Quake five weeks ago" not in names,
+      "but the week's cut still removes an old one, which is all that kept them out before")
+check("Quake with no date at all" not in names,
+      "an earthquake nobody dated cannot be placed in the week, so it is not stored")
+check("Flood the agency called over" not in names,
+      "and iscurrent still means what it says for every other kind")
+
 # --- awkward values ---------------------------------------------------------
 check(fd.point_of({"geometry": {"coordinates": [2.3, 46.6]}}) == (46.6, 2.3),
       "coordinates arrive lng-first and are stored lat-first")

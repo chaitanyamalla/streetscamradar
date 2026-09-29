@@ -38,7 +38,15 @@ insert into public.app_settings (key, value, note) values
   ('auto_hide_flag_threshold', '999999', 'Flags before a report auto-hides. Set to 2 to switch community moderation on.'),
   ('report_move_window_hours', '24',     'How long after filing a report its author may still move it.'),
   ('public_sample_limit',      '5',      'Max reports a signed-out visitor sees when zoomed in.'),
-  ('public_detail_max_span',   '0.35',   'Signed-out visitors see individual reports only when the map spans fewer degrees than this.')
+  ('public_detail_max_span',   '0.35',   'Signed-out visitors see individual reports only when the map spans fewer degrees than this.'),
+  -- Where reporting is closed. Set from the dashboard, no deploy needed:
+  --   update public.app_settings
+  --      set value = '{"countries": ["XX"], "continents": ["AN"]}'
+  --    where key = 'blocked_regions';
+  -- Reading is unaffected: what is already on the map stays readable
+  -- everywhere. See public.reporting_allowed().
+  ('blocked_regions', '{"countries": [], "continents": []}',
+   'Countries and continents where new reports are refused. Reading is unaffected.')
 on conflict (key) do nothing;
 
 alter table public.app_settings enable row level security;
@@ -58,6 +66,119 @@ create or replace function public.report_window()
 returns interval language sql stable as $$
   select make_interval(days => public.setting_int('report_window_days', 7));
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Which continent each country is on.
+--
+-- Only here so that closing a continent to reporting means something. Every
+-- current ISO 3166-1 country is present; the list was checked against the
+-- region codes the browser itself knows, so a typo or an omission would have
+-- shown up rather than silently leaving a country unblockable.
+--
+-- Continent codes are ours: AF AN AS EU NA OC SA. Two of them collide with
+-- country codes (AS is American Samoa, NA is Namibia), which is why countries
+-- and continents are named separately in blocked_regions rather than thrown
+-- into one list.
+--
+-- The awkward ones, decided once and written down: Russia and Cyprus sit in
+-- Europe, Turkey in Asia, and the sub-Antarctic islands — Bouvet, Heard and
+-- McDonald, South Georgia, the French Southern Territories — in Antarctica.
+-- ---------------------------------------------------------------------------
+create table if not exists public.country_continents (
+  country_code char(2) primary key,
+  continent    char(2) not null check (continent in ('AF','AN','AS','EU','NA','OC','SA'))
+);
+
+insert into public.country_continents (country_code, continent) values
+  ('AD','EU'), ('AE','AS'), ('AF','AS'), ('AG','NA'), ('AI','NA'), ('AL','EU'),
+  ('AM','AS'), ('AO','AF'), ('AQ','AN'), ('AR','SA'), ('AS','OC'), ('AT','EU'),
+  ('AU','OC'), ('AW','NA'), ('AX','EU'), ('AZ','AS'), ('BA','EU'), ('BB','NA'),
+  ('BD','AS'), ('BE','EU'), ('BF','AF'), ('BG','EU'), ('BH','AS'), ('BI','AF'),
+  ('BJ','AF'), ('BL','NA'), ('BM','NA'), ('BN','AS'), ('BO','SA'), ('BQ','NA'),
+  ('BR','SA'), ('BS','NA'), ('BT','AS'), ('BV','AN'), ('BW','AF'), ('BY','EU'),
+  ('BZ','NA'), ('CA','NA'), ('CC','AS'), ('CD','AF'), ('CF','AF'), ('CG','AF'),
+  ('CH','EU'), ('CI','AF'), ('CK','OC'), ('CL','SA'), ('CM','AF'), ('CN','AS'),
+  ('CO','SA'), ('CR','NA'), ('CU','NA'), ('CV','AF'), ('CW','NA'), ('CX','AS'),
+  ('CY','EU'), ('CZ','EU'), ('DE','EU'), ('DJ','AF'), ('DK','EU'), ('DM','NA'),
+  ('DO','NA'), ('DZ','AF'), ('EC','SA'), ('EE','EU'), ('EG','AF'), ('EH','AF'),
+  ('ER','AF'), ('ES','EU'), ('ET','AF'), ('FI','EU'), ('FJ','OC'), ('FK','SA'),
+  ('FM','OC'), ('FO','EU'), ('FR','EU'), ('GA','AF'), ('GB','EU'), ('GD','NA'),
+  ('GE','AS'), ('GF','SA'), ('GG','EU'), ('GH','AF'), ('GI','EU'), ('GL','NA'),
+  ('GM','AF'), ('GN','AF'), ('GP','NA'), ('GQ','AF'), ('GR','EU'), ('GS','AN'),
+  ('GT','NA'), ('GU','OC'), ('GW','AF'), ('GY','SA'), ('HK','AS'), ('HM','AN'),
+  ('HN','NA'), ('HR','EU'), ('HT','NA'), ('HU','EU'), ('ID','AS'), ('IE','EU'),
+  ('IL','AS'), ('IM','EU'), ('IN','AS'), ('IO','AS'), ('IQ','AS'), ('IR','AS'),
+  ('IS','EU'), ('IT','EU'), ('JE','EU'), ('JM','NA'), ('JO','AS'), ('JP','AS'),
+  ('KE','AF'), ('KG','AS'), ('KH','AS'), ('KI','OC'), ('KM','AF'), ('KN','NA'),
+  ('KP','AS'), ('KR','AS'), ('KW','AS'), ('KY','NA'), ('KZ','AS'), ('LA','AS'),
+  ('LB','AS'), ('LC','NA'), ('LI','EU'), ('LK','AS'), ('LR','AF'), ('LS','AF'),
+  ('LT','EU'), ('LU','EU'), ('LV','EU'), ('LY','AF'), ('MA','AF'), ('MC','EU'),
+  ('MD','EU'), ('ME','EU'), ('MF','NA'), ('MG','AF'), ('MH','OC'), ('MK','EU'),
+  ('ML','AF'), ('MM','AS'), ('MN','AS'), ('MO','AS'), ('MP','OC'), ('MQ','NA'),
+  ('MR','AF'), ('MS','NA'), ('MT','EU'), ('MU','AF'), ('MV','AS'), ('MW','AF'),
+  ('MX','NA'), ('MY','AS'), ('MZ','AF'), ('NA','AF'), ('NC','OC'), ('NE','AF'),
+  ('NF','OC'), ('NG','AF'), ('NI','NA'), ('NL','EU'), ('NO','EU'), ('NP','AS'),
+  ('NR','OC'), ('NU','OC'), ('NZ','OC'), ('OM','AS'), ('PA','NA'), ('PE','SA'),
+  ('PF','OC'), ('PG','OC'), ('PH','AS'), ('PK','AS'), ('PL','EU'), ('PM','NA'),
+  ('PN','OC'), ('PR','NA'), ('PS','AS'), ('PT','EU'), ('PW','OC'), ('PY','SA'),
+  ('QA','AS'), ('RE','AF'), ('RO','EU'), ('RS','EU'), ('RU','EU'), ('RW','AF'),
+  ('SA','AS'), ('SB','OC'), ('SC','AF'), ('SD','AF'), ('SE','EU'), ('SG','AS'),
+  ('SH','AF'), ('SI','EU'), ('SJ','EU'), ('SK','EU'), ('SL','AF'), ('SM','EU'),
+  ('SN','AF'), ('SO','AF'), ('SR','SA'), ('SS','AF'), ('ST','AF'), ('SV','NA'),
+  ('SX','NA'), ('SY','AS'), ('SZ','AF'), ('TC','NA'), ('TD','AF'), ('TF','AN'),
+  ('TG','AF'), ('TH','AS'), ('TJ','AS'), ('TK','OC'), ('TL','AS'), ('TM','AS'),
+  ('TN','AF'), ('TO','OC'), ('TR','AS'), ('TT','NA'), ('TV','OC'), ('TW','AS'),
+  ('TZ','AF'), ('UA','EU'), ('UG','AF'), ('UM','OC'), ('US','NA'), ('UY','SA'),
+  ('UZ','AS'), ('VA','EU'), ('VC','NA'), ('VE','SA'), ('VG','NA'), ('VI','NA'),
+  ('VN','AS'), ('VU','OC'), ('WF','OC'), ('WS','OC'), ('XK','EU'), ('YE','AS'),
+  ('YT','AF'), ('ZA','AF'), ('ZM','AF'), ('ZW','AF')
+on conflict (country_code) do update set continent = excluded.continent;
+
+alter table public.country_continents enable row level security;
+revoke all on table public.country_continents from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Where reporting is closed.
+--
+-- The page asks for this list once and refuses a pin there with a plain
+-- message. That is the courtesy; THIS is the rule — the page can be bypassed
+-- and the insert policy below cannot.
+--
+-- The honest limit: a report carries the country its reporter's browser was
+-- told it was in, so the check is only as good as that. Hence the second
+-- clause — while any block is in force, a report with no country at all is
+-- refused, because "I could not tell you where this is" is exactly what a
+-- bypass would say. With nothing blocked, nothing changes for anybody.
+-- ---------------------------------------------------------------------------
+create or replace function public.blocked_countries()
+returns text[] language sql stable security definer set search_path = public as $$
+  with setting as (
+    select coalesce(value, '{}'::jsonb) as value
+      from public.app_settings where key = 'blocked_regions'
+  )
+  select coalesce(array(
+    select jsonb_array_elements_text(coalesce((select value->'countries' from setting), '[]'::jsonb))
+    union
+    select c.country_code
+      from public.country_continents c
+     where c.continent in (
+       select jsonb_array_elements_text(
+         coalesce((select value->'continents' from setting), '[]'::jsonb)))
+  ), '{}'::text[]);
+$$;
+
+grant execute on function public.blocked_countries() to anon, authenticated;
+
+create or replace function public.reporting_allowed(p_country text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select case
+    when coalesce(array_length(public.blocked_countries(), 1), 0) = 0 then true
+    when p_country is null or btrim(p_country) = '' then false
+    else upper(btrim(p_country)) <> all (public.blocked_countries())
+  end;
+$$;
+
+grant execute on function public.reporting_allowed(text) to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Scam categories. A table, not an enum, so you can add one from the Supabase
@@ -228,6 +349,7 @@ create policy "members create reports" on public.reports
     and support_count = 0
     and flag_count    = 0
     and happened_at > now() - public.report_window()
+    and public.reporting_allowed(country_code)
   );
 
 -- What a signed-in member may read. A view rather than a policy, because it

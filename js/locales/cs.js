@@ -220,6 +220,7 @@ export default {
   'toast.needPlaceFirst': 'Nejdřív vyberte, kde se to stalo.',
   'toast.pinOnWater': 'To je otevřená voda. Vyberte ulici, nádraží nebo tržnici, kde se to stalo.',
   'toast.pinPolar': 'To je mimo místa, kam se cestuje. Vyberte místo, kde se to stalo.',
+  'toast.regionClosed': 'Hlášení jsou v tomto regionu momentálně uzavřena.',
   'toast.needWhen': 'Řekněte nám, kdy se to stalo.',
   'toast.whenFuture': 'To je v budoucnosti. Vyberte, kdy se to opravdu stalo.',
   'toast.whenTooOld': 'Hlášení mizí z mapy po {days} dnech, tohle by se tedy nezobrazilo.',

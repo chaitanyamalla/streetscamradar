@@ -235,6 +235,7 @@ export default {
   'toast.needPlaceFirst': 'Escolha primeiro onde aconteceu.',
   'toast.pinOnWater': 'Isso é água aberta. Escolha a rua, a estação ou o mercado onde aconteceu.',
   'toast.pinPolar': 'Isso fica fora das zonas onde se viaja. Escolha o local onde aconteceu.',
+  'toast.regionClosed': 'Os relatos estão encerrados nesta região de momento.',
   'toast.needWhen': 'Diga-nos quando aconteceu.',
   'toast.whenFuture': 'Isso é no futuro. Escolha quando aconteceu mesmo.',
   'toast.whenTooOld': 'Os relatos saem do mapa ao fim de {days} dias, por isso este não apareceria.',

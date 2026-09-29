@@ -14,7 +14,8 @@ import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, myConfirmedReports, editMyReport,
          deleteMyAccount, getProfile, saveDisplayName, saveLocale, fetchAdvisories,
-         fetchDisasters, fetchWeatherWarnings, supabase } from './js/data.js';
+         fetchDisasters, fetchWeatherWarnings, fetchBlockedCountries,
+         supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
          signInWithGoogle, signOut, enabledProviders, changePassword } from './js/auth.js';
 import { searchPlaces, suggestPlaces, describePoint, locateMe } from './js/geo.js';
@@ -47,6 +48,7 @@ const state = {
   profile: null,      // display_name and home area, read once at sign-in
   safetyPlaces: [],   // what the safety layer last loaded, for the country lookup
   advisories: null,   // country_code -> row, read once per session
+  blockedCountries: null,  // where reporting is closed, read once per session
   quakes: null,       // read once per session, straight from USGS
   disasters: null,    // country_code -> rows, mirrored from GDACS every few hours
   weather: null,      // country_code -> rows, mirrored from MeteoAlarm
@@ -135,6 +137,12 @@ async function init() {
   });
 
   if (isConfigured()) {
+    // Where reporting is closed. One small read, and a failure here leaves the
+    // map open — the database refuses those reports either way.
+    fetchBlockedCountries()
+      .then(codes => { state.blockedCountries = codes; })
+      .catch(() => { state.blockedCountries = new Set(); });
+
     try {
       state.categories = await getCategories();
       state.activeCategories = new Set(state.categories.map(c => c.slug));
@@ -647,6 +655,21 @@ function paintVolcanoes() {
     : t('volcano.none');
 }
 
+/**
+ * Is the map looking at somewhere reporting is closed?
+ *
+ * Only ever true when it is sure: the view has to be inside one country and
+ * that country has to be on the list. A view spanning three countries answers
+ * no, and the pin refusal catches it later — better than telling somebody the
+ * region is closed when we do not know which region they mean.
+ */
+async function regionClosedHere() {
+  if (!isConfigured() || !viewIsOneCountry()) return false;
+  const code = await currentCountry();
+  return Boolean(code && state.blockedCountries?.has(code));
+}
+
+
 /** Show or hide the hazard layer panel. */
 function toggleHazardPanel(open) {
   const panel = $('#hazard-panel');
@@ -995,6 +1018,11 @@ function stopPicking() {
 function refusePin(place) {
   if (place?.countryCode === 'AQ') return 'toast.pinPolar';
   if (place?.known && place?.onWater) return 'toast.pinOnWater';
+  // Somewhere we are not serving. The database refuses these too; this is so
+  // nobody writes out a report that was never going to be accepted.
+  if (place?.countryCode && state.blockedCountries?.has(place.countryCode)) {
+    return 'toast.regionClosed';
+  }
   return null;
 }
 
@@ -1658,7 +1686,12 @@ function wireUI() {
   });
 
   // --- report form
-  $('#open-report').addEventListener('click', () => {
+  $('#open-report').addEventListener('click', async () => {
+    // Before the sign-in gate, not after it. Asking a visitor to make an
+    // account and only then telling them we do not take reports where they are
+    // standing is a waste of their time and ours.
+    if (await regionClosedHere()) { toast(t('toast.regionClosed'), { error: true }); return; }
+
     if (!signedIn()) {
       toast(t('toast.joinToReport'));
       openDialog('#auth-dialog');

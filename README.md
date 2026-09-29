@@ -107,6 +107,35 @@ are pinned by tests, for the reason the travel advisories are.
 runs from the `Refresh hazards` workflow with `probe`. Run it before changing
 a parser — it is what these were written from.
 
+### Closing a region to reporting
+
+An administrator can close any country or continent to **new reports**, with no
+deploy:
+
+```sql
+update public.app_settings
+   set value = '{"countries": ["TH"], "continents": ["AN"]}'
+ where key = 'blocked_regions';
+```
+
+`supabase/ops/set_blocked_regions.sql` has the whole thing with checks either
+side of it. Continent codes are ours — AF AN AS EU NA OC SA — and expand
+through `public.country_continents`, which places all 250 countries.
+
+**Reading is never affected.** Everything already on the map stays visible to
+everyone, everywhere. What changes is that the report button says the region is
+closed — before the sign-in gate, so nobody is asked to make an account for a
+report that would be refused — and a pin dropped there is refused with the same
+line.
+
+The rule that actually holds is the insert policy on `reports`, which calls
+`public.reporting_allowed()`. The page can be bypassed; the table cannot.
+
+The honest limit: a report carries the country the reporter's browser was told
+it was in, so the check is only as good as that. While any block is in force, a
+report carrying no country at all is refused too — "I cannot tell you where
+this is" is exactly what a bypass would say.
+
 ### Travel advisories
 
 The map shows the German Federal Foreign Office's advisory status for the

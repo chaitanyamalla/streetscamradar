@@ -216,6 +216,7 @@ export default {
   'toast.needPlaceFirst': 'Wähle zuerst, wo es passiert ist.',
   'toast.pinOnWater': 'Das ist offenes Wasser. Wähle die Straße, den Bahnhof oder den Markt, wo es passiert ist.',
   'toast.pinPolar': 'Das liegt außerhalb der bereisten Welt. Wähle den Ort, wo es passiert ist.',
+  'toast.regionClosed': 'In dieser Region sind Meldungen derzeit geschlossen.',
   'toast.needWhen': 'Sag uns, wann es passiert ist.',
   'toast.whenFuture': 'Das liegt in der Zukunft. Wähle, wann es wirklich passiert ist.',
   'toast.whenTooOld': 'Meldungen verschwinden nach {days} Tagen von der Karte, diese würde also nicht erscheinen.',

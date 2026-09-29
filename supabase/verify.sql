@@ -240,6 +240,37 @@ select * from (
               then 'PASS' else 'FAIL' end
 
   union all
-  select 28, 'reports currently stored', count(*) || ' reports', 'INFO'
+  select 28, 'every country placed on a continent',
+         (select count(*) || ' countries' from public.country_continents),
+         case when (select count(*) from public.country_continents) >= 240
+              then 'PASS' else 'INCOMPLETE' end
+
+  union all
+  -- Normally nothing. When something is closed this says what, because a
+  -- region left shut by accident is invisible from every other angle.
+  select 29, 'regions closed to reporting',
+         case when coalesce(cardinality(public.blocked_countries()), 0) = 0
+              then 'none — reporting open everywhere'
+              else cardinality(public.blocked_countries()) || ' countries: '
+                   || array_to_string(public.blocked_countries(), ', ') end,
+         'INFO'
+
+  union all
+  select 30, 'the block is enforced by the table, not only the page',
+         case when exists (
+                select 1 from pg_policies
+                 where schemaname = 'public' and tablename = 'reports'
+                   and policyname = 'members create reports'
+                   and with_check like '%reporting_allowed%')
+              then 'in the insert policy' else 'NOT in the insert policy' end,
+         case when exists (
+                select 1 from pg_policies
+                 where schemaname = 'public' and tablename = 'reports'
+                   and policyname = 'members create reports'
+                   and with_check like '%reporting_allowed%')
+              then 'PASS' else 'FAIL' end
+
+  union all
+  select 31, 'reports currently stored', count(*) || ' reports', 'INFO'
     from public.reports
 ) x order by ord;

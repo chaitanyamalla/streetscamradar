@@ -234,6 +234,7 @@ export default {
   'toast.needPlaceFirst': 'Kies eerst waar het gebeurde.',
   'toast.pinOnWater': 'Dat is open water. Kies de straat, het station of de markt waar het gebeurde.',
   'toast.pinPolar': 'Dat ligt buiten waar mensen reizen. Kies de plek waar het gebeurde.',
+  'toast.regionClosed': 'Melden is momenteel gesloten in deze regio.',
   'toast.needWhen': 'Vertel ons wanneer het gebeurde.',
   'toast.whenFuture': 'Dat ligt in de toekomst. Kies wanneer het echt gebeurde.',
   'toast.whenTooOld': 'Meldingen verdwijnen na {days} dagen van de kaart, dus deze zou niet verschijnen.',

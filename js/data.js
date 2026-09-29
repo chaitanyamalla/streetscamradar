@@ -403,6 +403,36 @@ export function fetchWeatherWarnings() {
   return weatherCache;
 }
 
+/**
+ * Where reporting is closed, as a set of country codes.
+ *
+ * Read once and kept: it changes when an administrator changes it, which is
+ * rare, and asking on every pin would be a request per click. The database
+ * refuses these reports whatever this says — this is only so the page can say
+ * why before somebody types out a report that would be thrown away.
+ *
+ * A failed read is an open map. Being unable to reach the list is not a reason
+ * to stop people reporting, and the rule that matters still holds underneath.
+ */
+let blockedCache = null;
+
+export function fetchBlockedCountries() {
+  if (blockedCache) return blockedCache;
+  if (!supabase) return Promise.resolve(new Set());
+
+  blockedCache = supabase.rpc('blocked_countries')
+    .then(({ data, error }) => {
+      if (error) throw error;
+      return new Set((data ?? []).map(code => String(code).toUpperCase()));
+    })
+    .catch(err => {
+      blockedCache = null;
+      console.warn('could not read the blocked regions:', err);
+      return new Set();
+    });
+  return blockedCache;
+}
+
 export async function fetchSafetyPlaces(bounds) {
   need();
   const { minLat, minLng, maxLat, maxLng } = bounds;

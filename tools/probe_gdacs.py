@@ -21,6 +21,7 @@
 # ---------------------------------------------------------------------------
 import collections
 import json
+from datetime import datetime, timezone
 import urllib.request
 
 SOURCE = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/EVENTS4APP"
@@ -113,6 +114,46 @@ def main():
             break
     if not shown:
         print("  (none in the list right now)")
+
+    # --- how far back does the live list reach? -----------------------------
+    print(f"\n{'=' * 70}\nHOW OLD IS WHAT GDACS IS SHOWING\n{'=' * 70}")
+    now = datetime.now(timezone.utc)
+
+    def age_days(value):
+        text = str(value or "").strip()
+        if not text:
+            return None
+        try:
+            stamp = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        return (now - stamp).total_seconds() / 86400
+
+    rows = []
+    for feature in features:
+        props = (feature or {}).get("properties") or {}
+        kind = KINDS.get(str(props.get("eventtype") or "").strip().upper(), "?")
+        rows.append((kind, str(props.get("alertlevel") or "?"),
+                     age_days(props.get("fromdate")), age_days(props.get("todate")),
+                     str(props.get("iscurrent") or "")))
+
+    print(f"  {'kind':<12}{'started':>10}{'last update':>14}   {'iscurrent':<10}")
+    print("  " + "-" * 52)
+    for kind in sorted({r[0] for r in rows}):
+        mine = [r for r in rows if r[0] == kind]
+        starts = sorted(r[2] for r in mine if r[2] is not None)
+        ends = sorted(r[3] for r in mine if r[3] is not None)
+        current = {r[4] for r in mine}
+        print(f"  {kind:<12}{'%.1f–%.1f d' % (starts[0], starts[-1]) if starts else '—':>10}"
+              f"{'%.1f–%.1f d' % (ends[0], ends[-1]) if ends else '—':>14}   {','.join(sorted(current)):<10}")
+
+    for cut in (2, 3, 5, 7, 14, 30):
+        kept = sum(1 for r in rows if r[3] is not None and r[3] <= cut)
+        by_start = sum(1 for r in rows if r[2] is not None and r[2] <= cut)
+        print(f"  last update within {cut:>2} days: {kept:>3} of {len(rows)}"
+              f"   |   started within {cut:>2} days: {by_start:>3}")
 
     print("\nDone.")
 

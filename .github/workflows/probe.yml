@@ -22,6 +22,7 @@ on:
         options:
           - probe_geocoder.py
           - probe_search.py
+          - probe_gdacs.py
 
 concurrency:
   group: probe

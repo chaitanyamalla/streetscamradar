@@ -227,6 +227,19 @@ select * from (
               then 'SUSPECT' else 'PASS' end
 
   union all
-  select 27, 'reports currently stored', count(*) || ' reports', 'INFO'
+  -- The page refuses a pin in the sea or at the poles, but the page can be
+  -- bypassed. This is the rule that cannot be.
+  select 27, 'reports confined to inhabited latitudes',
+         coalesce((select string_agg(conname, ', ')
+                     from pg_constraint
+                    where conrelid = 'public.reports'::regclass and contype = 'c'
+                      and pg_get_constraintdef(oid) like '%60%'), 'no latitude constraint'),
+         case when exists (select 1 from pg_constraint
+                            where conrelid = 'public.reports'::regclass and contype = 'c'
+                              and pg_get_constraintdef(oid) like '%60%')
+              then 'PASS' else 'FAIL' end
+
+  union all
+  select 28, 'reports currently stored', count(*) || ' reports', 'INFO'
     from public.reports
 ) x order by ord;

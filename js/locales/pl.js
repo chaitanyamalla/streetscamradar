@@ -328,6 +328,7 @@ export default {
   'hazards.official': 'Źródła oficjalne',
   'hazards.volcanoes': 'Wulkany',
   'hazards.weather': 'Ostrzeżenia pogodowe',
+  'hazards.window': 'Ostatnie {days} dni — to samo okno co zgłoszenia. Starsze nadal figurują u agencji.',
   'hazards.notOurs': 'Publikowane przez krajowe instytucje. Pokazujemy to, co wydały — nic od siebie.',
   'weather.count.one': '1 ostrzeżenie tutaj',
   'weather.count.few': '{n} ostrzeżenia tutaj',

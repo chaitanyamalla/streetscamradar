@@ -186,6 +186,10 @@
               <p class="hp-foot" data-i18n="hazards.notOurs">
                 Published by national agencies. We show what they issued and nothing of our own.
               </p>
+              <!-- Its English lives here and onLanguageChanged rewrites it, the
+                   same as #when-hint: the sentence carries a number, so a
+                   plain data-i18n cannot fill it. -->
+              <p class="hp-foot" id="hazard-window">The last 7 days, the same window as the reports. Older ones are still listed by the agency.</p>
               <p class="hp-foot" data-i18n="hazard.notAlert">
                 Not an alert service — check official sources before you travel.
               </p>

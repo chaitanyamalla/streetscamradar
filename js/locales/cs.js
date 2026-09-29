@@ -328,6 +328,7 @@ export default {
   'hazards.official': 'Oficiální zdroje',
   'hazards.volcanoes': 'Sopky',
   'hazards.weather': 'Výstrahy počasí',
+  'hazards.window': 'Posledních {days} dní, stejné okno jako u hlášení. Starší agentura stále uvádí.',
   'hazards.notOurs': 'Vydávají národní úřady. Ukazujeme jen to, co vydaly — nic vlastního.',
   'weather.count.one': '1 výstraha zde',
   'weather.count.few': '{n} výstrahy zde',

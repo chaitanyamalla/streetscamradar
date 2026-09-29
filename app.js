@@ -24,7 +24,7 @@ import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
          setHazards, setHazardsVisible, setDisasters, setVolcanoesVisible,
          setDisastersVisible, maplibregl } from './js/map.js';
-import { quakesIn, inBounds, quakeTone, hazardLabel } from './js/hazards.js';
+import { quakesIn, inBounds, quakeTone, hazardLabel, startedWithin } from './js/hazards.js';
 import { hazardSignSVG } from './js/hazard-signs.js';
 import { esc, toast, liftToast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
@@ -213,6 +213,10 @@ function onLanguageChanged() {
   if (state.placeLabel) $('#place-label').textContent = state.placeLabel;
   if (signedIn()) $('#profile-email').textContent = state.user?.email ?? t('header.signedIn');
   $('#when-hint').textContent = t('report.whenHint', { days: REPORT_WINDOW_DAYS });
+  // The panel says what the map is NOT showing. It hides hazards the agency
+  // still lists, and a reader comparing it with gdacs.org deserves to know
+  // that rather than wonder which of the two is broken.
+  $('#hazard-window').textContent = t('hazards.window', { days: REPORT_WINDOW_DAYS });
   if (!state.pin) $('#pin-status').textContent = t('report.noPin');
 
   paintAuthState();
@@ -581,6 +585,10 @@ function uniqueEvents(keep) {
   for (const list of state.disasters?.values() ?? []) {
     for (const row of list) {
       if (seen.has(row.event_id) || !keep(row)) continue;
+      // The same week the reports use, deliberately the same number: a map
+      // that stops at seven days for one thing and carries a fortnight-old
+      // fire for another is two maps. The table keeps the older ones.
+      if (!startedWithin(row, REPORT_WINDOW_DAYS)) continue;
       if (!Number.isFinite(row.lat) || !Number.isFinite(row.lng)) continue;
       seen.add(row.event_id);
       rows.push(row);

@@ -324,6 +324,7 @@ export default {
   'hazards.official': 'Offizielle Quellen',
   'hazards.volcanoes': 'Vulkane',
   'hazards.weather': 'Wetterwarnungen',
+  'hazards.window': 'Die letzten {days} Tage — dasselbe Zeitfenster wie bei den Meldungen. Ältere führt die Behörde weiterhin.',
   'hazards.notOurs': 'Von nationalen Behörden herausgegeben. Wir zeigen, was sie veröffentlicht haben — nichts von uns.',
   'weather.count.one': '1 Warnung hier',
   'weather.count.other': '{n} Warnungen hier',

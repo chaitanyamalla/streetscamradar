@@ -342,6 +342,7 @@ export default {
   'hazards.official': 'Official sources',
   'hazards.volcanoes': 'Volcanoes',
   'hazards.weather': 'Weather warnings',
+  'hazards.window': 'The last {days} days, the same window as the reports. Older ones are still listed by the agency.',
   'hazards.notOurs': 'Published by national agencies. We show what they issued and nothing of our own.',
   'weather.count.one': '1 warning here',
   'weather.count.other': '{n} warnings here',

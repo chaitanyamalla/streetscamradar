@@ -344,6 +344,7 @@ export default {
   'hazards.official': 'Officiële bronnen',
   'hazards.volcanoes': 'Vulkanen',
   'hazards.weather': 'Weerwaarschuwingen',
+  'hazards.window': 'De laatste {days} dagen, hetzelfde venster als de meldingen. Oudere staan nog bij de instantie.',
   'hazards.notOurs': 'Uitgegeven door nationale instanties. We tonen wat zij publiceren, niets van onszelf.',
   'weather.count.one': '1 waarschuwing hier',
   'weather.count.other': '{n} waarschuwingen hier',

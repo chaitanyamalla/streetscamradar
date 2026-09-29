@@ -324,6 +324,7 @@ export default {
   'hazards.official': 'Sources officielles',
   'hazards.volcanoes': 'Volcans',
   'hazards.weather': 'Vigilance météo',
+  'hazards.window': 'Les {days} derniers jours, la même fenêtre que les signalements. L\'agence continue de lister les plus anciens.',
   'hazards.notOurs': 'Publié par des organismes nationaux. Nous montrons ce qu’ils ont émis, rien de nous.',
   'weather.count.one': '1 alerte ici',
   'weather.count.other': '{n} alertes ici',

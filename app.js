@@ -24,7 +24,7 @@ import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
          setHazards, setHazardsVisible, setDisasters, setVolcanoesVisible,
          setDisastersVisible, maplibregl } from './js/map.js';
-import { quakesIn, inBounds, quakeTone, hazardLabel, startedWithin } from './js/hazards.js';
+import { quakesIn, inBounds, quakeTone, hazardLabel, isLive } from './js/hazards.js';
 import { hazardSignSVG } from './js/hazard-signs.js';
 import { esc, toast, liftToast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
@@ -585,10 +585,10 @@ function uniqueEvents(keep) {
   for (const list of state.disasters?.values() ?? []) {
     for (const row of list) {
       if (seen.has(row.event_id) || !keep(row)) continue;
-      // The same week the reports use, deliberately the same number: a map
-      // that stops at seven days for one thing and carries a fortnight-old
-      // fire for another is two maps. The table keeps the older ones.
-      if (!startedWithin(row, REPORT_WINDOW_DAYS)) continue;
+      // Still happening, or new in the same week the reports use — the same
+      // number, imported rather than retyped. What drops off is what ENDED a
+      // week ago, not what has been going on for one.
+      if (!isLive(row, REPORT_WINDOW_DAYS)) continue;
       if (!Number.isFinite(row.lat) || !Number.isFinite(row.lng)) continue;
       seen.add(row.event_id);
       rows.push(row);

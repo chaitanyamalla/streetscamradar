@@ -24,24 +24,44 @@
 import { t } from './i18n.js';
 
 /**
- * Is this hazard recent enough to draw?
+ * Is this hazard worth drawing?
  *
- * Judged on when it STARTED, because that is the age a reader sees: the popup
- * says "11 days ago", and a map whose reports stop at a week should not carry
- * a fortnight-old fire beside them.
+ * Not "is it new" — "is it still happening". GDACS carries an event's end date
+ * forward for as long as it is going, so `to_date` is the last moment the
+ * agency vouched for it being live. A fire on its eleventh day has a to_date
+ * from this morning; a fire that went out a fortnight ago does not.
  *
- * The cost is real and worth stating: a cyclone GDACS has tracked for fifteen
- * days and updated an hour ago leaves the map on its eighth, even though it is
- * still a storm. One window across the whole site was judged worth more than
- * the handful of long-running events that lose — and the table keeps them, so
- * this is a decision about what is drawn, not about what is known.
+ * That is the question worth asking. An earlier version of this judged events
+ * on when they STARTED, to match the seven-day window the reports use, and it
+ * was wrong in the way that matters: a cyclone tracked for fifteen days and
+ * updated an hour ago left the map on its eighth day while still being a
+ * cyclone. A fire burning for eleven days is more relevant to somebody
+ * deciding where to go than one that started yesterday, not less.
  *
- * A hazard with no start date is kept: that is the source telling us nothing,
- * which is not the same as telling us it is old.
+ * So: still being carried forward, or new enough not to have needed it yet.
+ * Dates the source did not send are not evidence of age — if GDACS tells us
+ * nothing, that is not the same as telling us the thing is over.
  */
-export const startedWithin = (row, days, now = Date.now()) => {
+export const isLive = (row, days, now = Date.now()) => {
+  const cutoff = now - days * 86400000;
+  const lastKnown = Date.parse(row?.to_date ?? '');
+  if (Number.isFinite(lastKnown)) return lastKnown >= cutoff;
   const started = Date.parse(row?.from_date ?? '');
-  return !Number.isFinite(started) || started >= now - days * 86400000;
+  if (Number.isFinite(started)) return started >= cutoff;
+  return true;
+};
+
+/**
+ * Has this been going long enough that "2 days ago" would misread as stale?
+ *
+ * A popup saying "11 days ago" about a fire still burning tells a reader the
+ * opposite of the truth. Past a day, the popup says "Ongoing since …" instead.
+ */
+export const runningDays = (row) => {
+  const from = Date.parse(row?.from_date ?? '');
+  const to = Date.parse(row?.to_date ?? '');
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
+  return Math.max(0, (to - from) / 86400000);
 };
 
 /** Whatever sits inside a map view. Used for both the earthquakes and the

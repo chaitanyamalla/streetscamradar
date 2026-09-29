@@ -4,6 +4,7 @@
 // ---------------------------------------------------------------------------
 import { PIN_COLOR } from './config.js';
 import { hazardSignSVG } from './hazard-signs.js';
+import { runningDays } from './hazards.js';
 import { t, tn, plural, tOr, formatDate } from './i18n.js';
 import { STRINGS as ADVISORY, officialUrl, countryTitle, levelLabel, levelExplain,
          emergencyLine, contextLine } from './advisory.js';
@@ -565,7 +566,14 @@ const PLACEMENT = {
 
 export function disasterPopupHTML(props) {
   const kind = String(props.kind ?? 'flood');
-  const when = props.from_date ? timeAgo(props.from_date) : '';
+
+  // "11 days ago" about a fire still burning says the opposite of the truth.
+  // Past a day of running, the line becomes when it STARTED rather than how
+  // long ago that was, and says plainly that it has not stopped.
+  const days = runningDays(props);
+  const when = days >= 1
+    ? t('hazard.since', { when: formatDate(props.from_date, { day: 'numeric', month: 'short' }) })
+    : (props.from_date ? timeAgo(props.from_date) : '');
 
   return `
     <div class="popup-head">

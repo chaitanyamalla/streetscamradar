@@ -114,7 +114,63 @@
             <div class="floating-controls">
               <button id="zoom-in" class="icon-button" type="button" data-i18n-aria="map.zoomIn" aria-label="Zoom in">+</button>
               <button id="zoom-out" class="icon-button" type="button" data-i18n-aria="map.zoomOut" aria-label="Zoom out">−</button>
+              <button id="hazard-layers" class="icon-button hazard-button" type="button"
+                      aria-expanded="false" aria-controls="hazard-panel"
+                      data-i18n-aria="hazards.layers" aria-label="Natural hazard layers">⛰</button>
             </div>
+
+            <!-- The hazard layers, with what draws them and who publishes them.
+                 A legend and a set of switches in one: every row shows its own
+                 mark, so the map can be read without a separate key, and names
+                 the agency, because that — not us — is the authority for any
+                 of this. -->
+            <section class="hazard-panel" id="hazard-panel" hidden aria-labelledby="hazard-panel-title">
+              <div class="hp-head">
+                <div>
+                  <p class="eyebrow" id="hazard-panel-eyebrow" data-i18n="hazards.official">Official sources</p>
+                  <h2 id="hazard-panel-title" data-i18n="hazards.layers">Natural hazard layers</h2>
+                </div>
+                <button class="close-button" id="hazard-panel-close" type="button"
+                        data-i18n-aria="auth.close" aria-label="Close">×</button>
+              </div>
+
+              <label class="hazard-row">
+                <input type="checkbox" id="quake-toggle" checked />
+                <span class="hz-mark hz-quake" aria-hidden="true"></span>
+                <span class="hz-text">
+                  <span class="hz-name" data-i18n="filters.quakes">Earthquakes</span>
+                  <span class="hz-note" id="quake-status" data-i18n="hazards.checking">Checking…</span>
+                </span>
+                <span class="hz-source">USGS</span>
+              </label>
+
+              <label class="hazard-row">
+                <input type="checkbox" id="volcano-toggle" checked />
+                <span class="hz-mark hz-volcano" aria-hidden="true">🌋</span>
+                <span class="hz-text">
+                  <span class="hz-name" data-i18n="hazards.volcanoes">Volcanoes</span>
+                  <span class="hz-note" id="volcano-status" data-i18n="hazards.checking">Checking…</span>
+                </span>
+                <span class="hz-source">GDACS</span>
+              </label>
+
+              <label class="hazard-row">
+                <input type="checkbox" id="weather-toggle" checked />
+                <span class="hz-mark hz-weather" aria-hidden="true"></span>
+                <span class="hz-text">
+                  <span class="hz-name" data-i18n="hazards.weather">Weather warnings</span>
+                  <span class="hz-note" id="weather-status" data-i18n="hazards.checking">Checking…</span>
+                </span>
+                <span class="hz-source">MeteoAlarm</span>
+              </label>
+
+              <p class="hp-foot" data-i18n="hazards.notOurs">
+                Published by national agencies. We show what they issued and nothing of our own.
+              </p>
+              <p class="hp-foot" data-i18n="hazard.notAlert">
+                Not an alert service — check official sources before you travel.
+              </p>
+            </section>
           <!-- Emergency numbers for whatever country is on screen. Inside the
                map frame on purpose: it is how you reach the police, who come
                to you, while the hospital pins are places you go. -->
@@ -149,13 +205,10 @@
               <span data-i18n="filters.hospitals">Hospitals nearby</span>
             </label>
             <p class="muted-note" id="safety-status" data-i18n="safety.zoomIn">Zoom in to see hospitals</p>
-
-            <label class="filter-row">
-              <input type="checkbox" id="quake-toggle" checked />
-              <span class="safety-glyphs" aria-hidden="true">🌍</span>
-              <span data-i18n="filters.quakes">Earthquakes</span>
-            </label>
-            <p class="muted-note" id="hazard-status" data-i18n="hazards.checking">Checking…</p>
+            <!-- Natural hazards used to have a row here. They are not a filter
+                 on our reports — they are other people's official data laid
+                 over the map — so they have their own control on the map
+                 itself, where what they draw can be seen while switching. -->
           </div>
         </details>
 

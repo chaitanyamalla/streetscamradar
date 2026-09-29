@@ -69,6 +69,8 @@ check(by_key[("FL-1-1", "FR")]["from_date"].endswith("+00:00"),
       "and are pinned to UTC rather than left for Postgres to guess")
 check(by_key[("FL-1-1", "FR")]["url"] == "https://www.gdacs.org/report",
       "the report link is taken out of the url object")
+check(by_key[("VO-3-1", "IT")]["lat"] == 46.6 and by_key[("VO-3-1", "IT")]["lng"] == 2.3,
+      "the event's position is kept — a volcano is a point on the ground")
 check([(r["country_code"], r["event_id"]) for r in rows]
       == sorted((r["country_code"], r["event_id"]) for r in rows),
       "rows come out in a stable order")
@@ -110,6 +112,13 @@ names = {r["name"] for r in rows}
 check(names == {"Good"}, f"only the usable event survives ({sorted(names)})")
 
 # --- awkward values ---------------------------------------------------------
+check(fd.point_of({"geometry": {"coordinates": [2.3, 46.6]}}) == (46.6, 2.3),
+      "coordinates arrive lng-first and are stored lat-first")
+check(fd.point_of({}) == (None, None), "no geometry is not a crash")
+check(fd.point_of({"geometry": {"coordinates": ["x", "y"]}}) == (None, None),
+      "unparseable coordinates are not a position")
+check(fd.point_of({"geometry": {"coordinates": [999, 999]}}) == (None, None),
+      "a position off the planet is refused rather than drawn")
 check(fd.as_timestamp("") is None, "a blank date is not a date")
 check(fd.as_timestamp("not a date") is None, "an unparseable date is not a date")
 check(fd.as_timestamp(None) is None, "a missing date is not a date")
@@ -130,6 +139,7 @@ sql = buffer.getvalue()
 check(sql.count("begin;") == 1 and sql.count("commit;") == 1, "the refresh is one transaction")
 check("O''Brien''s flood" in sql, "an apostrophe is escaped, not injected")
 check("on conflict (event_id, country_code) do update set" in sql, "an existing row is updated in place")
+check("46.6" in sql and "2.3" in sql, "the position reaches the SQL as a number, not a string")
 check("delete from public.disaster_alerts where refreshed_at < now();" in sql,
       "whatever GDACS stopped listing is deleted")
 check(sql.index("insert into") < sql.index("delete from"),

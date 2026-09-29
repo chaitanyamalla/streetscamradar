@@ -3,7 +3,7 @@
 // reaches innerHTML — report text is untrusted input from strangers.
 // ---------------------------------------------------------------------------
 import { PIN_COLOR } from './config.js';
-import { t, tn, plural, tOr } from './i18n.js';
+import { t, tn, plural, tOr, formatDate } from './i18n.js';
 import { STRINGS as ADVISORY, officialUrl, countryTitle, levelLabel, levelExplain,
          emergencyLine, contextLine } from './advisory.js';
 
@@ -464,29 +464,79 @@ export function quakePopupHTML(props) {
 }
 
 /**
- * The ongoing-disasters dialog: what GDACS currently lists for this country.
+ * A volcano, which is the one GDACS hazard that is a place.
  *
- * One entry each, with the dates GDACS gave and a link to its report. No
- * advice and no prose of ours — this is a pointer to somebody else's work,
- * and the line saying it is not an alert service is said rather than implied.
+ * GDACS's own name for it and its own link. Nothing here interprets an
+ * eruption, because nobody on this project is qualified to.
  */
-export function disasterDialogHTML(rows) {
-  if (!rows?.length) return `<p class="empty-note">${esc(t('hazards.none'))}</p>`;
+export function volcanoPopupHTML(props) {
+  const when = props.from_date ? timeAgo(props.from_date) : '';
+  return `
+    <div class="popup-head">
+      <span class="popup-glyph is-hazard" aria-hidden="true">\u{1F30B}</span>
+      <div>
+        <p class="popup-kicker">${esc(t('hazard.kind.volcano'))}</p>
+        <p class="popup-title">${esc(props.name ?? '')}</p>
+      </div>
+    </div>
+    ${props.url ? `<div class="popup-actions">
+      <a class="popup-action is-primary" href="${esc(props.url)}"
+         target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>
+    </div>` : ''}
+    <p class="popup-meta">${esc(when)}${when ? ' \u00b7 ' : ''}${esc(t('disaster.source'))}</p>
+    <p class="popup-fine">${esc(t('hazard.notAlert'))}</p>`;
+}
 
-  const entries = rows.map(row => {
-    const when = row.from_date ? t('disaster.reported', { when: timeAgo(row.from_date) }) : '';
-    return `
-      <div class="disaster-row is-${esc(row.severity)}">
-        <p class="disaster-kind">${esc(t(`hazard.kind.${row.kind}`))}</p>
-        <p class="disaster-name">${esc(row.name)}</p>
+/**
+ * What is going on in the country in view, from two sources at once.
+ *
+ * GDACS for floods, cyclones and the rest; the national met services, through
+ * MeteoAlarm, for severe weather. They are listed apart and each names its
+ * own source, because "the Deutscher Wetterdienst has issued a red warning"
+ * and "GDACS is tracking a flood" are different claims by different people,
+ * and merging them into one undifferentiated list would hide who said what.
+ *
+ * No advice and no prose of ours anywhere in here: every entry is a fact about
+ * somebody else's warning, plus a link to read it in their words.
+ */
+export function disasterDialogHTML(rows, weather = []) {
+  if (!rows?.length && !weather?.length) {
+    return `<p class="empty-note">${esc(t('hazards.none'))}</p>`;
+  }
+
+  // A storm warning's useful half is when it ends, and "until Tue 18:00" is
+  // what a person reads off it — the day and the hour, not the year.
+  const until = (iso) =>
+    formatDate(iso, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+
+  const entry = (kind, title, when, url, severity) => `
+      <div class="disaster-row is-${esc(severity)}">
+        <p class="disaster-kind">${esc(t(`hazard.kind.${kind}`))}</p>
+        <p class="disaster-name">${esc(title)}</p>
         ${when ? `<p class="disaster-when">${esc(when)}</p>` : ''}
-        ${row.url ? `<a class="disaster-link" href="${esc(row.url)}"
+        ${url ? `<a class="disaster-link" href="${esc(url)}"
              target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>` : ''}
       </div>`;
-  }).join('');
 
-  return `${entries}
-    <p class="popup-meta">${esc(t('disaster.source'))}</p>
+  const disasters = (rows ?? []).map(row => entry(
+    row.kind, row.name,
+    row.from_date ? t('disaster.reported', { when: timeAgo(row.from_date) }) : '',
+    row.url, row.severity)).join('');
+
+  const storms = (weather ?? []).map(row => entry(
+    row.kind, row.areas,
+    // A weather warning has a stated end, which is the useful half of it.
+    row.to_date ? t('weather.until', { when: until(row.to_date) }) : '',
+    row.url, row.severity)).join('');
+
+  return `
+    ${disasters ? `${disasters}
+      <p class="popup-meta">${esc(t('disaster.source'))}</p>` : ''}
+    ${storms ? `<p class="dialog-subhead">${esc(t('hazards.weather'))}</p>
+      ${storms}
+      <p class="popup-meta">${esc(t('weather.source', {
+        who: [...new Set((weather ?? []).map(w => w.source))].join(', '),
+      }))}</p>` : ''}
     <p class="fine-print">${esc(t('hazard.notAlert'))}</p>`;
 }
 

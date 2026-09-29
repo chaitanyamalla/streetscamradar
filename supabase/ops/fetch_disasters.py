@@ -122,6 +122,26 @@ def countries_of(props):
     return codes
 
 
+def point_of(feature):
+    """Where GDACS puts the event, when it gives something usable.
+
+    Stored, but only drawn for volcanoes. A volcano IS this point; a flood or a
+    cyclone is a centroid of everything affected, and "Flood in Guinea" lands
+    400 km from the water. Keeping the number and choosing not to draw it beats
+    throwing it away and being unable to draw the one kind it fits.
+    """
+    coordinates = ((feature or {}).get("geometry") or {}).get("coordinates")
+    if not isinstance(coordinates, list) or len(coordinates) < 2:
+        return None, None
+    try:
+        lng, lat = float(coordinates[0]), float(coordinates[1])
+    except (TypeError, ValueError):
+        return None, None
+    if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+        return None, None
+    return lat, lng
+
+
 def rows_from(payload):
     """Every (event, country) row worth storing."""
     if not isinstance(payload, dict):
@@ -167,13 +187,15 @@ def rows_from(payload):
             url = url.get("report") or url.get("details")
         url = url if isinstance(url, str) and url.startswith("http") else None
 
+        lat, lng = point_of(feature)
+
         for code in countries_of(props):
             rows[(event_id, code)] = {
                 "event_id": event_id, "country_code": code, "kind": kind,
                 "severity": severity, "name": name,
                 "from_date": as_timestamp(props.get("fromdate")),
                 "to_date": as_timestamp(props.get("todate")),
-                "url": url,
+                "url": url, "lat": lat, "lng": lng,
             }
 
     # An event GDACS lists but names no country for cannot answer the only
@@ -191,17 +213,22 @@ def sql_str(value):
     return "'" + str(value).replace("'", "''") + "'"
 
 
+def sql_num(value):
+    return "null" if value is None else repr(float(value))
+
+
 def emit_sql(rows):
     columns = ("event_id", "country_code", "kind", "severity", "name",
-               "from_date", "to_date", "url")
+               "from_date", "to_date", "url", "lat", "lng")
     print(f"-- {len(rows)} country alerts from {SOURCE}")
     print("begin;")
 
     values = [
-        "  ({}, {}, {}, {}, {}, {}, {}, {}, now())".format(
+        "  ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, now())".format(
             sql_str(r["event_id"]), sql_str(r["country_code"]), sql_str(r["kind"]),
             sql_str(r["severity"]), sql_str(r["name"]),
-            sql_str(r["from_date"]), sql_str(r["to_date"]), sql_str(r["url"]))
+            sql_str(r["from_date"]), sql_str(r["to_date"]), sql_str(r["url"]),
+            sql_num(r["lat"]), sql_num(r["lng"]))
         for r in rows
     ]
     for start in range(0, len(values), INSERT_BATCH):
@@ -211,7 +238,8 @@ def emit_sql(rows):
         print("on conflict (event_id, country_code) do update set "
               "kind = excluded.kind, severity = excluded.severity, name = excluded.name, "
               "from_date = excluded.from_date, to_date = excluded.to_date, "
-              "url = excluded.url, refreshed_at = now();")
+              "url = excluded.url, lat = excluded.lat, lng = excluded.lng, "
+              "refreshed_at = now();")
 
     # GDACS decides when something is over. Anything it stopped listing goes,
     # which is exactly "when the original site removes it, we remove it".

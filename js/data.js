@@ -339,7 +339,7 @@ export function fetchDisasters() {
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
   disasterCache = supabase
     .from('disaster_alerts')
-    .select('event_id,country_code,kind,severity,name,from_date,to_date,url')
+    .select('event_id,country_code,kind,severity,name,from_date,to_date,url,lat,lng')
     .or(`to_date.is.null,to_date.gte.${weekAgo}`)
     .then(({ data, error }) => {
       if (error) throw error;
@@ -362,6 +362,45 @@ export function fetchDisasters() {
       throw err;
     });
   return disasterCache;
+}
+
+/**
+ * Severe weather warnings, by country, read once and kept for the session.
+ *
+ * Europe only — that is MeteoAlarm's remit — and orange or red only, which is
+ * a few dozen rows at a time. Warnings that have already expired are left
+ * behind here as well as deleted by the refresh, because a warning whose own
+ * end time has passed is over whatever any table says.
+ */
+let weatherCache = null;
+
+export function fetchWeatherWarnings() {
+  if (weatherCache) return weatherCache;
+  if (!supabase) return Promise.resolve(new Map());
+
+  const now = new Date().toISOString();
+  weatherCache = supabase
+    .from('weather_warnings')
+    .select('warning_id,country_code,kind,severity,areas,from_date,to_date,source,url')
+    .or(`to_date.is.null,to_date.gte.${now}`)
+    .then(({ data, error }) => {
+      if (error) throw error;
+      const byCountry = new Map();
+      for (const row of data ?? []) {
+        const list = byCountry.get(row.country_code) ?? [];
+        list.push(row);
+        byCountry.set(row.country_code, list);
+      }
+      for (const list of byCountry.values()) {
+        list.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === 'severe' ? -1 : 1));
+      }
+      return byCountry;
+    })
+    .catch(err => {
+      weatherCache = null;
+      throw err;
+    });
+  return weatherCache;
 }
 
 export async function fetchSafetyPlaces(bounds) {

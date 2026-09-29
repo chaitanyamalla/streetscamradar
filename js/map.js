@@ -43,6 +43,11 @@ const byZoomAndConfirmations = (...pairs) => {
 export const ICON_ZOOM = 11.5;
 const FALLBACK_ICON = 'scam-icon-fallback';
 const HOSPITAL_ICON = 'safety-icon-hospital';
+const VOLCANO_ICON = 'hazard-icon-volcano';
+
+// Earthquakes are drawn in a colour used nowhere else here, so the mark cannot
+// be mistaken for a scam report. See the layer for why that matters.
+const QUAKE_COLOR = '#5c2d91';
 
 export function createMap(container) {
   const map = new maplibregl.Map({
@@ -79,6 +84,7 @@ export function addLayers(map) {
   map.addSource('density', { type: 'geojson', data: EMPTY });
   map.addSource('safety', { type: 'geojson', data: EMPTY });
   map.addSource('hazards', { type: 'geojson', data: EMPTY });
+  map.addSource('volcanoes', { type: 'geojson', data: EMPTY });
 
   // --- Signed-out density view: one soft circle per grid cell --------------
   map.addLayer({
@@ -162,27 +168,56 @@ export function addLayers(map) {
   // an ambulance.
   // --- Earthquakes --------------------------------------------------------
   //
-  // A ring rather than a pin, and deliberately not a badge like the others.
-  // These are not places — nothing is there to visit, and a marker shaped like
-  // the scam pins would read as one. A circle centred on the epicentre, sized
-  // by magnitude, is closer to what the data actually says.
+  // An empty ring with a dot at its centre: the epicentre, and how far out it
+  // was felt. Not a pin — nothing is there to visit — and deliberately not the
+  // shape or the colour of a scam report.
+  //
+  // The colour is the reason this was redrawn. A filled orange-to-red circle
+  // is exactly what a scam pin is, so at a glance the two were the same thing.
+  // Violet appears nowhere else on this map, so a violet ring can only be an
+  // earthquake, and the ring being hollow keeps the street under it readable.
   //
   // No minzoom: a M7 matters from a continent away, which is exactly the zoom
   // at which somebody is choosing where to go.
   map.addLayer({
     id: 'hazard-ring', type: 'circle', source: 'hazards',
     paint: {
-      // Magnitude is logarithmic, so the radius is too, loosely. The numbers
-      // are picked so a M3 is a dot you can ignore and a M7 is not.
+      // Magnitude is logarithmic, so the radius is too, loosely. The feeds
+      // start at M4.5, so the scale is drawn for the range that arrives.
       'circle-radius': ['interpolate', ['linear'], ['get', 'magnitude'],
-        2.5, 4, 4.5, 8, 6, 14, 7.5, 22],
-      'circle-color': ['match', ['get', 'tone'],
-        'severe', '#c5382c', 'notice', '#e0713c', '#8a9aa2'],
-      'circle-opacity': 0.18,
-      'circle-stroke-width': 1.6,
-      'circle-stroke-color': ['match', ['get', 'tone'],
-        'severe', '#c5382c', 'notice', '#e0713c', '#8a9aa2'],
-      'circle-stroke-opacity': 0.85,
+        4, 7, 5, 11, 6, 16, 7.5, 24],
+      'circle-color': QUAKE_COLOR,
+      'circle-opacity': 0.09,
+      'circle-stroke-width': 2.2,
+      'circle-stroke-color': QUAKE_COLOR,
+      'circle-stroke-opacity': 0.9,
+    },
+  });
+
+  // The epicentre itself. Without it a big ring looks like an area rather than
+  // a point, and two overlapping rings become unreadable.
+  map.addLayer({
+    id: 'hazard-core', type: 'circle', source: 'hazards',
+    paint: {
+      'circle-radius': 2.6,
+      'circle-color': QUAKE_COLOR,
+      'circle-stroke-width': 1.2,
+      'circle-stroke-color': '#ffffff',
+    },
+  });
+
+  // --- Volcanoes -----------------------------------------------------------
+  //
+  // The one GDACS hazard with a real position: a volcano IS the point it gives
+  // — everything else it publishes is a centroid of the area affected, which
+  // is why floods and cyclones are matched by country instead and never drawn.
+  map.addLayer({
+    id: 'volcano-icon', type: 'symbol', source: 'volcanoes',
+    layout: {
+      'icon-image': VOLCANO_ICON,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.42, 8, 0.58, 14, 0.7],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
     },
   });
 
@@ -255,11 +290,36 @@ export function setHazards(map, quakes) {
   map.getSource('hazards')?.setData(toHazardFeatures(quakes));
 }
 
-export function setHazardsVisible(map, visible) {
-  if (map.getLayer?.('hazard-ring')) {
-    map.setLayoutProperty('hazard-ring', 'visibility', visible ? 'visible' : 'none');
-  }
+export const toVolcanoFeatures = (rows) => ({
+  type: 'FeatureCollection',
+  features: rows.map(v => ({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [v.lng, v.lat] },
+    properties: {
+      id: v.event_id, name: v.name, severity: v.severity,
+      country_code: v.country_code, from_date: v.from_date ?? '',
+      url: v.url ?? '',
+    },
+  })),
+});
+
+export function setVolcanoes(map, rows) {
+  map.getSource('volcanoes')?.setData(toVolcanoFeatures(rows));
 }
+
+const setVisible = (map, ids, visible) => {
+  for (const id of ids) {
+    if (map.getLayer?.(id)) {
+      map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+    }
+  }
+};
+
+export const setHazardsVisible = (map, visible) =>
+  setVisible(map, ['hazard-ring', 'hazard-core'], visible);
+
+export const setVolcanoesVisible = (map, visible) =>
+  setVisible(map, ['volcano-icon'], visible);
 
 export function setSafetyVisible(map, visible) {
   if (map.getLayer?.('safety-icon')) {
@@ -367,4 +427,5 @@ export function registerSafetyIcons(map) {
     if (image) map.addImage(id, image, { pixelRatio: 2 });
   };
   add(HOSPITAL_ICON, '\uD83C\uDFE5');   // 🏥
+  add(VOLCANO_ICON, '\uD83C\uDF0B');    // 🌋 — the one hazard that is a place
 }

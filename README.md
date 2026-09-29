@@ -38,37 +38,62 @@ supabase/tests.sql    proves the security rules actually hold
 
 ### Natural hazards
 
-Earthquakes from USGS, and floods, cyclones, volcanoes, droughts and wildfires
-from GDACS. A trip-planning signal — "is anything major happening where I am
-going" — and deliberately **not an alerting service**: every hazard links to
-the agency that issued it, and the popup says so in as many words.
+Three layers, behind a button on the map rather than in the filter panel: they
+are not a filter on our reports, they are other people's official data laid
+over them. Each row in that panel carries its own mark — so it doubles as the
+map's key — and names the agency that publishes it. **Everything there was
+issued by a national agency; none of it is ours, and we add no judgement of
+our own to any of it.**
 
-The two halves are shown differently because they are different shapes.
+| Layer | Source | Shape |
+|---|---|---|
+| Earthquakes | USGS | rings, where the ground moved |
+| Volcanoes | GDACS | pins, on the volcano |
+| Weather warnings | national met services, via MeteoAlarm | a chip for the country |
+| Floods, cyclones, droughts, wildfires | GDACS | a chip for the country |
 
-**Earthquakes are a place.** USGS gives each one a real position, so they are
-rings on the map, under a switch of their own like the hospitals, and fetched
-straight from USGS — which serves the feeds with `Access-Control-Allow-Origin:
-*` and a 60-second cache, built to be read from a page. Nothing is mirrored, so
-there is no table to go stale; what a reader sees is what USGS published.
+The split is by SHAPE, because that decides how a thing can honestly be drawn.
+A point can be a pin. A flood cannot: GDACS gives a whole event one
+`Point_Centroid`, and "Flood in Guinea" sits at the country's geographic
+centre, not on the flooded ground. A storm warning covers a region. Those are
+matched by country and appear as a chip under the travel advisory — the same
+shape of answer to the same question: is anything going on where I am going.
 
-**Everything else is a country.** GDACS gives a whole event one
-`Point_Centroid` — "Flood in Guinea" sits at the country's geographic centre,
-not on the flooded ground — so a pin would be hundreds of kilometres out. Those
-are matched by country and appear as a chip under the travel advisory, for
-whichever country is in view, only when something is actually going on. They
-come from `public.disaster_alerts`, refreshed every three hours by the `Refresh
-hazards` workflow: GDACS sends no cache headers, so mirroring it keeps every
-visitor's session off a service run for emergency response.
+**Only earthquakes that matter.** Two feeds: `significant_month`, which is
+USGS's own judgement of what mattered — magnitude weighted by how many people
+felt it and what it did — kept for a month, because the damage outlasts the
+shaking; and `4.5_week`, the ordinary threshold for "felt widely". The M2.5
+daily feed was dropped: hundreds a day, none of them trip-planning
+information. The mark is a hollow violet ring with a dot at the epicentre,
+and the colour is the point — a filled orange circle is what a scam report is,
+so the two used to read as the same thing.
 
-An event leaves when GDACS stops listing it — the refresh deletes whatever it
-did not see — and the page additionally ignores anything whose own end date is
-more than a week past, in case a run stops.
+**Only orange and red weather.** MeteoAlarm grades green, yellow, orange and
+red; the first two are about 5,000 of the 5,600 warnings live across Europe on
+an ordinary afternoon, and describe weather that is unpleasant rather than
+dangerous. Europe only — that is MeteoAlarm's remit, and the panel says so
+rather than letting a traveller to Peru read silence as "no warnings".
+
+USGS is fetched in the browser: permissive CORS, a 60-second cache, built to
+be read from a page, so nothing of ours can go stale. GDACS and MeteoAlarm
+send no cache headers and MeteoAlarm has no worldwide feed at all, so both are
+mirrored into `public.disaster_alerts` and `public.weather_warnings` by the
+`Refresh hazards` workflow every three hours. An event leaves when its source
+stops publishing it — the refresh deletes whatever it did not see — and the
+page separately ignores anything whose own end date has passed.
+
+We store no warning text from anybody. The type, the level, the area, the
+times, who issued it and where to read it are facts about a warning; the
+warning itself stays with the service that wrote it, in their words and
+current.
 
 Mind the units: USGS `time` is epoch **milliseconds**, GDACS dates are ISO
-strings. Both are pinned by tests, for the reason the travel advisories are.
+strings, MeteoAlarm's carry an offset (`2026-09-27T07:00:00+02:00`). All three
+are pinned by tests, for the reason the travel advisories are.
 
 `supabase/ops/probe_hazards.py` reports what the sources currently send, and
-runs from the `Refresh hazards` workflow. Run it before changing the parser.
+runs from the `Refresh hazards` workflow with `probe`. Run it before changing
+a parser — it is what these were written from.
 
 ### Travel advisories
 

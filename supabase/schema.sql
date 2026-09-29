@@ -636,9 +636,18 @@ create table if not exists public.disaster_alerts (
   from_date    timestamptz,
   to_date      timestamptz,
   url          text,
+  -- Where GDACS puts the event. Only meaningful for a volcano, which IS a
+  -- point on the ground; for a flood or a cyclone this is the centroid of
+  -- everything affected, which is open water or empty country as often as not.
+  -- The page draws volcanoes and nothing else from it, for that reason.
+  lat          double precision,
+  lng          double precision,
   refreshed_at timestamptz not null default now(),
   primary key (event_id, country_code)
 );
+
+alter table public.disaster_alerts add column if not exists lat double precision;
+alter table public.disaster_alerts add column if not exists lng double precision;
 
 create index if not exists disaster_alerts_country_idx
   on public.disaster_alerts (country_code);
@@ -651,6 +660,58 @@ create policy "disasters are public" on public.disaster_alerts
 
 grant select on table public.disaster_alerts to anon, authenticated;
 revoke insert, update, delete on table public.disaster_alerts from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Severe weather warnings, from MeteoAlarm.
+--
+-- MeteoAlarm is the European met services' shared warning system: every row
+-- here was issued by a national weather service — the Deutscher Wetterdienst,
+-- Météo-France, AEMET — and `source` names which one. We publish none of our
+-- own judgement about weather and never will.
+--
+-- Europe only. That is MeteoAlarm's remit, and the page says so rather than
+-- letting a traveller to Peru read an empty panel as "no warnings".
+--
+-- ORANGE AND RED ONLY. MeteoAlarm grades green, yellow, orange and red; green
+-- and yellow together are the great majority of what it publishes — roughly
+-- 5,000 of the 5,600 warnings live across Europe on an ordinary afternoon —
+-- and they describe weather that is unpleasant rather than dangerous. Storing
+-- them would mean half the continent is permanently flagged.
+--
+-- We keep no warning TEXT. The type, the level, the area name, the times, the
+-- issuing service and its link — all facts about the warning — and the reader
+-- goes to the met service for the warning itself, in their words and current.
+--
+-- Written only by the refresh workflow, which connects as the database owner.
+-- ---------------------------------------------------------------------------
+create table if not exists public.weather_warnings (
+  warning_id   text    not null,          -- the CAP alert identifier
+  country_code char(2) not null,
+  kind         text    not null check (kind in
+                 ('wind','snow-ice','thunderstorm','fog','high-temperature',
+                  'low-temperature','coastal-event','forest-fire','avalanche',
+                  'rain','flood','rain-flood')),
+  severity     text    not null check (severity in ('severe','notice')),
+  areas        text    not null,          -- the met service's own area names
+  from_date    timestamptz,
+  to_date      timestamptz,
+  source       text    not null,          -- e.g. "Deutscher Wetterdienst"
+  url          text,
+  refreshed_at timestamptz not null default now(),
+  primary key (warning_id, country_code)
+);
+
+create index if not exists weather_warnings_country_idx
+  on public.weather_warnings (country_code);
+
+alter table public.weather_warnings enable row level security;
+
+drop policy if exists "weather warnings are public" on public.weather_warnings;
+create policy "weather warnings are public" on public.weather_warnings
+  for select to anon, authenticated using (true);
+
+grant select on table public.weather_warnings to anon, authenticated;
+revoke insert, update, delete on table public.weather_warnings from anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Travel advisories, from the German Federal Foreign Office.

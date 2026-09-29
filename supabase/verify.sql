@@ -6,7 +6,8 @@
 with expected_tables(t) as (
   values ('reports'),('profiles'),('scam_categories'),
          ('report_supports'),('report_flags'),('app_settings'),
-         ('safety_places'),('travel_advisories'),('disaster_alerts')
+         ('safety_places'),('travel_advisories'),('disaster_alerts'),
+         ('weather_warnings')
 ),
 expected_funcs(f) as (
   values ('public_area_summary'),('public_sample_reports'),('delete_my_report'),
@@ -16,27 +17,27 @@ expected_funcs(f) as (
 )
 select * from (
   select 1 as ord, 'tables created' as check,
-         count(*) || ' of 9' as detail,
-         case when count(*) = 9 then 'PASS' else 'MISSING' end as result
+         count(*) || ' of 10' as detail,
+         case when count(*) = 10 then 'PASS' else 'MISSING' end as result
     from expected_tables e
     join pg_tables p on p.tablename = e.t and p.schemaname = 'public'
 
   union all
   select 2, 'row level security on every table',
-         count(*) filter (where c.relrowsecurity) || ' of 9',
-         case when count(*) filter (where c.relrowsecurity) = 9 then 'PASS' else 'FAIL' end
+         count(*) filter (where c.relrowsecurity) || ' of 10',
+         case when count(*) filter (where c.relrowsecurity) = 10 then 'PASS' else 'FAIL' end
     from expected_tables e
     join pg_class c on c.relname = e.t
     join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
 
   union all
-  -- 13 policies: profiles 3, report_supports 3, report_flags 2,
+  -- 14 policies: profiles 3, report_supports 3, report_flags 2,
   -- reports 1 (insert only — reads go through the view), categories 1, and one
-  -- each for the three mirrored tables — safety_places, travel_advisories and
-  -- disaster_alerts — which everybody reads and nobody but the refresh
-  -- workflows writes.
-  select 3, 'security policies present', count(*) || ' of 13',
-         case when count(*) = 13 then 'PASS' else 'FAIL' end
+  -- each for the four mirrored tables — safety_places, travel_advisories,
+  -- disaster_alerts and weather_warnings — which everybody reads and nobody
+  -- but the refresh workflows writes.
+  select 3, 'security policies present', count(*) || ' of 14',
+         case when count(*) = 14 then 'PASS' else 'FAIL' end
     from pg_policies where schemaname = 'public'
 
   union all
@@ -192,6 +193,40 @@ select * from (
                    > now() - interval '12 hours' then 'PASS' else 'STALE' end
 
   union all
-  select 23, 'reports currently stored', count(*) || ' reports', 'INFO'
+  select 23, 'weather warnings stored',
+         (select coalesce(count(*) || ' orange/red across '
+                       || count(distinct country_code) || ' countries', '0')
+            from public.weather_warnings), 'INFO'
+
+  union all
+  select 24, 'weather warnings readable by a signed-out visitor',
+         case when has_table_privilege('anon', 'public.weather_warnings', 'SELECT')
+              then 'anon can select' else 'anon CANNOT select' end,
+         case when has_table_privilege('anon', 'public.weather_warnings', 'SELECT')
+               and not has_table_privilege('anon', 'public.weather_warnings', 'INSERT')
+              then 'PASS' else 'FAIL' end
+
+  union all
+  -- A warning nobody refreshed is a warning about weather that has moved on.
+  select 25, 'weather warnings last refreshed',
+         (select coalesce(to_char(max(refreshed_at), 'YYYY-MM-DD HH24:MI') || ' UTC', 'never')
+            from public.weather_warnings),
+         case when not exists (select 1 from public.weather_warnings) then 'EMPTY'
+              when (select max(refreshed_at) from public.weather_warnings)
+                   > now() - interval '12 hours' then 'PASS' else 'STALE' end
+
+  union all
+  -- Volcanoes are the only hazard drawn from this table's coordinates, so a
+  -- volcano without them is one the map cannot show.
+  select 26, 'volcanoes carry a position',
+         (select coalesce(count(*) filter (where lat is not null) || ' of '
+                       || count(*) || ' volcanoes', 'none listed')
+            from public.disaster_alerts where kind = 'volcano'),
+         case when exists (select 1 from public.disaster_alerts
+                            where kind = 'volcano' and lat is null)
+              then 'SUSPECT' else 'PASS' end
+
+  union all
+  select 27, 'reports currently stored', count(*) || ' reports', 'INFO'
     from public.reports
 ) x order by ord;

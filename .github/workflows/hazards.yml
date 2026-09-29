@@ -6,6 +6,10 @@
 # emergency response; this asks once every few hours however many people are
 # looking, and keeps showing a disaster when GDACS is having a bad day.
 #
+# Severe weather comes from MeteoAlarm, the European met services' shared
+# warning system, in the same way and for the same reason — one request per
+# country, no CORS, and nothing of ours added to what they issued.
+#
 # Earthquakes are NOT here. USGS serves its feeds with permissive CORS and a
 # 60-second cache, built to be read from a page, and an earthquake's position
 # matters — so those are fetched in the browser and drawn where they happened.
@@ -102,9 +106,11 @@ jobs:
       # The only thing that writes to disaster_alerts, running unattended. The
       # case worth guarding is GDACS answering badly, which taken literally
       # means nothing is happening anywhere on Earth.
-      - name: Check the generator
+      - name: Check the generators
         if: ${{ !inputs.probe }}
-        run: python3 supabase/ops/fetch_disasters_test.py
+        run: |
+          python3 supabase/ops/fetch_disasters_test.py
+          python3 supabase/ops/fetch_weather_test.py
 
       - name: Fetch from GDACS
         if: ${{ !inputs.probe }}
@@ -112,9 +118,27 @@ jobs:
           python3 supabase/ops/fetch_disasters.py > disasters.sql
           head -1 disasters.sql
 
-      - name: Load into Supabase
+      - name: Load the disasters into Supabase
         if: ${{ !inputs.probe }}
         env:
           PGURL: ${{ env.PGURL_FINAL }}
         run: |
           psql "$PGURL" -v ON_ERROR_STOP=1 -f disasters.sql
+
+      # Europe's national met services, through MeteoAlarm. One request per
+      # country because that is how it publishes; it is the slow step here.
+      #
+      # Deliberately after the disasters are already loaded: if MeteoAlarm is
+      # having a bad afternoon, the floods and cyclones still got in.
+      - name: Fetch from MeteoAlarm
+        if: ${{ !inputs.probe }}
+        run: |
+          python3 supabase/ops/fetch_weather.py > weather.sql
+          head -1 weather.sql
+
+      - name: Load the weather warnings into Supabase
+        if: ${{ !inputs.probe }}
+        env:
+          PGURL: ${{ env.PGURL_FINAL }}
+        run: |
+          psql "$PGURL" -v ON_ERROR_STOP=1 -f weather.sql

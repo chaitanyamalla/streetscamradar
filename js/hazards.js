@@ -20,20 +20,33 @@
 // ---------------------------------------------------------------------------
 import { t } from './i18n.js';
 
-const USGS_FEEDS = [
-  // Significant enough to matter anywhere on Earth, over a week.
-  'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson',
-  // Smaller, but today, and a M3 under a city is felt and talked about.
-  'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson',
-];
 /**
- * How long an earthquake stays interesting.
+ * Which earthquakes are worth a traveller's attention.
  *
- * Not a safety window — the shaking is long over. It is how long "there was a
- * big earthquake here" is still something you would want to know before
- * arriving, which is roughly while the aftershocks and the disruption last.
+ * The ground moves constantly — USGS records thousands of quakes a week — and
+ * a map that shows all of them teaches people to ignore it. So this asks for
+ * two narrow feeds rather than everything:
+ *
+ *   significant_month  USGS's own judgement of what mattered: magnitude
+ *                      weighted by how many people felt it and what it did.
+ *                      A quake that made the news stays for a month, because
+ *                      the damage and the aftershocks outlast the shaking.
+ *
+ *   4.5_week           the ordinary threshold for "felt widely, sometimes
+ *                      damaging". Below M4.5 an earthquake is a local event
+ *                      that a visitor would not notice, and there are hundreds
+ *                      of them a day.
+ *
+ * The M2.5 daily feed used to be here. It was dropped for exactly the reason
+ * above: it is the background hum of a working planet, not trip-planning
+ * information.
  */
-const QUAKE_DAYS = 7;
+const USGS_FEEDS = [
+  { url: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.geojson',
+    days: 30 },
+  { url: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson',
+    days: 7 },
+];
 
 const iso = (value) => {
   const date = value instanceof Date ? value : new Date(value);
@@ -53,12 +66,19 @@ async function getJSON(url) {
   return response.json();
 }
 
-/** Earthquakes, newest first, deduped across the two feeds by USGS id. */
-export function quakesFrom(payloads) {
+/**
+ * Earthquakes, newest first, deduped across the two feeds by USGS id.
+ *
+ * Each feed carries its own window: `{ payload, days }`. A significant quake
+ * is worth knowing about for a month; an ordinary M4.5 is not, and mixing the
+ * two windows would either drop the big ones early or keep the small ones for
+ * weeks.
+ */
+export function quakesFrom(feeds) {
   const byId = new Map();
-  const oldest = Date.now() - QUAKE_DAYS * 86400000;
 
-  for (const payload of payloads) {
+  for (const { payload, days } of feeds) {
+    const oldest = Date.now() - days * 86400000;
     for (const feature of payload?.features ?? []) {
       const props = feature?.properties ?? {};
       const point = feature?.geometry?.coordinates;
@@ -102,12 +122,13 @@ export function quakesFrom(payloads) {
  * could not find out", which are very different things to show a traveller.
  */
 export async function fetchQuakes() {
-  const results = await Promise.allSettled(USGS_FEEDS.map(getJSON));
-  for (const result of results) {
-    if (result.status === 'rejected') console.warn('USGS feed unavailable:', result.reason);
-  }
-  const payloads = results.filter(r => r.status === 'fulfilled').map(r => r.value);
-  return { quakes: payloads.length ? quakesFrom(payloads) : [], known: payloads.length > 0 };
+  const results = await Promise.allSettled(USGS_FEEDS.map(feed => getJSON(feed.url)));
+  const feeds = [];
+  results.forEach((result, i) => {
+    if (result.status === 'fulfilled') feeds.push({ payload: result.value, days: USGS_FEEDS[i].days });
+    else console.warn('USGS feed unavailable:', result.reason);
+  });
+  return { quakes: feeds.length ? quakesFrom(feeds) : [], known: feeds.length > 0 };
 }
 
 /** The quakes inside a map view. */
@@ -120,6 +141,9 @@ export const quakesIn = (quakes, bounds) => quakes.filter(q =>
  *  news" faster than they need a decimal. */
 export const quakeTone = (magnitude) =>
   (magnitude >= 6 ? 'severe' : magnitude >= 4.5 ? 'notice' : 'minor');
+
+/** Earthquakes older than this are dropped whatever feed they came from. */
+export const QUAKE_MAX_DAYS = Math.max(...USGS_FEEDS.map(f => f.days));
 
 /** "M 5.2 — 43 km N of Chase, Alaska" */
 export const quakeTitle = (quake) =>

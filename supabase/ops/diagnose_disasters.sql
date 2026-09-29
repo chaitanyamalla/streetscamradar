@@ -25,6 +25,8 @@ select count(*) as finished_more_than_a_week_ago
 select country_code, kind, severity, name,
        to_char(from_date, 'YYYY-MM-DD') as started,
        to_char(to_date,   'YYYY-MM-DD') as ends,
+       -- No coordinates means no marker, however good the row is otherwise.
+       round(lat::numeric, 2) as lat, round(lng::numeric, 2) as lng,
        to_char(refreshed_at, 'YYYY-MM-DD HH24:MI') as seen_at
   from public.disaster_alerts
  where severity in ('severe', 'notice')

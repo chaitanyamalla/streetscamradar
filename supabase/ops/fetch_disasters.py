@@ -3,8 +3,23 @@
 # Refresh public.disaster_alerts from GDACS.
 #
 #   https://www.gdacs.org/gdacsapi/api/events/geteventlist/EVENTS4APP
+#   https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH
 #
-# One request returns every current event worldwide, so this is a small job.
+# BOTH, because neither is a superset of the other and we found that out the
+# hard way: an orange flood in India was on gdacs.org's own map and not on
+# ours. EVENTS4APP does not carry it. On one ordinary afternoon:
+#
+#          EVENTS4APP      SEARCH
+#   EQ             19          24
+#   TC              7          18
+#   FL              2          21     <- the India flood is in here
+#   WF             72          15
+#   DR              0           7
+#   VO              0           6
+#
+# So EVENTS4APP is where the wildfires are and SEARCH is where everything else
+# is; taking either one alone loses most of something. They are merged by
+# event, keeping whichever copy GDACS updated last.
 #
 # What is kept
 # ------------
@@ -60,6 +75,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 SOURCE = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/EVENTS4APP"
+SOURCES = (SOURCE, "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH")
 TIMEOUT = 45
 RETRIES = 3
 INSERT_BATCH = 200
@@ -222,6 +238,33 @@ def is_stale(to_date, now=None):
     return stamp < (now or datetime.now(timezone.utc)) - timedelta(days=MAX_QUIET_DAYS)
 
 
+def merge(payloads):
+    """One feature per event, from however many lists we were given.
+
+    Keyed on (eventtype, eventid) and NOT on the episode: the same flood
+    reaches both endpoints, sometimes at different episodes, and keying on the
+    episode would put the same flood on the map twice. The copy GDACS updated
+    most recently wins.
+    """
+    def updated(feature):
+        stamp = as_timestamp(((feature or {}).get("properties") or {}).get("todate"))
+        return stamp or ""
+
+    best = {}
+    for payload in payloads:
+        if not isinstance(payload, dict):
+            continue
+        for feature in payload.get("features") or []:
+            props = (feature or {}).get("properties")
+            if not isinstance(props, dict):
+                continue
+            key = (str(props.get("eventtype") or "?").strip().upper(),
+                   str(props.get("eventid") or "?").strip())
+            if key not in best or updated(feature) > updated(best[key]):
+                best[key] = feature
+    return {"type": "FeatureCollection", "features": list(best.values())}
+
+
 def rows_from(payload, now=None):
     """Every (event, country) row worth storing."""
     if not isinstance(payload, dict):
@@ -353,7 +396,19 @@ def main():
         with open(sys.argv[sys.argv.index("--file") + 1], encoding="utf-8") as handle:
             payload = json.load(handle)
     else:
-        payload = fetch()
+        # One list failing is a list that is missing, not a reason to write
+        # nothing: the wildfires are worth having without the floods and the
+        # other way round. Only losing both stops the run.
+        answers = []
+        for url in SOURCES:
+            got = fetch(url)
+            if got is None:
+                print(f"--   giving up on {url.rsplit('/', 1)[-1]}", file=sys.stderr)
+                continue
+            count = len(got.get("features") or []) if isinstance(got, dict) else 0
+            print(f"--   {url.rsplit('/', 1)[-1]}: {count} events", file=sys.stderr)
+            answers.append(got)
+        payload = merge(answers) if answers else None
 
     if payload is None:
         print("::error::Could not reach GDACS. Nothing written; the table keeps what it had.",

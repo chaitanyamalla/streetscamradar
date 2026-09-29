@@ -64,7 +64,8 @@ def verdict(props, feature):
 
 
 def main():
-    payload = get(fd.SOURCE)
+    # The same two lists the refresh reads, merged the same way.
+    payload = fd.merge([get(url) for url in fd.SOURCES])
     features = payload.get("features") or []
     print(f"GDACS is carrying {len(features)} events. Nothing is written.\n")
 

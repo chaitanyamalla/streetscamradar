@@ -195,6 +195,46 @@ rows = fd.rows_from(payload(filler(40) + [
 check("Long-running cyclone" in {r["name"] for r in rows},
       "a storm running sixteen days but updated an hour ago stays on the map")
 
+
+# --- two lists, neither of them complete ------------------------------------
+#
+# The India flood that started this: on gdacs.org, in SEARCH, not in
+# EVENTS4APP. Taking either list alone loses most of something.
+app_list = payload([event("WF", "Green", f"Fire {i}", ("AU",), 700 + i) for i in range(8)])
+search_list = payload([
+    event("FL", "Orange", "Flood in India", ("IN",), 1104121, todate=ago(1)),
+    event("DR", "Green", "Drought in Kenya", ("KE",), 801),
+    event("VO", "Green", "Volcano in Italy", ("IT",), 802),
+])
+
+both = fd.merge([app_list, search_list])
+names = {(f["properties"]["eventtype"], f["properties"]["eventid"]) for f in both["features"]}
+check(("FL", 1104121) in names, "an event only SEARCH carries is kept")
+check(("WF", 700) in names, "and one only EVENTS4APP carries is kept too")
+check(len(both["features"]) == 11, f"eight fires and three others, all of them ({len(both['features'])})")
+
+# The same flood in both lists, at different episodes and different freshness.
+stale_copy = payload([event("FL", "Orange", "Flood in India", ("IN",), 1104121,
+                            episode=3, todate=ago(9))])
+fresh_copy = payload([event("FL", "Orange", "Flood in India", ("IN",), 1104121,
+                            episode=7, todate=ago(1))])
+merged = fd.merge([stale_copy, fresh_copy])
+check(len(merged["features"]) == 1,
+      f"the same flood in both lists is one event, not two ({len(merged['features'])})")
+check(merged["features"][0]["properties"]["episodeid"] == 7,
+      "and it is the copy GDACS updated last")
+check(len(fd.merge([fresh_copy, stale_copy])["features"]) == 1
+      and fd.merge([fresh_copy, stale_copy])["features"][0]["properties"]["episodeid"] == 7,
+      "whichever order the two lists arrive in")
+
+check(len(fd.merge([])["features"]) == 0, "no lists at all merges to nothing")
+check(len(fd.merge([app_list, None, "not a payload"])["features"]) == 8,
+      "and a list that is not a list is skipped rather than throwing")
+
+rows = fd.rows_from(fd.merge([payload(filler(40)), search_list]), now=NOW)
+check({r["name"] for r in rows} >= {"Flood in India", "Drought in Kenya", "Volcano in Italy"},
+      "the merged list goes through the ordinary rules unchanged")
+
 # --- rubbish inside an otherwise good response ------------------------------
 rows = fd.rows_from(payload(filler(40) + [
     event("FL", "Orange", "Good", ("FR",), 1),

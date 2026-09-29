@@ -523,11 +523,34 @@ export function disasterDialogHTML(rows, weather = []) {
     row.from_date ? t('disaster.reported', { when: timeAgo(row.from_date) }) : '',
     row.url, row.severity)).join('');
 
-  const storms = (weather ?? []).map(row => entry(
-    row.kind, row.areas,
-    // A weather warning has a stated end, which is the useful half of it.
-    row.to_date ? t('weather.until', { when: until(row.to_date) }) : '',
-    row.url, row.severity)).join('');
+  // Weather warnings arrive one per region — Spain publishes forty on a wet
+  // afternoon, one per province — so they are grouped by what they warn of.
+  // Forty rows saying "Rain" is a list nobody reads to the bottom of; one row
+  // saying "Rain: Andalucía, Aragón, Asturias …" is the same information in a
+  // form a person can take in.
+  const groups = new Map();
+  for (const row of weather ?? []) {
+    const key = `${row.kind}|${row.severity}`;
+    const group = groups.get(key) ?? { ...row, areas: [] };
+    for (const area of String(row.areas ?? '').split(',').map(a => a.trim())) {
+      if (area && area !== '…' && !group.areas.includes(area)) group.areas.push(area);
+    }
+    // The furthest-out end time, so the row says when the last of them lifts.
+    if (!group.to_date || (row.to_date && row.to_date > group.to_date)) {
+      group.to_date = row.to_date;
+    }
+    groups.set(key, group);
+  }
+
+  const storms = [...groups.values()].map(row => {
+    const shown = row.areas.slice(0, 8).join(', ');
+    const rest = row.areas.length - 8;
+    return entry(
+      row.kind, rest > 0 ? `${shown} +${rest}` : shown,
+      // A weather warning has a stated end, which is the useful half of it.
+      row.to_date ? t('weather.until', { when: until(row.to_date) }) : '',
+      row.url, row.severity);
+  }).join('');
 
   return `
     ${disasters ? `${disasters}

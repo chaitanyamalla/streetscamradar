@@ -982,6 +982,63 @@ grant select on table public.weather_warnings to anon, authenticated;
 revoke insert, update, delete on table public.weather_warnings from anon, authenticated;
 
 -- ---------------------------------------------------------------------------
+-- Earthquakes, from USGS.
+--
+-- Mirrored like everything else here, rather than fetched by the page. USGS
+-- does serve these with permissive CORS and a 60-second cache — it is built
+-- to be read from a browser — and for a long time the page read it directly.
+-- One table and one refresh job for every hazard is worth more than the
+-- freshness that costs: one shape to reason about, one place a reader's
+-- browser talks to, nothing asked of an outside service on every visit, and
+-- the map still works on a day USGS does not.
+--
+-- The freshness that costs is real and should be said plainly: an earthquake
+-- can be up to twelve hours old here before the job runs again. This is a
+-- trip-planning signal, not an alerting service — the official source is
+-- linked on every one, and the emergency numbers are already on the map.
+--
+-- WHAT IS KEPT. Two USGS feeds, and only two:
+--
+--   significant_month  USGS's own judgement of what mattered — magnitude
+--                      weighted by how many people felt it and what it did.
+--                      Kept for a month, because the damage and the
+--                      aftershocks outlast the shaking.
+--   4.5_week           the ordinary threshold for "felt widely, sometimes
+--                      damaging", kept for a week.
+--
+-- Below M4.5 an earthquake is a local event a visitor would not notice, and
+-- there are hundreds a day. A map that shows all of them teaches people to
+-- ignore it.
+--
+-- Written only by the refresh workflow, which connects as the database owner.
+-- ---------------------------------------------------------------------------
+create table if not exists public.quake_events (
+  event_id     text    primary key,       -- the USGS id, e.g. us6000tyc9
+  magnitude    numeric(3,1) not null,
+  -- The source's own words for where it was, never translated: it is a place
+  -- description from an agency, not a label of ours.
+  place        text    not null default '',
+  lat          double precision not null,
+  lng          double precision not null,
+  at           timestamptz not null,
+  tsunami      boolean not null default false,
+  url          text,
+  refreshed_at timestamptz not null default now()
+);
+
+create index if not exists quake_events_at_idx
+  on public.quake_events (at desc);
+
+alter table public.quake_events enable row level security;
+
+drop policy if exists "earthquakes are public" on public.quake_events;
+create policy "earthquakes are public" on public.quake_events
+  for select to anon, authenticated using (true);
+
+grant select on table public.quake_events to anon, authenticated;
+revoke insert, update, delete on table public.quake_events from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Travel advisories, from the German Federal Foreign Office.
 --
 -- One row per country, mirrored from their open-data interface. We store the

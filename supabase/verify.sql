@@ -7,7 +7,7 @@ with expected_tables(t) as (
   values ('reports'),('profiles'),('scam_categories'),
          ('report_supports'),('report_flags'),('app_settings'),
          ('safety_places'),('travel_advisories'),('disaster_alerts'),
-         ('weather_warnings')
+         ('weather_warnings'),('quake_events')
 ),
 expected_funcs(f) as (
   values ('public_area_summary'),('public_sample_reports'),('delete_my_report'),
@@ -17,27 +17,27 @@ expected_funcs(f) as (
 )
 select * from (
   select 1 as ord, 'tables created' as check,
-         count(*) || ' of 10' as detail,
-         case when count(*) = 10 then 'PASS' else 'MISSING' end as result
+         count(*) || ' of 11' as detail,
+         case when count(*) = 11 then 'PASS' else 'MISSING' end as result
     from expected_tables e
     join pg_tables p on p.tablename = e.t and p.schemaname = 'public'
 
   union all
   select 2, 'row level security on every table',
-         count(*) filter (where c.relrowsecurity) || ' of 10',
-         case when count(*) filter (where c.relrowsecurity) = 10 then 'PASS' else 'FAIL' end
+         count(*) filter (where c.relrowsecurity) || ' of 11',
+         case when count(*) filter (where c.relrowsecurity) = 11 then 'PASS' else 'FAIL' end
     from expected_tables e
     join pg_class c on c.relname = e.t
     join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
 
   union all
-  -- 14 policies: profiles 3, report_supports 3, report_flags 2,
+  -- 15 policies: profiles 3, report_supports 3, report_flags 2,
   -- reports 1 (insert only — reads go through the view), categories 1, and one
-  -- each for the four mirrored tables — safety_places, travel_advisories,
-  -- disaster_alerts and weather_warnings — which everybody reads and nobody
-  -- but the refresh workflows writes.
-  select 3, 'security policies present', count(*) || ' of 14',
-         case when count(*) = 14 then 'PASS' else 'FAIL' end
+  -- each for the five mirrored tables — safety_places, travel_advisories,
+  -- disaster_alerts, weather_warnings and quake_events — which everybody reads
+  -- and nobody but the refresh workflows writes.
+  select 3, 'security policies present', count(*) || ' of 15',
+         case when count(*) = 15 then 'PASS' else 'FAIL' end
     from pg_policies where schemaname = 'public'
 
   union all
@@ -227,8 +227,31 @@ select * from (
                    > now() - interval '12 hours' then 'PASS' else 'STALE' end
 
   union all
-  -- Volcanoes are the only hazard drawn from this table's coordinates, so a
-  -- volcano without them is one the map cannot show.
+  select 25.1, 'earthquakes stored',
+         (select count(*)::text || ' quakes, strongest M'
+                 || coalesce(max(magnitude)::text, '-') from public.quake_events),
+         'INFO'
+
+  union all
+  select 25.2, 'earthquakes readable by a signed-out visitor',
+         case when has_table_privilege('anon', 'public.quake_events', 'select')
+              then 'anon can select' else 'NO' end,
+         case when has_table_privilege('anon', 'public.quake_events', 'select')
+              then 'PASS' else 'FAIL' end
+
+  union all
+  -- Mirrored twice a day, so a table older than a day and a half means the job
+  -- has stopped and the map is quietly showing last week's earthquakes.
+  select 25.3, 'earthquakes last refreshed',
+         coalesce((select to_char(max(refreshed_at), 'YYYY-MM-DD HH24:MI') || ' UTC'
+                     from public.quake_events), 'never'),
+         case when not exists (select 1 from public.quake_events) then 'EMPTY'
+              when (select max(refreshed_at) from public.quake_events)
+                   > now() - interval '36 hours' then 'PASS' else 'STALE' end
+
+  union all
+  -- A volcano IS its coordinates, where a flood's are the centre of an area,
+  -- so a volcano without them is the one the map cannot place at all.
   select 26, 'volcanoes carry a position',
          (select coalesce(count(*) filter (where lat is not null) || ' of '
                        || count(*) || ' volcanoes', 'none listed')

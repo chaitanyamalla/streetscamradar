@@ -14,7 +14,7 @@ import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, myConfirmedReports, editMyReport,
          deleteMyAccount, getProfile, saveDisplayName, saveLocale, fetchAdvisories,
-         fetchDisasters, fetchWeatherWarnings, fetchBlockedCountries,
+         fetchDisasters, fetchWeatherWarnings, fetchBlockedCountries, fetchQuakes,
          supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
          signInWithGoogle, signOut, enabledProviders, changePassword } from './js/auth.js';
@@ -24,7 +24,7 @@ import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
          setHazards, setHazardsVisible, setDisasters, setVolcanoesVisible,
          setDisastersVisible, maplibregl } from './js/map.js';
-import { fetchQuakes, quakesIn, inBounds, quakeTone, hazardLabel } from './js/hazards.js';
+import { quakesIn, inBounds, quakeTone, hazardLabel, freshQuakes } from './js/hazards.js';
 import { hazardSignSVG } from './js/hazard-signs.js';
 import { esc, toast, liftToast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
@@ -50,7 +50,7 @@ const state = {
   safetyPlaces: [],   // what the safety layer last loaded, for the country lookup
   advisories: null,   // country_code -> row, read once per session
   blockedCountries: null,  // where reporting is closed, read once per session
-  quakes: null,       // read once per session, straight from USGS
+  quakes: null,       // read once per session, from our mirror of USGS
   disasters: null,    // country_code -> rows, mirrored from GDACS every few hours
   weather: null,      // country_code -> rows, mirrored from MeteoAlarm
   disasterMarkers: [],     // the GDACS events currently drawn
@@ -503,8 +503,9 @@ async function refreshSafety() {
 //
 // They are split by whether the thing HAS a place:
 //
-//   earthquakes   an epicentre, from USGS — rings on the map, fetched straight
-//                 from USGS (permissive CORS, 60-second cache), not mirrored.
+//   earthquakes   an epicentre, from USGS — rings on the map, sized by
+//                 magnitude. Mirrored like everything else here, refreshed
+//                 twice a day; it used to be read from USGS directly.
 //   GDACS events  floods, cyclones, wildfires, droughts and volcanoes, each
 //                 with a position and a glyph, counted for the view like the
 //                 earthquakes. What the position MEANS varies, and the popup
@@ -548,7 +549,9 @@ async function refreshQuakes(ticket) {
     if (ticket !== hazardTicket) return;
   }
 
-  const inView = quakesIn(state.quakes.quakes, boundsOf(map))
+  // The refresh already drops anything past its window; this is the second
+  // fence, for the day the job stops and the table quietly goes stale.
+  const inView = quakesIn(freshQuakes(state.quakes.quakes), boundsOf(map))
     .map(q => ({ ...q, tone: quakeTone(q.magnitude) }));
   setHazards(map, inView);
   status.textContent = !state.quakes.known ? t('hazards.failed')

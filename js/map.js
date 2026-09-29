@@ -373,13 +373,83 @@ export function boundsOf(map) {
 }
 
 /** Zoom to a geocoder result, using its bounding box when it has one. */
+// How wide a view to fall back to when a place's own box is no use, by what
+// kind of place it is. Half-spans in degrees: latitude, then longitude.
+const FALLBACK_VIEW = {
+  country: [7, 9.5],
+  state: [3, 4], region: [3, 4], province: [3, 4], county: [3, 4],
+};
+const DEFAULT_VIEW = [0.3, 0.45];      // about a city
+
+// When a box stops being a picture of the place. Both were read off what the
+// geocoders actually send, not guessed — see tools/probe_search.py.
+//
+//   span: a box taller than 50° or wider than 150° is not one view of
+//   anything. Only the wrapped ones reach it — France, the United States,
+//   Russia and New Zealand all come back spanning ~360° of longitude because
+//   they own something on the far side of the antimeridian. Canada (88.7°),
+//   Australia (96°) and Brazil (45.4°) stay under it and keep their boxes.
+//
+//   off-centre: the geocoder also gives a point, and for a country that point
+//   is its mainland. If the point sits outside the middle 70% of the box, the
+//   box is around something the point is not in the middle of. That is what
+//   catches the Netherlands (point at 96% of the way across a box drawn round
+//   the Caribbean too), Chile with Easter Island, Portugal with the Azores and
+//   Norway with Bouvet Island, while Canada, Brazil, Japan and India — big,
+//   but in one piece — pass.
+const MAX_SPAN = { lat: 50, lng: 150 };
+const OFF_CENTRE = 0.7;
+
+// A box of no width is not a broken box, it is a point — a street corner has
+// one — and fitBounds already handles that by zooming to its own maximum. So
+// only the span and the offset decide, and a zero span passes both as long as
+// the point is where the box is.
+const axisIsUseless = (low, high, point, maxSpan) => {
+  const span = high - low;
+  if (!Number.isFinite(span) || span < 0 || span > maxSpan) return true;
+  return Math.abs(point - (low + high) / 2) > (span / 2) * OFF_CENTRE;
+};
+
+/**
+ * Put a searched place on screen.
+ *
+ * Normally that means fitting its bounding box, which is right for a city, a
+ * street or a country in one piece. But a country is not only its mainland:
+ * searching France fitted a box drawn round Guadeloupe, Réunion and French
+ * Polynesia as well, which is 350° of longitude, and landed the map on the
+ * Gulf of Guinea. Each axis is checked on its own and replaced only if it is
+ * useless, so Chile keeps its full north-south extent while losing Easter
+ * Island, and Russia keeps its latitude while losing the Aleutians.
+ *
+ * What a giant gets is the middle of itself at a country-sized view. That is
+ * the honest limit here: nothing in the answer says which part of the box is
+ * the mainland, only that the point is in it.
+ */
 export function flyToPlace(map, place, fallbackZoom) {
-  if (place.boundingbox && place.boundingbox.length === 4) {
-    const [south, north, west, east] = place.boundingbox;
-    map.fitBounds([[west, south], [east, north]], { padding: 48, maxZoom: 17, duration: 900 });
-  } else {
+  const box = place.boundingbox;
+  if (!box || box.length !== 4 || !Number.isFinite(place.lat) || !Number.isFinite(place.lng)) {
+    if (box && box.length === 4) {
+      const [south, north, west, east] = box;
+      map.fitBounds([[west, south], [east, north]], { padding: 48, maxZoom: 17, duration: 900 });
+      return;
+    }
     map.flyTo({ center: [place.lng, place.lat], zoom: fallbackZoom, duration: 900 });
+    return;
   }
+
+  let [south, north, west, east] = box;
+  const [latHalf, lngHalf] = FALLBACK_VIEW[place.kind] ?? DEFAULT_VIEW;
+
+  if (axisIsUseless(south, north, place.lat, MAX_SPAN.lat)) {
+    south = place.lat - latHalf;
+    north = place.lat + latHalf;
+  }
+  if (axisIsUseless(west, east, place.lng, MAX_SPAN.lng)) {
+    west = place.lng - lngHalf;
+    east = place.lng + lngHalf;
+  }
+
+  map.fitBounds([[west, south], [east, north]], { padding: 48, maxZoom: 17, duration: 900 });
 }
 
 export { maplibregl };

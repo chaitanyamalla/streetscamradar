@@ -37,7 +37,7 @@ export default {
   'map.area': 'Mapa mundial de burlas',
   'map.zoomIn': 'Aproximar',
   'map.zoomOut': 'Afastar',
-  'map.attribution': 'Dados do mapa © colaboradores do <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · mosaicos © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · pesquisa por <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> e <a href="https://photon.komoot.io/" target="_blank" rel="noreferrer">Photon</a> · os relatos não são verificados e vêm da comunidade · riscos naturais via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> e <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>, <a href="https://www.meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>',
+  'map.attribution': 'Dados do mapa © colaboradores do <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · mosaicos © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · pesquisa por <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> e <a href="https://photon.komoot.io/" target="_blank" rel="noreferrer">Photon</a> · os relatos não são verificados e vêm da comunidade · riscos naturais via <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>, <a href="https://www.meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>',
   'map.emergencyIn': 'Emergência em',
 
   // --- emergency numbers ---------------------------------------------------
@@ -321,9 +321,13 @@ export default {
   'hazard.kind.wildfire': 'Incêndio florestal',
   'hazard.magnitude': 'M {m}',
   'hazard.tsunami': 'Aviso de tsunami emitido',
+  'hazard.grade.severe': 'Alerta vermelho da GDACS',
+  'hazard.grade.notice': 'Alerta laranja da GDACS',
+  'hazard.grade.routine': 'Alerta verde da GDACS',
+  'hazard.depth': '{km} km de profundidade',
   'hazard.official': 'Detalhes oficiais',
   'hazard.notAlert': 'Não é um serviço de alerta — consulte as fontes oficiais antes de viajar.',
-  'hazard.source.quake': 'via USGS',
+  'hazard.source.quake': 'via GDACS',
   'filters.quakes': 'Sismos',
   'disaster.source': 'via GDACS',
   'hazard.kind.wind': 'Vento',

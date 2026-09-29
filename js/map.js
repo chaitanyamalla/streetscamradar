@@ -53,6 +53,12 @@ const DISASTER_ICONS = {
   unknown: 'hazard-icon-unknown',
 };
 
+// How much bigger a hazard is drawn for the grade GDACS gave it. Every level
+// is on the map now, and the great majority of what GDACS publishes is Green,
+// so the few that are not have to be findable at a glance.
+const GRADE_SIZE = ['match', ['get', 'severity'],
+  'severe', 1.3, 'notice', 1.1, 0.82];
+
 // Earthquakes are drawn in a colour used nowhere else here, so the mark cannot
 // be mistaken for a scam report. See the layer for why that matters.
 const QUAKE_COLOR = '#5c2d91';
@@ -226,8 +232,8 @@ export function addLayers(map) {
   // Volcanoes keep a layer of their own so they keep a switch of their own;
   // both read from the same source.
   //
-  // GDACS earthquakes are deliberately absent: USGS covers those better and
-  // drawing both would put two marks on one event.
+  // Earthquakes are deliberately absent from this layer: they are the rings
+  // above, sized by magnitude, which a symbol cannot be.
   map.addLayer({
     id: 'disaster-icon', type: 'symbol', source: 'disasters',
     filter: ['!=', ['get', 'kind'], 'volcano'],
@@ -238,7 +244,16 @@ export function addLayers(map) {
         'wildfire', DISASTER_ICONS.wildfire,
         'drought', DISASTER_ICONS.drought,
         DISASTER_ICONS.unknown],
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.42, 8, 0.55, 14, 0.66],
+      // Size carries how GDACS graded it, because colour is already carrying
+      // which kind it is. Most of what GDACS publishes is Green — seventy-two
+      // wildfires on an ordinary day — and the one Red cyclone among them has
+      // to be findable without reading every popup.
+      //
+      // The grade multiplies each zoom stop rather than the whole expression:
+      // MapLibre only allows `zoom` as the direct input of a top-level step or
+      // interpolate, so ['*', interpolate(zoom), grade] is rejected outright.
+      'icon-size': ['interpolate', ['linear'], ['zoom'],
+        3, ['*', 0.42, GRADE_SIZE], 8, ['*', 0.55, GRADE_SIZE], 14, ['*', 0.66, GRADE_SIZE]],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
@@ -249,7 +264,16 @@ export function addLayers(map) {
     filter: ['==', ['get', 'kind'], 'volcano'],
     layout: {
       'icon-image': VOLCANO_ICON,
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.42, 8, 0.55, 14, 0.66],
+      // Size carries how GDACS graded it, because colour is already carrying
+      // which kind it is. Most of what GDACS publishes is Green — seventy-two
+      // wildfires on an ordinary day — and the one Red cyclone among them has
+      // to be findable without reading every popup.
+      //
+      // The grade multiplies each zoom stop rather than the whole expression:
+      // MapLibre only allows `zoom` as the direct input of a top-level step or
+      // interpolate, so ['*', interpolate(zoom), grade] is rejected outright.
+      'icon-size': ['interpolate', ['linear'], ['zoom'],
+        3, ['*', 0.42, GRADE_SIZE], 8, ['*', 0.55, GRADE_SIZE], 14, ['*', 0.66, GRADE_SIZE]],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
@@ -316,6 +340,7 @@ export const toHazardFeatures = (quakes) => ({
     properties: {
       id: q.id, kind: q.kind, magnitude: q.magnitude, tone: q.tone,
       place: q.place, at: q.at, url: q.url ?? '', tsunami: q.tsunami ? 'true' : 'false',
+      severity: q.severity ?? 'routine', depth_km: q.depth_km ?? '',
     },
   })),
 });
@@ -333,6 +358,7 @@ export const toDisasterFeatures = (rows) => ({
       id: d.event_id, kind: d.kind, name: d.name, severity: d.severity,
       country_code: d.country_code, from_date: d.from_date ?? '',
       to_date: d.to_date ?? '', url: d.url ?? '',
+      magnitude: d.magnitude ?? '', depth_km: d.depth_km ?? '',
     },
   })),
 });

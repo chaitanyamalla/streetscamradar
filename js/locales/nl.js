@@ -36,7 +36,7 @@ export default {
   'map.area': 'Wereldwijde oplichtingskaart',
   'map.zoomIn': 'Inzoomen',
   'map.zoomOut': 'Uitzoomen',
-  'map.attribution': 'Kaartgegevens © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>-bijdragers · tegels © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · zoeken via <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> en <a href="https://photon.komoot.io/" target="_blank" rel="noreferrer">Photon</a> · meldingen zijn ongecontroleerde verhalen uit de community · natuurrampen via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> en <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>, <a href="https://www.meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>',
+  'map.attribution': 'Kaartgegevens © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>-bijdragers · tegels © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · zoeken via <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> en <a href="https://photon.komoot.io/" target="_blank" rel="noreferrer">Photon</a> · meldingen zijn ongecontroleerde verhalen uit de community · natuurrampen via <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>, <a href="https://www.meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>',
   'map.emergencyIn': 'Noodnummers in',
 
   // --- emergency numbers ---------------------------------------------------
@@ -320,9 +320,13 @@ export default {
   'hazard.kind.wildfire': 'Natuurbrand',
   'hazard.magnitude': 'M {m}',
   'hazard.tsunami': 'Tsunamiwaarschuwing afgegeven',
+  'hazard.grade.severe': 'Rode waarschuwing van GDACS',
+  'hazard.grade.notice': 'Oranje waarschuwing van GDACS',
+  'hazard.grade.routine': 'Groene waarschuwing van GDACS',
+  'hazard.depth': '{km} km diep',
   'hazard.official': 'Officiële details',
   'hazard.notAlert': 'Geen waarschuwingsdienst — raadpleeg officiële bronnen voordat je reist.',
-  'hazard.source.quake': 'via USGS',
+  'hazard.source.quake': 'via GDACS',
   'filters.quakes': 'Aardbevingen',
   'disaster.source': 'via GDACS',
   'hazard.kind.wind': 'Wind',

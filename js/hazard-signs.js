@@ -212,7 +212,8 @@ const SIGNS = {
 
 SIGNS['forest-fire'] = SIGNS.wildfire;
 
-/** The kinds drawn on the map, which is GDACS minus the earthquake (USGS). */
+/** The kinds drawn as symbols. The earthquake is a ring instead, sized by
+ *  magnitude, so it is not in this list. */
 export const HAZARD_SIGN_KINDS = ['flood', 'cyclone', 'wildfire', 'drought', 'volcano'];
 
 /** Every kind that has a sign at all, map or list. */

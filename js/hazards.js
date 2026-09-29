@@ -7,38 +7,21 @@
 // somewhere to look when a siren goes off — for that, the official source is
 // linked on every hazard and the emergency numbers are already on the map.
 //
-// The rows come from public.quake_events, our own mirror of USGS, refreshed
-// twice a day. The page used to read the two USGS feeds directly — they carry
-// permissive CORS and a 60-second cache and are built for it — which made
-// earthquakes the one hazard with a different shape from every other, and the
-// only one where a reader's browser talked to an outside service. What that
-// change costs is freshness, up to twelve hours of it, and the reasoning is
-// written out in supabase/ops/fetch_quakes.py rather than left implied.
+// The rows come from GDACS, in public.disaster_alerts with every other
+// hazard. They used to come from USGS, read by the page on every visit; GDACS
+// carries earthquakes with a magnitude, a depth, a position and its own
+// impact grading, so one source does what two did.
 //
-// So this file no longer fetches or parses anything: USGS's GeoJSON is turned
-// into rows once, in the refresh job, instead of in every visitor's browser.
-// What is left is what the map does with those rows.
+// And only the ones worth a traveller's attention are stored: GDACS grades it
+// Orange or Red, or it is magnitude 6 and above. The nineteen green
+// magnitude-fives a hundred kilometres down that GDACS lists on an ordinary
+// day are the ones nobody felt. That filtering happens once, in the refresh —
+// see supabase/ops/fetch_disasters.py.
+//
+// So this file no longer fetches or parses anything. What is left is what the
+// map does with the rows.
 // ---------------------------------------------------------------------------
 import { t } from './i18n.js';
-
-/**
- * The oldest earthquake the map will show.
- *
- * The refresh drops anything past its feed's window already — a month for the
- * significant ones, a week for ordinary M4.5s — so this is a second fence
- * rather than the first: if the job ever stops, the map goes quiet by itself
- * instead of showing last season's earthquakes as though they were news.
- */
-export const QUAKE_MAX_DAYS = 30;
-
-/** Earthquakes too old to be worth showing, dropped whatever the table says. */
-export const freshQuakes = (quakes, now = Date.now()) => {
-  const oldest = now - QUAKE_MAX_DAYS * 86400000;
-  return (quakes ?? []).filter(q => {
-    const at = Date.parse(q.at);
-    return Number.isFinite(at) && at >= oldest;
-  });
-};
 
 /** Whatever sits inside a map view. Used for both the earthquakes and the
  *  GDACS events, which is why it takes anything with a lat and a lng. */

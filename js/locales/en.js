@@ -36,7 +36,7 @@ export default {
   'map.area': 'Worldwide scam map',
   'map.zoomIn': 'Zoom in',
   'map.zoomOut': 'Zoom out',
-  'map.attribution': 'Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors · tiles © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · search by <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> and <a href="https://photon.komoot.io/" target="_blank" rel="noreferrer">Photon</a> · reports are unverified community accounts · hazards via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> and <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>, <a href="https://www.meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>',
+  'map.attribution': 'Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors · tiles © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · search by <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> and <a href="https://photon.komoot.io/" target="_blank" rel="noreferrer">Photon</a> · reports are unverified community accounts · hazards via <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>, <a href="https://www.meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>',
   'map.emergencyIn': 'Emergency in',
 
   // --- emergency numbers ---------------------------------------------------
@@ -318,9 +318,13 @@ export default {
   'hazard.kind.wildfire': 'Wildfire',
   'hazard.magnitude': 'M {m}',
   'hazard.tsunami': 'Tsunami warning issued',
+  'hazard.grade.severe': 'Red alert from GDACS',
+  'hazard.grade.notice': 'Orange alert from GDACS',
+  'hazard.grade.routine': 'Green alert from GDACS',
+  'hazard.depth': '{km} km deep',
   'hazard.official': 'Official details',
   'hazard.notAlert': 'Not an alert service — check official sources before you travel.',
-  'hazard.source.quake': 'via USGS',
+  'hazard.source.quake': 'via GDACS',
   'filters.quakes': 'Earthquakes',
   'disaster.source': 'via GDACS',
   'hazard.kind.wind': 'Wind',

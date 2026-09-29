@@ -8,9 +8,18 @@
 #
 # What is kept
 # ------------
-# Red and Orange events only. GDACS also grades Green, which is the routine
-# background of a working planet — keep it and half the countries on Earth look
-# eventful, which teaches a reader to ignore the whole thing.
+# Every alert level GDACS publishes: Red, Orange and Green. Green used to be
+# dropped, on the argument that it is the routine background of a working
+# planet. That is true of a magnitude 4.7 under the sea floor. It is not true
+# of a tropical cyclone, which is a storm somebody's flight goes through
+# whatever its humanitarian grading — and dropping Green left ONE event on our
+# whole map on a day gdacs.org was showing seven storms, two floods and
+# seventy-two fires.
+#
+# Earthquakes are the exception, and are held to a higher bar: Orange or Red,
+# or magnitude 6 and above. Nineteen of the hundred events in a typical list
+# are earthquakes and every one of them is Green, magnitude 4.5 to 5.6, most
+# far out at sea or a hundred kilometres down. Those are the ones nobody felt.
 #
 # One row per event per country. GDACS names every country an event touches,
 # and "is anything happening where I am going" is a question about a country,
@@ -35,6 +44,7 @@
 #   python3 fetch_disasters.py --file sample.json > disasters.sql
 # ---------------------------------------------------------------------------
 import json
+import re
 import sys
 import time
 import urllib.error
@@ -52,8 +62,14 @@ KINDS = {
     "VO": "volcano", "DR": "drought", "WF": "wildfire",
 }
 
-# Worth a traveller's attention. Green is not.
-SEVERITY = {"Red": "severe", "Orange": "notice"}
+# GDACS's three grades, kept as its own words mean them.
+SEVERITY = {"Red": "severe", "Orange": "notice", "Green": "routine"}
+
+# An earthquake GDACS grades Green is kept only if it was this big anyway. A
+# magnitude 6 is felt over a wide area and makes the news wherever it happens,
+# which is the line between "worth knowing before you travel" and "the ground
+# is never still". Below it, a Green quake is one nobody noticed.
+BIG_QUAKE = 6.0
 
 # The feed carries a hundred events on an ordinary day, most of them Green. A
 # response with nothing in it at all is a broken response rather than a quiet
@@ -122,6 +138,42 @@ def countries_of(props):
     return codes
 
 
+def severity_numbers(props):
+    """Magnitude and depth, where GDACS measured them.
+
+    severitydata arrives as a Python-repr string like
+    {'severity': 5.0, 'severitytext': 'Magnitude 5M, Depth:157.801km', ...}
+    — single quotes, so it is converted before parsing rather than trusted to
+    load. `severity` means something different per kind (magnitude for a quake,
+    km/h for a cyclone, hectares for a fire), so it is only read as a magnitude
+    when the unit says M.
+    """
+    raw = props.get("severitydata")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw.replace("'", '"'))
+        except json.JSONDecodeError:
+            raw = None
+    if not isinstance(raw, dict):
+        return None, None
+
+    magnitude = None
+    if str(raw.get("severityunit") or "").strip().upper() == "M":
+        try:
+            magnitude = round(float(raw.get("severity")), 1)
+        except (TypeError, ValueError):
+            magnitude = None
+
+    depth = None
+    match = re.search(r"Depth:\s*([0-9.]+)\s*km", str(raw.get("severitytext") or ""))
+    if match:
+        try:
+            depth = round(float(match.group(1)), 1)
+        except ValueError:
+            depth = None
+    return magnitude, depth
+
+
 def point_of(feature):
     """Where GDACS puts the event, when it gives something usable.
 
@@ -173,6 +225,13 @@ def rows_from(payload):
         if not kind:
             continue
 
+        magnitude, depth = severity_numbers(props)
+
+        # The one kind held to a higher bar — see BIG_QUAKE.
+        if kind == "earthquake" and severity == "routine" \
+                and not (magnitude is not None and magnitude >= BIG_QUAKE):
+            continue
+
         name = str(props.get("name") or props.get("description") or "").strip()
         if not name:
             continue
@@ -196,6 +255,7 @@ def rows_from(payload):
                 "from_date": as_timestamp(props.get("fromdate")),
                 "to_date": as_timestamp(props.get("todate")),
                 "url": url, "lat": lat, "lng": lng,
+                "magnitude": magnitude, "depth_km": depth,
             }
 
     # An event GDACS lists but names no country for cannot answer the only
@@ -219,16 +279,17 @@ def sql_num(value):
 
 def emit_sql(rows):
     columns = ("event_id", "country_code", "kind", "severity", "name",
-               "from_date", "to_date", "url", "lat", "lng")
+               "from_date", "to_date", "url", "lat", "lng", "magnitude", "depth_km")
     print(f"-- {len(rows)} country alerts from {SOURCE}")
     print("begin;")
 
     values = [
-        "  ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, now())".format(
+        "  ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, now())".format(
             sql_str(r["event_id"]), sql_str(r["country_code"]), sql_str(r["kind"]),
             sql_str(r["severity"]), sql_str(r["name"]),
             sql_str(r["from_date"]), sql_str(r["to_date"]), sql_str(r["url"]),
-            sql_num(r["lat"]), sql_num(r["lng"]))
+            sql_num(r["lat"]), sql_num(r["lng"]),
+            sql_num(r["magnitude"]), sql_num(r["depth_km"]))
         for r in rows
     ]
     for start in range(0, len(values), INSERT_BATCH):
@@ -239,6 +300,7 @@ def emit_sql(rows):
               "kind = excluded.kind, severity = excluded.severity, name = excluded.name, "
               "from_date = excluded.from_date, to_date = excluded.to_date, "
               "url = excluded.url, lat = excluded.lat, lng = excluded.lng, "
+              "magnitude = excluded.magnitude, depth_km = excluded.depth_km, "
               "refreshed_at = now();")
 
     # GDACS decides when something is over. Anything it stopped listing goes,

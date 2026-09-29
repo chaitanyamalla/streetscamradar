@@ -339,7 +339,7 @@ export function fetchDisasters() {
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
   disasterCache = supabase
     .from('disaster_alerts')
-    .select('event_id,country_code,kind,severity,name,from_date,to_date,url,lat,lng')
+    .select('event_id,country_code,kind,severity,name,from_date,to_date,url,lat,lng,magnitude,depth_km')
     .or(`to_date.is.null,to_date.gte.${weekAgo}`)
     .then(({ data, error }) => {
       if (error) throw error;
@@ -401,54 +401,6 @@ export function fetchWeatherWarnings() {
       throw err;
     });
   return weatherCache;
-}
-
-/**
- * Earthquakes, read once and kept for the session.
- *
- * Read from our own table now rather than from USGS directly — see
- * supabase/ops/fetch_quakes.py for why, and for what that costs in freshness.
- * Two or three hundred rows worldwide, which is small enough to take whole and
- * filter to the view in the browser, the way it already worked.
- *
- * `known` is said plainly so the page can tell "no earthquakes here" apart
- * from "we could not find out", which are very different things to show
- * somebody deciding where to go.
- */
-let quakeCache = null;
-
-export function fetchQuakes() {
-  if (quakeCache) return quakeCache;
-  if (!supabase) return Promise.resolve({ quakes: [], known: false });
-
-  quakeCache = supabase
-    .from('quake_events')
-    .select('event_id,magnitude,place,lat,lng,at,tsunami,url')
-    .order('at', { ascending: false })
-    .then(({ data, error }) => {
-      if (error) throw error;
-      return {
-        quakes: (data ?? []).map(row => ({
-          id: row.event_id,
-          lat: Number(row.lat),
-          lng: Number(row.lng),
-          kind: 'earthquake',
-          magnitude: Number(row.magnitude),
-          place: row.place ?? '',
-          at: row.at,
-          tsunami: row.tsunami === true,
-          url: row.url ?? null,
-        })),
-        known: true,
-      };
-    })
-    .catch(err => {
-      // Not cached as a failure: the next pan tries again rather than showing
-      // nothing until a reload.
-      quakeCache = null;
-      throw err;
-    });
-  return quakeCache;
 }
 
 /**

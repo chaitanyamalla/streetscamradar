@@ -14,7 +14,7 @@ import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, myConfirmedReports, editMyReport,
          deleteMyAccount, getProfile, saveDisplayName, saveLocale, fetchAdvisories,
-         fetchDisasters, fetchWeatherWarnings, fetchBlockedCountries, fetchQuakes,
+         fetchDisasters, fetchWeatherWarnings, fetchBlockedCountries,
          supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
          signInWithGoogle, signOut, enabledProviders, changePassword } from './js/auth.js';
@@ -24,7 +24,7 @@ import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
          setHazards, setHazardsVisible, setDisasters, setVolcanoesVisible,
          setDisastersVisible, maplibregl } from './js/map.js';
-import { quakesIn, inBounds, quakeTone, hazardLabel, freshQuakes } from './js/hazards.js';
+import { quakesIn, inBounds, quakeTone, hazardLabel } from './js/hazards.js';
 import { hazardSignSVG } from './js/hazard-signs.js';
 import { esc, toast, liftToast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
@@ -50,7 +50,6 @@ const state = {
   safetyPlaces: [],   // what the safety layer last loaded, for the country lookup
   advisories: null,   // country_code -> row, read once per session
   blockedCountries: null,  // where reporting is closed, read once per session
-  quakes: null,       // read once per session, from our mirror of USGS
   disasters: null,    // country_code -> rows, mirrored from GDACS every few hours
   weather: null,      // country_code -> rows, mirrored from MeteoAlarm
   disasterMarkers: [],     // the GDACS events currently drawn
@@ -503,9 +502,11 @@ async function refreshSafety() {
 //
 // They are split by whether the thing HAS a place:
 //
-//   earthquakes   an epicentre, from USGS — rings on the map, sized by
-//                 magnitude. Mirrored like everything else here, refreshed
-//                 twice a day; it used to be read from USGS directly.
+//   earthquakes   an epicentre — rings on the map, sized by magnitude, which
+//                 is why they are not symbols like the rest. From GDACS with
+//                 everything else, and only the ones it grades Orange or Red,
+//                 or that reach magnitude 6: the green magnitude-fives a
+//                 hundred kilometres down are the ones nobody felt.
 //   GDACS events  floods, cyclones, wildfires, droughts and volcanoes, each
 //                 with a position and a glyph, counted for the view like the
 //                 earthquakes. What the position MEANS varies, and the popup
@@ -524,39 +525,68 @@ let hazardTicket = 0;
 
 async function refreshHazards() {
   const ticket = ++hazardTicket;
-  await refreshQuakes(ticket);
   await refreshCountryHazards(ticket);
 }
 
-/** Earthquakes, drawn where they happened. */
-async function refreshQuakes(ticket) {
+/**
+ * Earthquakes, drawn where they happened, from the same GDACS rows as
+ * everything else.
+ *
+ * Only the ones worth a traveller's attention reach the table at all: GDACS
+ * grades an earthquake Orange or Red, or it is magnitude 6 and above. The
+ * nineteen green magnitude-fives a hundred kilometres down that GDACS lists on
+ * an ordinary day are the ones nobody felt, and they are filtered out at the
+ * refresh rather than here — see supabase/ops/fetch_disasters.py.
+ */
+function paintQuakes() {
   const status = $('#quake-status');
-
   if (!state.layers.quakes) {
     setHazards(map, []);
     status.textContent = t('safety.off');
     return;
   }
+  if (!state.disasters) { status.textContent = t('hazards.failed'); return; }
 
-  if (!state.quakes) {
-    try {
-      state.quakes = await fetchQuakes();
-    } catch (err) {
-      console.error(err);
-      status.textContent = t('hazards.failed');
-      return;
-    }
-    if (ticket !== hazardTicket) return;
-  }
+  // Number(null) is 0, which is a perfectly finite magnitude and a lie. A row
+  // with no magnitude has nothing to size a ring by, and a default would be a
+  // number we made up.
+  const asMagnitude = (value) =>
+    (value === null || value === undefined || value === '') ? NaN : Number(value);
 
-  // The refresh already drops anything past its window; this is the second
-  // fence, for the day the job stops and the table quietly goes stale.
-  const inView = quakesIn(freshQuakes(state.quakes.quakes), boundsOf(map))
-    .map(q => ({ ...q, tone: quakeTone(q.magnitude) }));
+  const quakes = uniqueEvents(row => row.kind === 'earthquake')
+    .map(row => ({
+      id: row.event_id, lat: row.lat, lng: row.lng, kind: 'earthquake',
+      magnitude: asMagnitude(row.magnitude), depth_km: row.depth_km,
+      place: row.name, at: row.from_date, url: row.url,
+      severity: row.severity, tsunami: false,
+      tone: quakeTone(Number(row.magnitude)),
+    }))
+    .filter(q => Number.isFinite(q.magnitude));
+
+  const inView = quakesIn(quakes, boundsOf(map));
   setHazards(map, inView);
-  status.textContent = !state.quakes.known ? t('hazards.failed')
-    : inView.length ? plural('hazards.inView', inView.length)
-    : t('hazards.noneInView');
+  status.textContent = inView.length ? plural('hazards.inView', inView.length)
+                                     : t('hazards.noneInView');
+}
+
+/**
+ * Every GDACS event once, whatever `keep` says to keep.
+ *
+ * The table holds one row per event per country, so anything crossing a border
+ * arrives more than once and the map would draw it twice.
+ */
+function uniqueEvents(keep) {
+  const rows = [];
+  const seen = new Set();
+  for (const list of state.disasters?.values() ?? []) {
+    for (const row of list) {
+      if (seen.has(row.event_id) || !keep(row)) continue;
+      if (!Number.isFinite(row.lat) || !Number.isFinite(row.lng)) continue;
+      seen.add(row.event_id);
+      rows.push(row);
+    }
+  }
+  return rows;
 }
 
 /**
@@ -573,10 +603,14 @@ async function refreshCountryHazards(ticket) {
     try {
       state.disasters = await fetchDisasters();
     } catch (err) {
-      console.error(err);      // quiet: a missing hazard list is not worth
-      chip.hidden = true;      // interrupting a map for
-      $('#disaster-status').textContent = t('hazards.failed');
-      $('#volcano-status').textContent = t('hazards.failed');
+      // Quiet: a missing hazard list is not worth interrupting a map for.
+      // All three map rows read from this one table, so all three say so —
+      // "none in view" would be a claim we are in no position to make.
+      console.error(err);
+      chip.hidden = true;
+      for (const id of ['#quake-status', '#disaster-status', '#volcano-status']) {
+        $(id).textContent = t('hazards.failed');
+      }
       return;
     }
     if (ticket !== hazardTicket) return;
@@ -637,19 +671,11 @@ async function refreshCountryHazards(ticket) {
  * country.
  */
 function paintDisasterMarkers() {
-  const rows = [];
-  const seen = new Set();
-  for (const list of state.disasters?.values() ?? []) {
-    for (const row of list) {
-      // One row per event per country, so anything crossing a border arrives
-      // more than once; and GDACS earthquakes are left to USGS.
-      if (seen.has(row.event_id) || row.kind === 'earthquake') continue;
-      if (!Number.isFinite(row.lat) || !Number.isFinite(row.lng)) continue;
-      seen.add(row.event_id);
-      rows.push(row);
-    }
-  }
+  // Earthquakes have a layer of their own — rings sized by magnitude, which is
+  // information a symbol cannot carry.
+  paintQuakes();
 
+  const rows = uniqueEvents(row => row.kind !== 'earthquake');
   const volcanoes = rows.filter(r => r.kind === 'volcano');
   const others = rows.filter(r => r.kind !== 'volcano');
   state.disasterMarkers = [

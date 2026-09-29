@@ -494,14 +494,33 @@ export function advisoryDialogHTML(row, { level, tone, changed, stats, ageDays }
  * An earthquake, clicked on the map.
  *
  * The magnitude and where, the agency's own words for the place, and a link to
- * USGS. No advice: what to do about an earthquake that already happened is not
+ * GDACS. No advice: what to do about an earthquake that already happened is not
  * ours to say, and the one line that matters — that this is not an alert
  * service — is said plainly rather than implied.
  */
+/**
+ * How GDACS graded it, in GDACS's own words.
+ *
+ * Every alert level is shown on the map now, and most of what it publishes is
+ * Green — seventy-two green wildfires on an ordinary day. Drawing those without
+ * saying so would tell a reader there are seventy-two disasters. This is the
+ * sentence that stops that being a lie, so it is on every hazard rather than
+ * only the serious ones.
+ */
+const gradeLine = (severity) => {
+  const key = `hazard.grade.${severity}`;
+  const text = tOr(key, '');
+  return text ? `<p class="popup-grade is-${esc(severity)}">${esc(text)}</p>` : '';
+};
+
 export function quakePopupHTML(props) {
   const magnitude = Number(props.magnitude);
   const when = props.at ? timeAgo(props.at) : '';
   const tsunami = props.tsunami === 'true' || props.tsunami === true;
+  // How far down it was. A quake 158 km deep is felt far less than the same
+  // one at 10 km, and that is most of what "was it serious here" means.
+  const depthValue = Number(props.depth_km);
+  const depth = Number.isFinite(depthValue) ? Math.round(depthValue) : null;
 
   return `
     <div class="popup-head">
@@ -514,6 +533,8 @@ export function quakePopupHTML(props) {
       </div>
     </div>
     ${props.place ? `<p class="popup-body">${esc(props.place)}</p>` : ''}
+    ${gradeLine(props.severity)}
+    ${depth ? `<p class="popup-fine">${esc(t('hazard.depth', { km: depth }))}</p>` : ''}
     ${tsunami ? `<p class="hazard-tsunami">${esc(t('hazard.tsunami'))}</p>` : ''}
     ${props.url ? `<div class="popup-actions">
       <a class="popup-action is-primary" href="${esc(props.url)}"
@@ -554,6 +575,7 @@ export function disasterPopupHTML(props) {
         <p class="popup-title">${esc(props.name ?? '')}</p>
       </div>
     </div>
+    ${gradeLine(props.severity)}
     <p class="popup-fine">${esc(t(PLACEMENT[kind] ?? 'hazard.place.area'))}</p>
     ${props.url ? `<div class="popup-actions">
       <a class="popup-action is-primary" href="${esc(props.url)}"

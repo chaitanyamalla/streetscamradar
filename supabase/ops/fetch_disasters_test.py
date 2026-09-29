@@ -45,8 +45,16 @@ def payload(features):
 
 
 def filler(n, level="Green"):
-    """Events that exist but should not be stored — the feed's usual bulk."""
-    return [event(level=level, name=f"Thing {i}", event_id=1000 + i) for i in range(n)]
+    """Events that exist but are not stored, to clear the plausibility floor.
+
+    Green earthquakes, which is what they really are: nineteen of the hundred
+    events in a typical GDACS list are earthquakes, all Green, magnitude 4.5 to
+    5.6, most of them far out at sea or a hundred kilometres down.
+    """
+    return [event("EQ", level, f"Thing {i}", ("ID",), 1000 + i,
+                  severitydata="{'severity': 4.9, 'severitytext': "
+                               "'Magnitude 4.9M, Depth:120km', 'severityunit': 'M'}")
+            for i in range(n)]
 
 
 # --- a normal response ------------------------------------------------------
@@ -98,6 +106,61 @@ try:
     check(False, "a full feed naming no countries is refused")
 except fd.SourceProblem:
     check(True, "a full feed naming no countries is refused")
+
+
+# --- every alert level is kept, except the earthquakes nobody felt -----------
+quake = lambda level, mag, depth=10, eid=500: event(
+    "EQ", level, f"Earthquake M{mag}", ("ID",), eid,
+    severitydata="{'severity': %s, 'severitytext': 'Magnitude %sM, Depth:%skm', "
+                 "'severityunit': 'M'}" % (mag, mag, depth))
+
+rows = fd.rows_from(payload(filler(40) + [
+    event("TC", "Green", "Tropical Cyclone NOLO", ("US",), 1),
+    event("WF", "Green", "Forest fires in Australia", ("AU",), 2),
+    event("FL", "Green", "Flood in Guinea", ("GN",), 3),
+]))
+names = {r["name"] for r in rows}
+check("Tropical Cyclone NOLO" in names,
+      "a green cyclone is kept — it is still a storm somebody flies through")
+check("Forest fires in Australia" in names and "Flood in Guinea" in names,
+      "so are a green fire and a green flood")
+check(all(r["severity"] == "routine" for r in rows),
+      "and green is stored as what GDACS graded it, not flattened away")
+
+rows = fd.rows_from(payload(filler(40) + [
+    quake("Green", 5.0, 158, 501),
+    quake("Green", 6.4, 12, 502),
+    quake("Orange", 4.8, 30, 503),
+    quake("Red", 7.1, 25, 504),
+]))
+kept = {r["name"] for r in rows}
+check("Earthquake M5.0" not in kept,
+      "a green magnitude 5 is one nobody felt, and is dropped")
+check("Earthquake M6.4" in kept,
+      "a green magnitude 6.4 is kept anyway — that one makes the news wherever it is")
+check("Earthquake M4.8" in kept,
+      "and GDACS grading a smaller one Orange is reason enough to keep it")
+check("Earthquake M7.1" in kept, "a red one, obviously")
+
+big = next(r for r in rows if r["name"] == "Earthquake M6.4")
+check(big["magnitude"] == 6.4, f"the magnitude is read off severitydata ({big['magnitude']})")
+check(big["depth_km"] == 12.0, f"and so is the depth ({big['depth_km']})")
+
+flood = next(r for r in fd.rows_from(payload(filler(40) + [
+    event("FL", "Green", "Flood in Guinea", ("GN",), 9,
+          severitydata="{'severity': 0.0, 'severitytext': 'Magnitude 0 ', 'severityunit': ''}")]))
+    if r["name"] == "Flood in Guinea")
+check(flood["magnitude"] is None,
+      "a flood's severity number is not a magnitude, and is not stored as one")
+
+storm = next(r for r in fd.rows_from(payload(filler(40) + [
+    event("TC", "Green", "Storm", ("US",), 9,
+          severitydata="{'severity': 249.9984, 'severitytext': "
+                       "'Hurricane/Typhoon > 74 mph (maximum wind speed of 250 km/h)', "
+                       "'severityunit': 'km/h'}")]))
+    if r["name"] == "Storm")
+check(storm["magnitude"] is None,
+      "nor is a cyclone's wind speed, which shares the field and not the meaning")
 
 # --- rubbish inside an otherwise good response ------------------------------
 rows = fd.rows_from(payload(filler(40) + [

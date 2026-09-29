@@ -125,10 +125,7 @@
                  of this. -->
             <section class="hazard-panel" id="hazard-panel" hidden aria-labelledby="hazard-panel-title">
               <div class="hp-head">
-                <div>
-                  <p class="eyebrow" id="hazard-panel-eyebrow" data-i18n="hazards.official">Official sources</p>
-                  <h2 id="hazard-panel-title" data-i18n="hazards.layers">Natural hazard layers</h2>
-                </div>
+                <h2 id="hazard-panel-title" data-i18n="hazards.layers">Natural hazard layers</h2>
                 <button class="close-button" id="hazard-panel-close" type="button"
                         data-i18n-aria="auth.close" aria-label="Close">×</button>
               </div>
@@ -201,13 +198,14 @@
                    status text used to say, which was the useful half of it —
                    "Europe only" is a very different claim from "none here". -->
               <p class="hp-foot" id="weather-note"></p>
-              <p class="hp-foot" data-i18n="hazards.notOurs">
-                Published by national agencies. We show what they issued and nothing of our own.
-              </p>
+              <!-- Naming them is the whole of it. A paragraph explaining that we
+                   add nothing of our own said in many words what one line says
+                   by simply crediting somebody else. -->
+              <p class="hp-foot" data-i18n="hazards.source">Source: GDACS · MeteoAlarm</p>
               <!-- Its English lives here and onLanguageChanged rewrites it, the
                    same as #when-hint: the sentence carries a number, so a
                    plain data-i18n cannot fill it. -->
-              <p class="hp-foot" id="hazard-window">Ongoing events, and anything from the last 7 days.</p>
+              <p class="hp-foot" id="hazard-window">Ongoing events and the last 7 days.</p>
               <p class="hp-foot" data-i18n="hazard.notAlert">
                 Not an alert service — check official sources before you travel.
               </p>

@@ -222,8 +222,11 @@ em { font-style:italic; }
   border:1px solid var(--line-strong); border-radius:var(--radius);
   background:var(--surface); box-shadow:var(--shadow); }
 .hazard-panel[hidden] { display:none; }
-.hp-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
-  margin-bottom:5px; }
+/* The title stands alone now — the eyebrow above it said "Official sources"
+   and the footer names them outright — so it centres against the close button
+   instead of hanging at the top of it. */
+.hp-head { display:flex; align-items:center; justify-content:space-between; gap:10px;
+  margin-bottom:4px; }
 .hp-head h2 { margin:1px 0 0; font-size:14px; line-height:1.2; }
 
 .hazard-row { display:flex; align-items:center; gap:8px; padding:5px 0;

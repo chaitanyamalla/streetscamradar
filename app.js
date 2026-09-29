@@ -7,7 +7,8 @@
 // not this file's.
 // ---------------------------------------------------------------------------
 import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS,
-         REPORT_MOVE_WINDOW_HOURS, SAFETY_MIN_ZOOM, EMERGENCY_MIN_ZOOM } from './js/config.js';
+         REPORT_MOVE_WINDOW_HOURS, SAFETY_MIN_ZOOM, EMERGENCY_MIN_ZOOM,
+         SUGGEST_MIN_CHARS, SUGGEST_DEBOUNCE_MS } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, myConfirmedReports, editMyReport,
@@ -15,7 +16,7 @@ import { getCategories, fetchForBounds, submitReport, withdrawReport,
          fetchDisasters, fetchWeatherWarnings, supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
          signInWithGoogle, signOut, enabledProviders, changePassword } from './js/auth.js';
-import { searchPlaces, describePoint, locateMe } from './js/geo.js';
+import { searchPlaces, suggestPlaces, describePoint, locateMe } from './js/geo.js';
 import { emergencyFor } from './js/emergency.js';
 import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
@@ -1007,6 +1008,78 @@ async function runSearch(query) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Suggestions while you type
+//
+// Not a free-for-all. Every keystroke would be a request to somebody else's
+// free service, so nothing is asked until there are a few characters and until
+// typing pauses, and each new request cancels the one before it — which also
+// stops a slow answer landing on top of a newer, faster one.
+//
+// The search button still goes to Nominatim, which is better at a full,
+// deliberate query. These two are allowed to disagree: one is a guess at what
+// you are typing, the other is an answer to what you typed.
+// ---------------------------------------------------------------------------
+let suggestTimer = 0;
+let suggestRun = null;          // the in-flight request, so it can be cancelled
+let suggestSeq = 0;
+
+function showSuggestions(hits) {
+  const box = $('#search-results');
+  if (!hits.length) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = hits.map((h, i) => `
+    <button type="button" class="search-hit" data-hit="${i}" role="option" aria-selected="false">
+      <b>${esc(h.label)}</b>${h.detail ? `<span>${esc(h.detail)}</span>` : ''}
+    </button>`).join('');
+  box.__hits = hits;
+  box.__cursor = -1;
+}
+
+function askForSuggestions(typed) {
+  clearTimeout(suggestTimer);
+  suggestRun?.abort();
+
+  const query = typed.trim();
+  if (query.length < SUGGEST_MIN_CHARS) { $('#search-results').hidden = true; return; }
+
+  suggestTimer = setTimeout(async () => {
+    const run = new AbortController();
+    suggestRun = run;
+    const ticket = ++suggestSeq;
+    try {
+      // Biased to the middle of the map, so a street name finds the one where
+      // the reader is already looking.
+      const centre = map.getCenter();
+      const hits = await suggestPlaces(query,
+        { near: { lat: centre.lat, lng: centre.lng }, signal: run.signal });
+      if (ticket === suggestSeq) showSuggestions(hits);
+    } catch (err) {
+      // An abort is the expected way one of these ends. Anything else is the
+      // suggestion service having a moment, which must not interrupt someone
+      // in the middle of typing — the search button still works.
+      if (err?.name !== 'AbortError') console.warn('suggestions unavailable:', err);
+    }
+  }, SUGGEST_DEBOUNCE_MS);
+}
+
+/** Arrow keys through the list, Enter to take one, Escape to dismiss it. */
+function moveSuggestion(step) {
+  const box = $('#search-results');
+  const options = [...box.querySelectorAll('[data-hit]')];
+  if (box.hidden || !options.length) return false;
+
+  const next = ((box.__cursor ?? -1) + step + options.length + 1) % (options.length + 1);
+  box.__cursor = next === options.length ? -1 : next;
+  options.forEach((option, i) => {
+    const on = i === box.__cursor;
+    option.classList.toggle('is-active', on);
+    option.setAttribute('aria-selected', String(on));
+    if (on) option.scrollIntoView({ block: 'nearest' });
+  });
+  return true;
+}
+
 function goToPlace(place) {
   flyToPlace(map, place, PLACE_ZOOM);
   state.placeLabel = place.label;
@@ -1025,9 +1098,49 @@ function fillCategorySelect() {
   if (chosen) sel.value = chosen;   // a language change must not reset the form
 }
 
+/**
+ * Remembering a choice between visits.
+ *
+ * Wrapped because localStorage throws rather than returns null in a private
+ * window in some browsers, and a remembered panel state is never worth a blank
+ * page. Nothing personal is stored here — only which panels you left open.
+ */
+function readSetting(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function writeSetting(key, value) {
+  try { localStorage.setItem(key, value); } catch { /* not important enough */ }
+}
+
 function wireUI() {
   // --- search
-  $('#place-form').addEventListener('submit', e => { e.preventDefault(); runSearch($('#place-search').value); });
+  const searchBox = $('#place-search');
+  $('#place-form').addEventListener('submit', e => {
+    e.preventDefault();
+    clearTimeout(suggestTimer);
+    suggestRun?.abort();
+
+    // If a suggestion is highlighted, that is the answer — no point asking a
+    // second service about a place somebody has already picked.
+    const box = $('#search-results');
+    const chosen = (box.__hits ?? [])[box.__cursor ?? -1];
+    if (chosen) { goToPlace(chosen); return; }
+    runSearch(searchBox.value);
+  });
+
+  searchBox.addEventListener('input', e => askForSuggestions(e.target.value));
+  searchBox.addEventListener('focus', e => {
+    if ((e.target.value ?? '').trim().length >= SUGGEST_MIN_CHARS
+        && ($('#search-results').__hits ?? []).length) {
+      $('#search-results').hidden = false;
+    }
+  });
+  searchBox.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' && moveSuggestion(1)) e.preventDefault();
+    else if (e.key === 'ArrowUp' && moveSuggestion(-1)) e.preventDefault();
+    else if (e.key === 'Escape') { $('#search-results').hidden = true; }
+  });
+
   $('#search-results').addEventListener('click', e => {
     const btn = e.target.closest('[data-hit]');
     if (!btn) return;
@@ -1077,13 +1190,21 @@ function wireUI() {
     chip.setAttribute('aria-pressed', String(!on));
     draw();
   });
-  // The filter panel is a <details>: collapsed on a phone so the map gets the
-  // room, always open on a wider screen where there is space for both.
+  // The filter panel is a <details> that opens and closes at any width.
+  //
+  // It used to be forced open on a desktop and forced shut on a phone, and a
+  // resize would overrule whatever you had just clicked. Now the first visit
+  // is decided by the room available — open where there is space, closed on a
+  // phone where the map matters more — and after that your last choice is
+  // remembered and nothing overrules it.
   const filterPanel = $('#filter-panel');
-  const roomForFilters = window.matchMedia('(min-width: 901px)');
-  const syncFilterPanel = () => { filterPanel.open = roomForFilters.matches; };
-  syncFilterPanel();
-  roomForFilters.addEventListener('change', syncFilterPanel);
+  const FILTERS_OPEN = 'ssr.filters.open';
+  const stored = readSetting(FILTERS_OPEN);
+  filterPanel.open = stored === null
+    ? window.matchMedia('(min-width: 901px)').matches
+    : stored === 'true';
+  filterPanel.addEventListener('toggle', () =>
+    writeSetting(FILTERS_OPEN, String(filterPanel.open)));
 
   $('#safety-toggle').addEventListener('change', e => {
     state.safetyOn = e.target.checked;

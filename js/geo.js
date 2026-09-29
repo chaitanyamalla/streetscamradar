@@ -1,13 +1,19 @@
 // ---------------------------------------------------------------------------
 // Turning what someone types into a place on Earth, and back again.
 //
-// Covers cities, towns, streets, postcodes and countries worldwide via
-// Nominatim (OpenStreetMap). Its usage policy allows about one request per
-// second and forbids per-keystroke autocomplete, so every call here is
-// throttled and only ever fires on an explicit action.
+// Two services, for two different jobs.
+//
+// Nominatim (OpenStreetMap) does the searching and the reverse geocoding: it
+// covers cities, towns, streets, postcodes and countries worldwide. Its usage
+// policy allows about one request per second and forbids per-keystroke
+// autocomplete, so every call to it here is throttled and only ever fires on
+// an explicit action — a pressed button, a dropped pin.
+//
+// Photon (Komoot, same OpenStreetMap data) does the suggestions while someone
+// types, because that is what it is built for and Nominatim asks us not to.
 // ---------------------------------------------------------------------------
-import { GEOCODER } from './config.js';
-import { t } from './i18n.js';
+import { GEOCODER, SUGGEST } from './config.js';
+import { t, currentLanguage } from './i18n.js';
 
 let lastCall = 0;
 
@@ -46,6 +52,84 @@ export async function searchPlaces(query, limit = 6) {
     kind: p.addresstype || p.type || 'place',
   }));
 }
+
+/**
+ * Suggestions while somebody is still typing, from Photon.
+ *
+ * A different service from the search above, on purpose: see SUGGEST in
+ * config.js. The shapes differ too — Photon answers GeoJSON with the place
+ * name and its parts in `properties`, and an `extent` of
+ * [west, north, east, south] where Nominatim gives [south, north, west, east].
+ * Converted here, at the edge, rather than anywhere a reader would have to
+ * remember which is which.
+ *
+ * `signal` aborts the request when the next keystroke makes it pointless,
+ * which also stops a slow answer arriving after a faster, newer one and
+ * overwriting it.
+ */
+export async function suggestPlaces(query, { near = null, signal } = {}) {
+  const q = query.trim();
+  if (!q) return [];
+
+  const params = new URLSearchParams({
+    q, limit: String(SUGGEST.limit),
+    // Photon returns names in the language it is asked for where it has them.
+    lang: suggestLanguage(),
+  });
+  // Bias towards where the map already is: "haupt" should find the station in
+  // the city on screen before one four countries away.
+  if (near && Number.isFinite(near.lat) && Number.isFinite(near.lng)) {
+    params.set('lat', near.lat.toFixed(4));
+    params.set('lon', near.lng.toFixed(4));
+  }
+
+  const response = await fetch(`${SUGGEST.url}?${params}`,
+    { headers: { Accept: 'application/json' }, signal });
+  if (!response.ok) throw new Error(t('error.searchUnavailable', { status: response.status }));
+  const payload = await response.json();
+
+  const seen = new Set();
+  const places = [];
+  for (const feature of payload?.features ?? []) {
+    const props = feature?.properties ?? {};
+    const point = feature?.geometry?.coordinates;
+    if (!Array.isArray(point) || point.length < 2) continue;
+
+    const name = String(props.name ?? '').trim();
+    const where = [props.city || props.district || props.county, props.state, props.country]
+      .filter(Boolean).filter(part => part !== name);
+    const label = name || where[0] || '';
+    if (!label) continue;
+
+    // Photon often answers with the same place twice — a node and the way
+    // around it. One line each is what a list of suggestions is for.
+    const key = `${label}|${where.join(',')}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const extent = Array.isArray(props.extent) && props.extent.length === 4
+      ? props.extent.map(Number) : null;
+    places.push({
+      label,
+      detail: [...new Set(where)].join(', '),
+      lat: Number(point[1]),
+      lng: Number(point[0]),
+      countryCode: String(props.countrycode ?? '').toUpperCase().slice(0, 2) || null,
+      city: props.city || props.district || null,
+      // [west, north, east, south] -> [south, north, west, east]
+      boundingbox: extent ? [extent[3], extent[1], extent[0], extent[2]] : null,
+      kind: props.osm_value || props.type || 'place',
+    });
+  }
+  return places;
+}
+
+/** Photon takes a two-letter language and only knows a handful; anything else
+ *  it answers in the local name, which is a reasonable thing to show anyway. */
+const suggestLanguage = () => {
+  const code = String(currentLanguage() ?? 'en').slice(0, 2);
+  return ['de', 'en', 'fr', 'it'].includes(code) ? code : 'en';
+};
 
 /** What is at this point? Used to label a pin dropped on the map. */
 export async function describePoint(lat, lng) {

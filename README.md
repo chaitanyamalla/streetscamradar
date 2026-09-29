@@ -24,7 +24,7 @@ app.js          wiring: what happens when you pan, search, filter or post
 js/config.js    YOUR Supabase keys and the tunables         <- edit this
 js/data.js      every database call lives here
 js/auth.js      magic-link and Google sign-in
-js/geo.js       worldwide search + "where am I" (Nominatim / OpenStreetMap)
+js/geo.js       search (Nominatim), suggestions (Photon), "where am I"
 js/map.js       MapLibre setup, clustering, density layer
 js/ui.js        rendering helpers (and HTML escaping)
 js/emergency.js emergency numbers, by country
@@ -388,9 +388,16 @@ filters and the report form all pick it up with no code change.
   that becomes a common complaint, switch to a 6-digit code: it removes the
   redirect entirely and behaves the same on every device.
 
-- **Geocoding** uses Nominatim, which is free and asks for roughly one request
-  per second. Fine for now; if the site gets busy, swap the endpoint in
-  `js/config.js` for a paid geocoder.
+- **Geocoding** uses two free services, for two different jobs. Nominatim
+  answers a deliberate search and names the point behind a dropped pin; it
+  asks for roughly one request per second and its policy forbids per-keystroke
+  autocomplete in as many words. Suggestions while someone types therefore come
+  from Photon (Komoot, same OpenStreetMap data), which is built for exactly
+  that and sends the CORS headers a page needs. Both endpoints are in
+  `js/config.js`; swap either for a paid service if the site gets busy.
+
+  What keeps that fair: nothing is asked before three characters, nothing until
+  typing pauses for 280 ms, and each request cancels the one before it.
 - **Severity is self-declared.** Someone could mark everything "high". The
   flag + auto-hide path in `app_settings` is the answer when that starts happening.
 - **Reports are unverified accounts from strangers.** The site says so in the

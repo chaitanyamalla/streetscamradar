@@ -19,9 +19,8 @@ export default {
   'header.profile.of': 'Váš profil — {who}',
   'header.language': 'Jazyk',
 
-  'intro.eyebrow': 'Celosvětově · aktualizováno každý týden',
-  'intro.heading': 'Poznejte ulice dřív,<br /><em>než se do nich vydáte.</em>',
-  'intro.copy': 'Podvody hlášené cestovateli a místními, připnuté přesně k rohu ulice, nádraží nebo tržnici, kde se staly. Hledejte kdekoli na Zemi a podívejte se, na co tam lidé narazili za posledních 7 dní.',
+  'intro.heading': 'Podvody,<br /><em>ulici po ulici.</em>',
+  'intro.copy': 'Hlášené cestovateli a místními. Posledních 7 dní, kdekoli na světě.',
   'intro.search.label': 'Hledat město, obec, PSČ nebo adresu',
   'intro.search.placeholder': 'Zkuste Lisabon, 10115 Berlín nebo Khao San Road',
   'intro.search.go': 'Hledat',
@@ -32,7 +31,7 @@ export default {
   'map.area': 'Celosvětová mapa podvodů',
   'map.zoomIn': 'Přiblížit',
   'map.zoomOut': 'Oddálit',
-  'map.attribution': 'Mapová data © přispěvatelé <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · dlaždice © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · vyhledávání <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> · hlášení jsou neověřené výpovědi komunity · přírodní rizika přes <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> a <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>',
+  'map.attribution': 'Mapová data © přispěvatelé <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · dlaždice © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · vyhledávání <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> a <a href="https://photon.komoot.io/" target="_blank" rel="noreferrer">Photon</a> · hlášení jsou neověřené výpovědi komunity · přírodní rizika přes <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> a <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>, <a href="https://www.meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>',
   'map.emergencyIn': 'Tísňová volání —',
 
   'emergency.all': 'Všechny složky',

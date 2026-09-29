@@ -23,9 +23,8 @@ export default {
   'header.language': 'Language',
 
   // --- intro ---------------------------------------------------------------
-  'intro.eyebrow': 'Worldwide · updated every week',
-  'intro.heading': 'Know the streets<br /><em>before you walk them.</em>',
-  'intro.copy': 'Scams reported by travellers and locals, pinned to the exact corners, stations and markets where they happened. Search anywhere on Earth and see what people ran into there in the last 7 days.',
+  'intro.heading': 'Scams,<br /><em>street by street.</em>',
+  'intro.copy': 'Reported by travellers and locals. The last 7 days, anywhere on Earth.',
   'intro.search.label': 'Search a city, town, postcode or address',
   'intro.search.placeholder': 'Try Lisbon, 10115 Berlin, or Khao San Road',
   'intro.search.go': 'Search',
@@ -37,7 +36,7 @@ export default {
   'map.area': 'Worldwide scam map',
   'map.zoomIn': 'Zoom in',
   'map.zoomOut': 'Zoom out',
-  'map.attribution': 'Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors · tiles © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · search by <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> · reports are unverified community accounts · hazards via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> and <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>',
+  'map.attribution': 'Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors · tiles © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · search by <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> and <a href="https://photon.komoot.io/" target="_blank" rel="noreferrer">Photon</a> · reports are unverified community accounts · hazards via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> and <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>, <a href="https://www.meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>',
   'map.emergencyIn': 'Emergency in',
 
   // --- emergency numbers ---------------------------------------------------

@@ -19,9 +19,8 @@ export default {
   'header.profile.of': 'Dein Profil — {who}',
   'header.language': 'Sprache',
 
-  'intro.eyebrow': 'Weltweit · wöchentlich aktualisiert',
-  'intro.heading': 'Kenn die Straßen,<br /><em>bevor du sie gehst.</em>',
-  'intro.copy': 'Betrugsmaschen, gemeldet von Reisenden und Einheimischen, genau an der Ecke, dem Bahnhof oder dem Markt, wo sie passiert sind. Suche irgendwo auf der Welt und sieh, was Menschen dort in den letzten 7 Tagen erlebt haben.',
+  'intro.heading': 'Betrug,<br /><em>Straße für Straße.</em>',
+  'intro.copy': 'Von Reisenden und Einheimischen gemeldet. Die letzten 7 Tage, überall auf der Welt.',
   'intro.search.label': 'Stadt, Ort, Postleitzahl oder Adresse suchen',
   'intro.search.placeholder': 'Zum Beispiel Lissabon, 10115 Berlin oder Khao San Road',
   'intro.search.go': 'Suchen',
@@ -32,7 +31,7 @@ export default {
   'map.area': 'Weltweite Betrugskarte',
   'map.zoomIn': 'Vergrößern',
   'map.zoomOut': 'Verkleinern',
-  'map.attribution': 'Kartendaten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>-Mitwirkende · Kacheln © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · Suche über <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> · Meldungen sind ungeprüfte Berichte aus der Community · Naturgefahren über <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> und <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>',
+  'map.attribution': 'Kartendaten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>-Mitwirkende · Kacheln © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · Suche über <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> und <a href="https://photon.komoot.io/" target="_blank" rel="noreferrer">Photon</a> · Meldungen sind ungeprüfte Berichte aus der Community · Naturgefahren über <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> und <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>, <a href="https://www.meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>',
   'map.emergencyIn': 'Notruf in',
 
   'emergency.all': 'Alle Dienste',

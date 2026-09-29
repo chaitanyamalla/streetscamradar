@@ -19,9 +19,8 @@ export default {
   'header.profile.of': 'Votre profil — {who}',
   'header.language': 'Langue',
 
-  'intro.eyebrow': 'Dans le monde entier · mis à jour chaque semaine',
-  'intro.heading': 'Connaissez les rues<br /><em>avant de les arpenter.</em>',
-  'intro.copy': "Des arnaques signalées par des voyageurs et des habitants, épinglées à l'angle de rue, la gare ou le marché exact où elles se sont produites. Cherchez n'importe où sur Terre et voyez ce que les gens y ont rencontré ces 7 derniers jours.",
+  'intro.heading': 'Les arnaques,<br /><em>rue par rue.</em>',
+  'intro.copy': 'Signalées par des voyageurs et des habitants. Les 7 derniers jours, partout dans le monde.',
   'intro.search.label': 'Chercher une ville, un village, un code postal ou une adresse',
   'intro.search.placeholder': 'Essayez Lisbonne, 10115 Berlin ou Khao San Road',
   'intro.search.go': 'Chercher',
@@ -32,7 +31,7 @@ export default {
   'map.area': 'Carte mondiale des arnaques',
   'map.zoomIn': 'Zoomer',
   'map.zoomOut': 'Dézoomer',
-  'map.attribution': 'Données cartographiques © les contributeurs <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · tuiles © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · recherche par <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> · les signalements sont des témoignages non vérifiés · risques naturels via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> et <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>',
+  'map.attribution': 'Données cartographiques © les contributeurs <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · tuiles © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · recherche par <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> et <a href="https://photon.komoot.io/" target="_blank" rel="noreferrer">Photon</a> · les signalements sont des témoignages non vérifiés · risques naturels via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> et <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>, <a href="https://www.meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>',
   'map.emergencyIn': 'Urgences en',
 
   'emergency.all': 'Tous les services',

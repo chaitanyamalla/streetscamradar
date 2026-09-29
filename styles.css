@@ -40,8 +40,12 @@ em { font-style:italic; }
 :focus-visible { outline:2px solid var(--brand-lift); outline-offset:2px; border-radius:2px; }
 .visually-hidden { position:absolute; width:1px; height:1px; overflow:hidden;
                    clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; }
-.eyebrow { margin:0 0 10px; font:500 10px/1.2 'DM Mono',monospace;
-           letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+.eyebrow { margin:0 0 8px; font:500 10px/1.2 'DM Mono',monospace;
+           letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+/* German says "letzte 7 Tage · öffentliche Ansicht" where English says "last 7
+   days · public view", and at the tracking above that took two lines and
+   pushed the heading down. Smaller and tighter here only. */
+.reports-head .eyebrow { margin-bottom:4px; font-size:9px; letter-spacing:.09em; }
 .muted-note { margin:0; color:var(--muted); font-size:12px; }
 
 /* --- Buttons ------------------------------------------------------------- */
@@ -110,21 +114,24 @@ em { font-style:italic; }
    3, and the filter panel comes later in the document, so it painted over the
    search results — which only became reachable once the panel's padding pushed
    the dropdown far enough down to touch it. */
-.map-intro { position:absolute; z-index:4; top:34px; left:var(--gutter); width:390px;
-  padding:18px 20px 20px; border:1px solid rgba(255,255,255,0.55);
+.map-intro { position:absolute; z-index:4; top:30px; left:var(--gutter); width:336px;
+  padding:16px 18px 18px; border:1px solid rgba(255,255,255,0.55);
   border-radius:var(--radius); background:rgba(252,251,249,0.62);
   /* Lighter than it looks: most of the legibility comes from the blur, not
      from the fill, so the map keeps showing through. */
   backdrop-filter:blur(16px) saturate(1.05);
   -webkit-backdrop-filter:blur(16px) saturate(1.05);
   box-shadow:0 6px 28px rgba(20,30,28,0.10); }
-.map-intro h1 { margin:0; font-size:42px; color:var(--ink); }
+/* text-wrap:balance evens the lines of a heading rather than leaving one word
+   stranded on the last one. Ignored by browsers that do not have it. */
+.map-intro h1 { margin:0; font-size:30px; line-height:1.15; letter-spacing:-.01em;
+  color:var(--ink); text-wrap:balance; }
 .map-intro h1 em { font-family:Georgia,'Times New Roman',serif; font-weight:400;
   font-style:italic; letter-spacing:-.02em; color:var(--brand); }
-.intro-copy { max-width:352px; margin:14px 0 0; color:var(--ink-soft);
-  font-size:14px; line-height:1.65; }
+.intro-copy { max-width:290px; margin:9px 0 0; color:var(--ink-soft);
+  font-size:13px; line-height:1.55; text-wrap:pretty; }
 
-.place-search { display:flex; align-items:center; gap:8px; margin-top:18px;
+.place-search { display:flex; align-items:center; gap:8px; margin-top:14px;
   padding:6px 6px 6px 12px; background:var(--surface);
   border:1px solid var(--line-strong); border-radius:var(--radius); box-shadow:var(--shadow); }
 .search-icon { font-size:20px; color:var(--ink-soft); transform:rotate(-20deg); }
@@ -140,7 +147,7 @@ em { font-style:italic; }
 .search-hit { display:block; width:100%; border:0; background:none; text-align:left;
   padding:10px 13px; border-bottom:1px solid var(--line); }
 .search-hit:last-child { border-bottom:0; }
-.search-hit:hover, .search-hit:focus-visible { background:var(--sand); }
+.search-hit:hover, .search-hit:focus-visible, .search-hit.is-active { background:var(--sand); }
 .search-hit b { display:block; font-size:13px; }
 .search-hit span { display:block; margin-top:2px; color:var(--muted); font-size:11px;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -273,29 +280,33 @@ em { font-style:italic; }
 .icon-button:hover { color:var(--brand); }
 
 /* --- Filter panel -------------------------------------------------------- */
-.filter-panel { position:absolute; z-index:3; left:var(--gutter); bottom:26px; width:250px;
+.filter-panel { position:absolute; z-index:3; left:var(--gutter); bottom:26px; width:230px;
   background:var(--surface); border:1px solid var(--line-strong);
   border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
 .panel-heading { display:flex; justify-content:space-between; align-items:center;
-  padding:12px 14px; border-bottom:1px solid var(--line);
-  font-size:12px; font-weight:800; cursor:pointer; list-style:none; }
+  padding:10px 13px; border-bottom:1px solid var(--line);
+  font-size:11.5px; font-weight:800; cursor:pointer; list-style:none; }
+.panel-heading:hover { color:var(--brand); }
 .panel-heading::-webkit-details-marker { display:none; }
-.panel-chevron { display:none; font-size:15px; color:var(--muted);
-  transition:transform .18s ease; }
+/* The panel opens and closes at every width now, so the chevron is always
+   there to say so — it used to appear only on a phone, where it was the only
+   place the panel could be closed. */
+.panel-chevron { font-size:14px; color:var(--muted); transition:transform .18s ease; }
 .filter-panel[open] .panel-chevron { transform:rotate(180deg); }
+.filter-panel:not([open]) .panel-heading { border-bottom:0; }
 .filter-title button { border:0; background:none; color:var(--muted);
   font:inherit; font-size:10px; text-decoration:underline; padding:0;
   text-transform:none; letter-spacing:0; cursor:pointer; }
 .filter-title button:hover { color:var(--brand); }
 .filter-title { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
-.filter-section { padding:11px 14px; }
+.filter-section { padding:12px 13px; }
 .filter-title { margin:0 0 8px; font:500 9px 'DM Mono',monospace;
   letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
 .filter-row { display:flex; align-items:center; gap:8px; min-height:26px;
   color:var(--ink-2); font-size:12px; cursor:pointer; }
 .filter-row input { accent-color:var(--brand); width:14px; height:14px; flex:none; }
 .filter-row b { margin-left:auto; color:var(--muted); font:500 10px 'DM Mono',monospace; }
-.category-section { border-top:1px solid var(--line); max-height:190px; overflow:auto; }
+.category-section { border-top:1px solid var(--line); max-height:168px; overflow:auto; }
 .safety-filter { border-top:1px solid var(--line); }
 .safety-filter .filter-row { margin-bottom:2px; }
 .safety-glyphs { font-size:13px; letter-spacing:1px; }
@@ -303,38 +314,38 @@ em { font-style:italic; }
 #safety-status.is-warning { color:var(--pin-deep); font-weight:600; }
 .category-filters { display:flex; flex-wrap:wrap; gap:5px; }
 .cat-chip { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line-strong);
-  border-radius:100px; background:var(--surface); padding:5px 10px 5px 7px;
-  font-size:11px; color:var(--ink-2); }
+  border-radius:100px; background:var(--surface); padding:4px 9px 4px 7px;
+  font-size:10.5px; color:var(--ink-2); }
 .cat-chip:hover { border-color:var(--brand); }
 .cat-chip[aria-pressed="false"] { opacity:.42; }
 .cat-chip .glyph { font-size:12px; line-height:1; }
 
 /* --- Reports card -------------------------------------------------------- */
-.reports-card { position:absolute; z-index:3; right:var(--gutter); bottom:26px; width:340px;
-  display:flex; flex-direction:column; max-height:min(460px, calc(100% - 140px));
+.reports-card { position:absolute; z-index:3; right:var(--gutter); bottom:26px; width:314px;
+  display:flex; flex-direction:column; max-height:min(430px, calc(100% - 140px));
   background:var(--surface); border:1px solid var(--line-strong);
   border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
 .reports-head { display:flex; align-items:center; justify-content:space-between;
-  gap:10px; padding:14px 16px 10px; }
-.reports-head h2 { margin:0; font-size:18px; }
+  gap:10px; padding:12px 14px 9px; }
+.reports-head h2 { margin:0; font-size:16px; line-height:1.2; }
 .count-pill { flex:none; min-width:30px; padding:5px 10px; border-radius:100px;
   background:var(--pin); color:#fff; text-align:center;
   font:600 12px 'DM Mono',monospace; }
 .report-list { overflow:auto; }
-.report-entry { display:flex; gap:11px; padding:11px 16px; border-top:1px solid var(--line);
+.report-entry { display:flex; gap:10px; padding:11px 14px; border-top:1px solid var(--line);
   cursor:pointer; }
 .report-entry:hover { background:var(--paper); }
-.report-glyph { flex:none; width:32px; height:32px; border-radius:50%; display:grid;
-  place-items:center; font-size:15px; background:#fbf1ea; border:1px solid #f0d7c6; }
+.report-glyph { flex:none; width:28px; height:28px; border-radius:50%; display:grid;
+  place-items:center; font-size:14px; background:#fbf1ea; border:1px solid #f0d7c6; }
 .report-copy { min-width:0; flex:1; }
-.report-copy b { display:block; font-size:13px; line-height:1.35; }
+.report-copy b { display:block; font-size:12.5px; line-height:1.35; text-wrap:pretty; }
 .report-meta { display:block; margin-top:3px; color:var(--muted); font-size:11px; }
 
 /* Confirmations are what raise a report now, so they are what the entry
    shows: a left edge that deepens, and the count spelled out. */
-.report-entry.is-confirmed { border-left:3px solid var(--pin); padding-left:13px; }
+.report-entry.is-confirmed { border-left:3px solid var(--pin); padding-left:11px; }
 .report-entry.is-confirmed-many { border-left:3px solid var(--pin-deep);
-  padding-left:13px; background:#fdf6f1; }
+  padding-left:11px; background:#fdf6f1; }
 .confirm-badge { display:inline-block; margin-top:6px; padding:2px 8px;
   border-radius:100px; background:#fbf1ea; border:1px solid #f0d7c6;
   color:var(--pin-deep); font-size:10.5px; font-weight:700; }
@@ -649,10 +660,10 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 /* Small laptops: tighten the floating panels. */
 @media (max-width:1180px) {
   :root { --gutter:26px; }
-  .map-intro { width:340px; }
-  .map-intro h1 { font-size:36px; }
-  .filter-panel { width:228px; }
-  .reports-card { width:300px; }
+  .map-intro { width:308px; }
+  .map-intro h1 { font-size:27px; }
+  .filter-panel { width:214px; }
+  .reports-card { width:286px; }
   .how-strip, .safety-section { padding-left:5vw; padding-right:5vw; }
 }
 
@@ -670,7 +681,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   .map-intro { position:static; order:1; width:auto; padding:22px var(--gutter) 0;
     border:0; border-radius:0; background:none; backdrop-filter:none;
     -webkit-backdrop-filter:none; box-shadow:none; }
-  .map-intro h1 { font-size:32px; }
+  .map-intro h1 { font-size:28px; }
   .intro-copy { max-width:none; }
   /* The map is the product on a phone: give it the room that headings,
      intro copy and the explainer sections were using, and put the zoom
@@ -754,9 +765,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 
   /* Collapsed filter panel: one tappable row. */
   .filter-panel { border-radius:var(--radius); overflow:hidden; }
-  .panel-chevron { display:inline; }
-  .filter-panel:not([open]) .panel-heading { border-bottom:0; }
-  .panel-heading { padding:14px var(--gutter); font-size:13px; }
+  .panel-heading { padding:13px var(--gutter); font-size:12.5px; }
 }
 
 /* Phones. */

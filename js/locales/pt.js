@@ -24,9 +24,8 @@ export default {
   'header.language': 'Idioma',
 
   // --- intro ---------------------------------------------------------------
-  'intro.eyebrow': 'Em todo o mundo · atualizado todas as semanas',
-  'intro.heading': 'Conheça as ruas<br /><em>antes de as percorrer.</em>',
-  'intro.copy': 'Burlas relatadas por viajantes e residentes, marcadas nas esquinas, estações e mercados exatos onde aconteceram. Pesquise qualquer ponto do planeta e veja o que as pessoas encontraram lá nos últimos 7 dias.',
+  'intro.heading': 'Burlas,<br /><em>rua a rua.</em>',
+  'intro.copy': 'Relatadas por viajantes e residentes. Os últimos 7 dias, em qualquer parte do mundo.',
   'intro.search.label': 'Pesquise uma cidade, vila, código postal ou morada',
   'intro.search.placeholder': 'Experimente Lisboa, 10115 Berlim ou Khao San Road',
   'intro.search.go': 'Pesquisar',
@@ -38,7 +37,7 @@ export default {
   'map.area': 'Mapa mundial de burlas',
   'map.zoomIn': 'Aproximar',
   'map.zoomOut': 'Afastar',
-  'map.attribution': 'Dados do mapa © colaboradores do <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · mosaicos © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · pesquisa por <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> · os relatos não são verificados e vêm da comunidade · riscos naturais via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> e <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>',
+  'map.attribution': 'Dados do mapa © colaboradores do <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · mosaicos © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · pesquisa por <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> e <a href="https://photon.komoot.io/" target="_blank" rel="noreferrer">Photon</a> · os relatos não são verificados e vêm da comunidade · riscos naturais via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> e <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>, <a href="https://www.meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>',
   'map.emergencyIn': 'Emergência em',
 
   // --- emergency numbers ---------------------------------------------------

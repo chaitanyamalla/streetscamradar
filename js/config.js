@@ -84,6 +84,27 @@ export const GEOCODER = {
   minIntervalMs: 1100,
 };
 
+// Suggestions while somebody types come from Photon, not from Nominatim.
+//
+// Nominatim's policy says it plainly — "sending a query on every keystroke is
+// not acceptable" — and we already lean on it for search and for naming the
+// point behind a dropped pin. Photon is Komoot's search-as-you-type service
+// built on the same OpenStreetMap data, sends Access-Control-Allow-Origin: *,
+// and caches for an hour, which is what makes this possible from a page at
+// all. Measured before it was wired up: half-typed queries come back in about
+// a second with what people mean — "10115 berl" finds the Berlin postcode,
+// "khao san" finds the road in Bangkok.
+//
+// SUGGEST_MIN_CHARS and SUGGEST_DEBOUNCE_MS exist to keep that a fair use of
+// somebody else's free service: nothing is asked until you have typed enough
+// to mean something, and not until you pause.
+export const SUGGEST = {
+  url: 'https://photon.komoot.io/api/',
+  limit: 6,
+};
+export const SUGGEST_MIN_CHARS = 3;
+export const SUGGEST_DEBOUNCE_MS = 280;
+
 // --- Safety & support --------------------------------------------------------
 // Hospitals live in our own safety_places table, refreshed
 // from OpenStreetMap by .github/workflows/safety-data.yml. They were once read

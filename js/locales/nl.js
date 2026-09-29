@@ -23,9 +23,8 @@ export default {
   'header.language': 'Taal',
 
   // --- intro ---------------------------------------------------------------
-  'intro.eyebrow': 'Wereldwijd · elke week bijgewerkt',
-  'intro.heading': 'Ken de straten<br /><em>voordat je erin loopt.</em>',
-  'intro.copy': 'Oplichting gemeld door reizigers en bewoners, vastgeprikt op precies die hoeken, stations en markten waar het gebeurde. Zoek waar ook ter wereld en zie wat mensen daar de afgelopen 7 dagen tegenkwamen.',
+  'intro.heading': 'Oplichting,<br /><em>straat voor straat.</em>',
+  'intro.copy': 'Gemeld door reizigers en bewoners. De afgelopen 7 dagen, waar ook ter wereld.',
   'intro.search.label': 'Zoek een stad, dorp, postcode of adres',
   'intro.search.placeholder': 'Probeer Lissabon, 10115 Berlijn of Khao San Road',
   'intro.search.go': 'Zoeken',
@@ -37,7 +36,7 @@ export default {
   'map.area': 'Wereldwijde oplichtingskaart',
   'map.zoomIn': 'Inzoomen',
   'map.zoomOut': 'Uitzoomen',
-  'map.attribution': 'Kaartgegevens © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>-bijdragers · tegels © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · zoeken via <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> · meldingen zijn ongecontroleerde verhalen uit de community · natuurrampen via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> en <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>',
+  'map.attribution': 'Kaartgegevens © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>-bijdragers · tegels © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · zoeken via <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> en <a href="https://photon.komoot.io/" target="_blank" rel="noreferrer">Photon</a> · meldingen zijn ongecontroleerde verhalen uit de community · natuurrampen via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> en <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>, <a href="https://www.meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>',
   'map.emergencyIn': 'Noodnummers in',
 
   // --- emergency numbers ---------------------------------------------------

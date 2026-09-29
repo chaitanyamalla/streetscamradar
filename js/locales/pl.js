@@ -19,9 +19,8 @@ export default {
   'header.profile.of': 'Twój profil — {who}',
   'header.language': 'Język',
 
-  'intro.eyebrow': 'Na całym świecie · aktualizowane co tydzień',
-  'intro.heading': 'Poznaj ulice,<br /><em>zanim nimi pójdziesz.</em>',
-  'intro.copy': 'Oszustwa zgłaszane przez podróżnych i mieszkańców, przypięte dokładnie do rogu ulicy, dworca czy targu, gdzie się wydarzyły. Wyszukaj dowolne miejsce na Ziemi i zobacz, na co ludzie natrafili tam przez ostatnie 7 dni.',
+  'intro.heading': 'Oszustwa,<br /><em>ulica po ulicy.</em>',
+  'intro.copy': 'Zgłaszane przez podróżnych i mieszkańców. Ostatnie 7 dni, gdziekolwiek na świecie.',
   'intro.search.label': 'Szukaj miasta, miejscowości, kodu pocztowego lub adresu',
   'intro.search.placeholder': 'Spróbuj Lizbona, 10115 Berlin albo Khao San Road',
   'intro.search.go': 'Szukaj',
@@ -32,7 +31,7 @@ export default {
   'map.area': 'Światowa mapa oszustw',
   'map.zoomIn': 'Przybliż',
   'map.zoomOut': 'Oddal',
-  'map.attribution': 'Dane mapy © współtwórcy <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · kafelki © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · wyszukiwanie: <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> · zgłoszenia to niezweryfikowane relacje społeczności · zagrożenia naturalne przez <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> i <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>',
+  'map.attribution': 'Dane mapy © współtwórcy <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · kafelki © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · wyszukiwanie: <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> i <a href="https://photon.komoot.io/" target="_blank" rel="noreferrer">Photon</a> · zgłoszenia to niezweryfikowane relacje społeczności · zagrożenia naturalne przez <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> i <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>, <a href="https://www.meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>',
   'map.emergencyIn': 'Numery alarmowe —',
 
   'emergency.all': 'Wszystkie służby',

@@ -19,9 +19,8 @@ export default {
   'header.profile.of': 'Il tuo profilo — {who}',
   'header.language': 'Lingua',
 
-  'intro.eyebrow': 'In tutto il mondo · aggiornato ogni settimana',
-  'intro.heading': 'Conosci le strade<br /><em>prima di percorrerle.</em>',
-  'intro.copy': 'Truffe segnalate da viaggiatori e residenti, fissate sull’angolo, la stazione o il mercato esatti in cui sono avvenute. Cerca ovunque sulla Terra e guarda in cosa è incappata la gente lì negli ultimi 7 giorni.',
+  'intro.heading': 'Truffe,<br /><em>strada per strada.</em>',
+  'intro.copy': 'Segnalate da viaggiatori e residenti. Gli ultimi 7 giorni, ovunque nel mondo.',
   'intro.search.label': 'Cerca una città, un paese, un CAP o un indirizzo',
   'intro.search.placeholder': 'Prova Lisbona, 10115 Berlino o Khao San Road',
   'intro.search.go': 'Cerca',
@@ -32,7 +31,7 @@ export default {
   'map.area': 'Mappa mondiale delle truffe',
   'map.zoomIn': 'Ingrandisci',
   'map.zoomOut': 'Riduci',
-  'map.attribution': 'Dati della mappa © collaboratori di <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · tile © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · ricerca con <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> · le segnalazioni sono racconti della comunità non verificati · rischi naturali via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> e <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>',
+  'map.attribution': 'Dati della mappa © collaboratori di <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> · tile © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a> · ricerca con <a href="https://nominatim.org/" target="_blank" rel="noreferrer">Nominatim</a> e <a href="https://photon.komoot.io/" target="_blank" rel="noreferrer">Photon</a> · le segnalazioni sono racconti della comunità non verificati · rischi naturali via <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a> e <a href="https://www.gdacs.org/" target="_blank" rel="noreferrer">GDACS</a>, <a href="https://www.meteoalarm.org/" target="_blank" rel="noreferrer">MeteoAlarm</a>',
   'map.emergencyIn': 'Emergenze in',
 
   'emergency.all': 'Tutti i servizi',

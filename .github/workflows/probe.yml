@@ -23,6 +23,7 @@ on:
           - probe_geocoder.py
           - probe_search.py
           - probe_gdacs.py
+          - probe_dropped.py
 
 concurrency:
   group: probe

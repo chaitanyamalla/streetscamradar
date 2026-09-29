@@ -12,11 +12,10 @@
 // built to be read from a page — so there is no table of ours to go stale and
 // no job to silently stop. What a reader sees is what USGS published.
 //
-// Only earthquakes. The other hazards come from GDACS, which gives a whole
-// flood or cyclone one centroid point: "Flood in Guinea" sits at the country's
-// geographic centre, not on the flooded ground, so drawing it here would put a
-// marker hundreds of kilometres from the water. Those are matched by country
-// instead and live in public.disaster_alerts.
+// Only earthquakes. The rest of what the map draws — floods, cyclones,
+// wildfires, volcanoes — comes from our mirror of GDACS in
+// public.disaster_alerts, because GDACS sends no cache headers and a page
+// cannot ask it directly on every visit.
 // ---------------------------------------------------------------------------
 import { t } from './i18n.js';
 
@@ -131,10 +130,14 @@ export async function fetchQuakes() {
   return { quakes: feeds.length ? quakesFrom(feeds) : [], known: feeds.length > 0 };
 }
 
+/** Whatever sits inside a map view. Used for both the earthquakes and the
+ *  GDACS events, which is why it takes anything with a lat and a lng. */
+export const inBounds = (rows, bounds) => rows.filter(r =>
+  r.lat >= bounds.minLat && r.lat <= bounds.maxLat
+  && r.lng >= bounds.minLng && r.lng <= bounds.maxLng);
+
 /** The quakes inside a map view. */
-export const quakesIn = (quakes, bounds) => quakes.filter(q =>
-  q.lat >= bounds.minLat && q.lat <= bounds.maxLat
-  && q.lng >= bounds.minLng && q.lng <= bounds.maxLng);
+export const quakesIn = (quakes, bounds) => inBounds(quakes, bounds);
 
 /** How loudly to draw an earthquake. Magnitude is logarithmic, and a reader
  *  scanning a map needs the difference between "felt it" and "it made the

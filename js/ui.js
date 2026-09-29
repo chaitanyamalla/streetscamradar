@@ -523,21 +523,39 @@ export function quakePopupHTML(props) {
 }
 
 /**
- * A volcano, which is the one GDACS hazard that is a place.
+ * A GDACS event, opened from its marker.
  *
- * GDACS's own name for it and its own link. Nothing here interprets an
- * eruption, because nobody on this project is qualified to.
+ * The important line here is the one about the position. A marker implies "it
+ * happened here", and for a volcano or a wildfire that is true. For a flood or
+ * a drought GDACS gives the centre of the area affected, which can be tens of
+ * kilometres from any water and is a region rather than a spot; for a cyclone
+ * it is where the storm was last placed, which by definition has moved. Saying
+ * so costs one line and is the difference between a marker that informs and a
+ * marker that misleads.
  */
-export function volcanoPopupHTML(props) {
+const PLACEMENT = {
+  volcano: 'hazard.place.exact',
+  wildfire: 'hazard.place.exact',
+  cyclone: 'hazard.place.moving',
+  flood: 'hazard.place.area',
+  drought: 'hazard.place.area',
+};
+
+export function disasterPopupHTML(props) {
+  const kind = String(props.kind ?? 'flood');
   const when = props.from_date ? timeAgo(props.from_date) : '';
+  const glyph = { volcano: '\u{1F30B}', flood: '\u{1F30A}', cyclone: '\u{1F300}',
+                  wildfire: '\u{1F525}', drought: '\u{1F3DC}' }[kind] ?? '\u26A0';
+
   return `
     <div class="popup-head">
-      <span class="popup-glyph is-hazard" aria-hidden="true">\u{1F30B}</span>
+      <span class="popup-glyph is-hazard" aria-hidden="true">${glyph}</span>
       <div>
-        <p class="popup-kicker">${esc(t('hazard.kind.volcano'))}</p>
+        <p class="popup-kicker">${esc(t(`hazard.kind.${kind}`))}</p>
         <p class="popup-title">${esc(props.name ?? '')}</p>
       </div>
     </div>
+    <p class="popup-fine">${esc(t(PLACEMENT[kind] ?? 'hazard.place.area'))}</p>
     ${props.url ? `<div class="popup-actions">
       <a class="popup-action is-primary" href="${esc(props.url)}"
          target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>
@@ -547,48 +565,25 @@ export function volcanoPopupHTML(props) {
 }
 
 /**
- * What is going on in the country in view, from two sources at once.
+ * The severe weather in the country in view.
  *
- * GDACS for floods, cyclones and the rest; the national met services, through
- * MeteoAlarm, for severe weather. They are listed apart and each names its
- * own source, because "the Deutscher Wetterdienst has issued a red warning"
- * and "GDACS is tracking a flood" are different claims by different people,
- * and merging them into one undifferentiated list would hide who said what.
+ * The one hazard with nowhere to put a marker: a warning covers counties at a
+ * time, so it is listed rather than drawn. Grouped by what is being warned of
+ * — Spain publishes forty orange warnings on a wet afternoon, one per
+ * province, and forty rows saying "Rain" is a list nobody reads to the bottom
+ * of.
  *
- * No advice and no prose of ours anywhere in here: every entry is a fact about
- * somebody else's warning, plus a link to read it in their words.
+ * Every row names the service that issued it, because that is the authority
+ * here, and nothing in it is ours.
  */
-export function disasterDialogHTML(rows, weather = []) {
-  if (!rows?.length && !weather?.length) {
-    return `<p class="empty-note">${esc(t('hazards.none'))}</p>`;
-  }
+export function weatherDialogHTML(rows) {
+  if (!rows?.length) return `<p class="empty-note">${esc(t('weather.none'))}</p>`;
 
-  // A storm warning's useful half is when it ends, and "until Tue 18:00" is
-  // what a person reads off it — the day and the hour, not the year.
   const until = (iso) =>
     formatDate(iso, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
 
-  const entry = (kind, title, when, url, severity) => `
-      <div class="disaster-row is-${esc(severity)}">
-        <p class="disaster-kind">${esc(t(`hazard.kind.${kind}`))}</p>
-        <p class="disaster-name">${esc(title)}</p>
-        ${when ? `<p class="disaster-when">${esc(when)}</p>` : ''}
-        ${url ? `<a class="disaster-link" href="${esc(url)}"
-             target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>` : ''}
-      </div>`;
-
-  const disasters = (rows ?? []).map(row => entry(
-    row.kind, row.name,
-    row.from_date ? t('disaster.reported', { when: timeAgo(row.from_date) }) : '',
-    row.url, row.severity)).join('');
-
-  // Weather warnings arrive one per region — Spain publishes forty on a wet
-  // afternoon, one per province — so they are grouped by what they warn of.
-  // Forty rows saying "Rain" is a list nobody reads to the bottom of; one row
-  // saying "Rain: Andalucía, Aragón, Asturias …" is the same information in a
-  // form a person can take in.
   const groups = new Map();
-  for (const row of weather ?? []) {
+  for (const row of rows) {
     const key = `${row.kind}|${row.severity}`;
     const group = groups.get(key) ?? { ...row, areas: [] };
     for (const area of String(row.areas ?? '').split(',').map(a => a.trim())) {
@@ -601,24 +596,24 @@ export function disasterDialogHTML(rows, weather = []) {
     groups.set(key, group);
   }
 
-  const storms = [...groups.values()].map(row => {
+  const entries = [...groups.values()].map(row => {
     const shown = row.areas.slice(0, 8).join(', ');
     const rest = row.areas.length - 8;
-    return entry(
-      row.kind, rest > 0 ? `${shown} +${rest}` : shown,
-      // A weather warning has a stated end, which is the useful half of it.
-      row.to_date ? t('weather.until', { when: until(row.to_date) }) : '',
-      row.url, row.severity);
+    const when = row.to_date ? t('weather.until', { when: until(row.to_date) }) : '';
+    return `
+      <div class="disaster-row is-${esc(row.severity)}">
+        <p class="disaster-kind">${esc(t(`hazard.kind.${row.kind}`))}</p>
+        <p class="disaster-name">${esc(rest > 0 ? `${shown} +${rest}` : shown)}</p>
+        ${when ? `<p class="disaster-when">${esc(when)}</p>` : ''}
+        ${row.url ? `<a class="disaster-link" href="${esc(row.url)}"
+             target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>` : ''}
+      </div>`;
   }).join('');
 
-  return `
-    ${disasters ? `${disasters}
-      <p class="popup-meta">${esc(t('disaster.source'))}</p>` : ''}
-    ${storms ? `<p class="dialog-subhead">${esc(t('hazards.weather'))}</p>
-      ${storms}
-      <p class="popup-meta">${esc(t('weather.source', {
-        who: [...new Set((weather ?? []).map(w => w.source))].join(', '),
-      }))}</p>` : ''}
+  return `${entries}
+    <p class="popup-meta">${esc(t('weather.source', {
+      who: [...new Set(rows.map(w => w.source))].join(', '),
+    }))}</p>
     <p class="fine-print">${esc(t('hazard.notAlert'))}</p>`;
 }
 

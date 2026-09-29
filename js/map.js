@@ -44,6 +44,10 @@ export const ICON_ZOOM = 11.5;
 const FALLBACK_ICON = 'scam-icon-fallback';
 const HOSPITAL_ICON = 'safety-icon-hospital';
 const VOLCANO_ICON = 'hazard-icon-volcano';
+const DISASTER_ICONS = {
+  flood: 'hazard-icon-flood', cyclone: 'hazard-icon-cyclone',
+  wildfire: 'hazard-icon-wildfire', drought: 'hazard-icon-drought',
+};
 
 // Earthquakes are drawn in a colour used nowhere else here, so the mark cannot
 // be mistaken for a scam report. See the layer for why that matters.
@@ -84,7 +88,7 @@ export function addLayers(map) {
   map.addSource('density', { type: 'geojson', data: EMPTY });
   map.addSource('safety', { type: 'geojson', data: EMPTY });
   map.addSource('hazards', { type: 'geojson', data: EMPTY });
-  map.addSource('volcanoes', { type: 'geojson', data: EMPTY });
+  map.addSource('disasters', { type: 'geojson', data: EMPTY });
 
   // --- Signed-out density view: one soft circle per grid cell --------------
   map.addLayer({
@@ -206,13 +210,39 @@ export function addLayers(map) {
     },
   });
 
-  // --- Volcanoes -----------------------------------------------------------
+  // --- What GDACS is tracking ----------------------------------------------
   //
-  // The one GDACS hazard with a real position: a volcano IS the point it gives
-  // — everything else it publishes is a centroid of the area affected, which
-  // is why floods and cyclones are matched by country instead and never drawn.
+  // Drawn where GDACS puts it, with a glyph per kind. What that point MEANS
+  // differs by kind, and the popup says so rather than letting the marker
+  // imply more than it knows: a volcano and a wildfire are where they are, a
+  // cyclone is where the storm was last placed, and a flood or a drought is
+  // the centre of the area affected — which can sit well away from the water,
+  // and is a region rather than a street.
+  //
+  // Volcanoes keep a layer of their own so they keep a switch of their own;
+  // both read from the same source.
+  //
+  // GDACS earthquakes are deliberately absent: USGS covers those better and
+  // drawing both would put two marks on one event.
   map.addLayer({
-    id: 'volcano-icon', type: 'symbol', source: 'volcanoes',
+    id: 'disaster-icon', type: 'symbol', source: 'disasters',
+    filter: ['!=', ['get', 'kind'], 'volcano'],
+    layout: {
+      'icon-image': ['match', ['get', 'kind'],
+        'flood', DISASTER_ICONS.flood,
+        'cyclone', DISASTER_ICONS.cyclone,
+        'wildfire', DISASTER_ICONS.wildfire,
+        'drought', DISASTER_ICONS.drought,
+        DISASTER_ICONS.flood],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.42, 8, 0.58, 14, 0.7],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+    },
+  });
+
+  map.addLayer({
+    id: 'volcano-icon', type: 'symbol', source: 'disasters',
+    filter: ['==', ['get', 'kind'], 'volcano'],
     layout: {
       'icon-image': VOLCANO_ICON,
       'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.42, 8, 0.58, 14, 0.7],
@@ -290,21 +320,21 @@ export function setHazards(map, quakes) {
   map.getSource('hazards')?.setData(toHazardFeatures(quakes));
 }
 
-export const toVolcanoFeatures = (rows) => ({
+export const toDisasterFeatures = (rows) => ({
   type: 'FeatureCollection',
-  features: rows.map(v => ({
+  features: rows.map(d => ({
     type: 'Feature',
-    geometry: { type: 'Point', coordinates: [v.lng, v.lat] },
+    geometry: { type: 'Point', coordinates: [d.lng, d.lat] },
     properties: {
-      id: v.event_id, name: v.name, severity: v.severity,
-      country_code: v.country_code, from_date: v.from_date ?? '',
-      url: v.url ?? '',
+      id: d.event_id, kind: d.kind, name: d.name, severity: d.severity,
+      country_code: d.country_code, from_date: d.from_date ?? '',
+      to_date: d.to_date ?? '', url: d.url ?? '',
     },
   })),
 });
 
-export function setVolcanoes(map, rows) {
-  map.getSource('volcanoes')?.setData(toVolcanoFeatures(rows));
+export function setDisasters(map, rows) {
+  map.getSource('disasters')?.setData(toDisasterFeatures(rows));
 }
 
 const setVisible = (map, ids, visible) => {
@@ -320,6 +350,9 @@ export const setHazardsVisible = (map, visible) =>
 
 export const setVolcanoesVisible = (map, visible) =>
   setVisible(map, ['volcano-icon'], visible);
+
+export const setDisastersVisible = (map, visible) =>
+  setVisible(map, ['disaster-icon'], visible);
 
 export function setSafetyVisible(map, visible) {
   if (map.getLayer?.('safety-icon')) {
@@ -427,5 +460,9 @@ export function registerSafetyIcons(map) {
     if (image) map.addImage(id, image, { pixelRatio: 2 });
   };
   add(HOSPITAL_ICON, '\uD83C\uDFE5');   // 🏥
-  add(VOLCANO_ICON, '\uD83C\uDF0B');    // 🌋 — the one hazard that is a place
+  add(VOLCANO_ICON, '\uD83C\uDF0B');    // 🌋
+  add(DISASTER_ICONS.flood, '\uD83C\uDF0A');      // 🌊
+  add(DISASTER_ICONS.cyclone, '\uD83C\uDF00');    // 🌀
+  add(DISASTER_ICONS.wildfire, '\uD83D\uDD25');   // 🔥
+  add(DISASTER_ICONS.drought, '\uD83C\uDFDC');    // 🏜
 }

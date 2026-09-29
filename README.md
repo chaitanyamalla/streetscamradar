@@ -47,44 +47,43 @@ our own to any of it.**
 
 | Layer | Source | Shape | Default |
 |---|---|---|---|
-| Earthquakes | USGS | rings, where the ground moved | **off** |
-| Volcanoes | GDACS | pins, on the volcano | on |
-| Floods, cyclones, droughts, wildfires | GDACS | a chip for the country | on |
+| Earthquakes | USGS | rings at the epicentre | **off** |
+| Floods, storms, fires | GDACS | markers, counted for the view | on |
+| Volcanoes | GDACS | markers, counted for the view | on |
 | Weather warnings | national met services, via MeteoAlarm | a chip for the country | on |
 
-The panel is split into what is drawn on the map and what is reported for the
-country in view, because a cyclone appearing on the chip while the panel
-listed nothing that could account for it read as a bug. Earthquakes start off:
-this is a street scam map first, and a ring across a city centre for a quake
-nobody felt competes with the pins the site exists for. Whatever a reader
-switches is remembered between visits.
+The panel splits what is drawn from what is reported for the country, and the
+split is about whether the thing has a place at all.
 
-Weather warnings say **"Europe only"** outside MeteoAlarm's countries rather
-than "none here" — silence because nobody is telling us is a different claim
-from silence because nothing is happening. The covered list lives in
-`js/config.js` and `parity-test.mjs` fails if it drifts from the fetcher's.
+Everything GDACS publishes carries a position, so it is drawn — but **what that
+position means differs by kind, and the popup says which**. A volcano and a
+wildfire are where they are. A cyclone is where the storm was last placed, and
+has moved since. A flood or a drought is the centre of the area affected, which
+can sit well away from the water and is a region rather than a street. Saying
+so costs one line and is the difference between a marker that informs and one
+that misleads. GDACS earthquakes are left out entirely: USGS covers those
+better, and drawing both would put two marks on one event.
 
-The split is by SHAPE, because that decides how a thing can honestly be drawn.
-A point can be a pin. A flood cannot: GDACS gives a whole event one
-`Point_Centroid`, and "Flood in Guinea" sits at the country's geographic
-centre, not on the flooded ground. A storm warning covers a region. Those are
-matched by country and appear as a chip under the travel advisory — the same
-shape of answer to the same question: is anything going on where I am going.
+A **weather warning has nowhere honest to put a marker** — it covers counties
+at a time — so it stays a chip for the country in view, the same shape of
+answer as the travel advisory above it, and the dialog folds forty provincial
+warnings into one row per kind.
 
 **Only earthquakes that matter.** Two feeds: `significant_month`, which is
 USGS's own judgement of what mattered — magnitude weighted by how many people
 felt it and what it did — kept for a month, because the damage outlasts the
 shaking; and `4.5_week`, the ordinary threshold for "felt widely". The M2.5
 daily feed was dropped: hundreds a day, none of them trip-planning
-information. The mark is a hollow violet ring with a dot at the epicentre,
-and the colour is the point — a filled orange circle is what a scam report is,
-so the two used to read as the same thing.
+information. The mark is a hollow violet ring with a dot at the epicentre, and
+the colour is the point — a filled orange circle is what a scam report is, so
+the two used to read as the same thing. Earthquakes start **off**: this is a
+street scam map first.
 
 **Only orange and red weather.** MeteoAlarm grades green, yellow, orange and
 red; the first two are about 5,000 of the 5,600 warnings live across Europe on
 an ordinary afternoon, and describe weather that is unpleasant rather than
-dangerous. Europe only — that is MeteoAlarm's remit, and the panel says so
-rather than letting a traveller to Peru read silence as "no warnings".
+dangerous. Europe only — the panel says "Europe only" elsewhere rather than
+letting a traveller to Peru read silence as "no warnings".
 
 USGS is fetched in the browser: permissive CORS, a 60-second cache, built to
 be read from a page, so nothing of ours can go stale. GDACS and MeteoAlarm

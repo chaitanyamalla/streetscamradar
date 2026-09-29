@@ -96,14 +96,15 @@
                 </span>
               </button>
 
-              <!-- Only when something is actually happening. A country with no
-                   ongoing disaster is the normal case, and a chip that says so
-                   every day is a chip nobody reads. -->
-              <button class="advisory-chip disaster-chip" id="disaster-chip" type="button" hidden>
+              <!-- Severe weather for the country in view: the one hazard with
+                   nowhere to put a marker, since a warning covers counties at
+                   a time. Only when something is actually being warned of — a
+                   chip that appears every day is a chip nobody reads. -->
+              <button class="advisory-chip weather-chip" id="weather-chip" type="button" hidden>
                 <span class="ac-dot" aria-hidden="true"></span>
                 <span class="ac-text">
-                  <span class="ac-kicker" id="disaster-country"></span>
-                  <span class="ac-level" id="disaster-kinds"></span>
+                  <span class="ac-kicker" id="weather-country"></span>
+                  <span class="ac-level" id="weather-kinds"></span>
                 </span>
               </button>
             </div>
@@ -151,8 +152,18 @@
               </label>
 
               <label class="hazard-row">
+                <input type="checkbox" id="disaster-toggle" checked />
+                <span class="hz-mark" aria-hidden="true">🌊</span>
+                <span class="hz-text">
+                  <span class="hz-name" data-i18n="hazards.disasters">Floods, storms, fires</span>
+                  <span class="hz-note" id="disaster-status" data-i18n="hazards.checking">Checking…</span>
+                </span>
+                <span class="hz-source">GDACS</span>
+              </label>
+
+              <label class="hazard-row">
                 <input type="checkbox" id="volcano-toggle" checked />
-                <span class="hz-mark hz-volcano" aria-hidden="true">🌋</span>
+                <span class="hz-mark" aria-hidden="true">🌋</span>
                 <span class="hz-text">
                   <span class="hz-name" data-i18n="hazards.volcanoes">Volcanoes</span>
                   <span class="hz-note" id="volcano-status" data-i18n="hazards.checking">Checking…</span>
@@ -161,16 +172,6 @@
               </label>
 
               <p class="hp-group" data-i18n="hazards.forCountry">For the country in view</p>
-
-              <label class="hazard-row">
-                <input type="checkbox" id="disaster-toggle" checked />
-                <span class="hz-mark hz-disaster" aria-hidden="true"></span>
-                <span class="hz-text">
-                  <span class="hz-name" data-i18n="hazards.disasters">Floods, storms, fires</span>
-                  <span class="hz-note" id="disaster-status" data-i18n="hazards.checking">Checking…</span>
-                </span>
-                <span class="hz-source">GDACS</span>
-              </label>
 
               <label class="hazard-row">
                 <input type="checkbox" id="weather-toggle" checked />
@@ -494,17 +495,17 @@
     </dialog>
 
     <!-- ---------------------------------------------------------------- -->
-    <dialog id="disaster-dialog" aria-labelledby="disaster-title">
+    <dialog id="weather-dialog" aria-labelledby="weather-title">
       <div class="dialog-body">
         <div class="dialog-header">
           <div>
-            <p class="eyebrow" id="disaster-eyebrow"></p>
-            <h2 id="disaster-title">Ongoing natural hazards</h2>
+            <p class="eyebrow" id="weather-eyebrow"></p>
+            <h2 id="weather-title">Weather warnings</h2>
           </div>
-          <button class="close-button" data-close="disaster-dialog" type="button"
+          <button class="close-button" data-close="weather-dialog" type="button"
                   data-i18n-aria="auth.close" aria-label="Close">×</button>
         </div>
-        <div id="disaster-body"></div>
+        <div id="weather-body"></div>
       </div>
     </dialog>
 

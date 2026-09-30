@@ -40,9 +40,17 @@ CANDIDATES = [
      f"{BASE}/SEARCH?fromDate={WEEK}&toDate={TODAY}&alertlevel=&eventlist=FL"),
     ("SEARCH, last 30 days, all kinds",
      f"{BASE}/SEARCH?fromDate={MONTH}&toDate={TODAY}&alertlevel=&eventlist=EQ;TC;FL;VO;WF;DR"),
-    ("MAP", f"{BASE}/MAP"),
-    ("MAP, last 30 days",
-     f"{BASE}/MAP?fromDate={MONTH}&toDate={TODAY}&alertlevel=&eventlist=EQ;TC;FL;VO;WF;DR"),
+    # What gdacs.org's own home page calls, one request per kind. The argument
+    # is `eventtypes`, PLURAL — `eventlist`, which every other endpoint here
+    # takes, gets a 400 "Eventtype is required." from this one. That single
+    # letter is why we had never read the list their map draws.
+    ("MAP eventtypes=FL (what their map draws)", f"{BASE}/MAP?eventtypes=FL"),
+    ("MAP eventtypes=EQ", f"{BASE}/MAP?eventtypes=EQ"),
+    ("MAP eventtypes=TC", f"{BASE}/MAP?eventtypes=TC"),
+    ("MAP eventtypes=VO", f"{BASE}/MAP?eventtypes=VO"),
+    ("MAP eventtypes=DR", f"{BASE}/MAP?eventtypes=DR"),
+    ("MAP eventtypes=WF", f"{BASE}/MAP?eventtypes=WF"),
+    ("homepagetable", f"{BASE}/homepagetable"),
     ("rss.xml", "https://www.gdacs.org/xml/rss.xml"),
     ("rss_7d.xml", "https://www.gdacs.org/xml/rss_7d.xml"),
 ]
@@ -85,6 +93,9 @@ def look(name, url):
     except json.JSONDecodeError:
         floods = len(re.findall(r"eventtype>FL|FL</", body))
         print(f"  not JSON — FL mentions: {floods}, Italy: {italy or 'none'}")
+        for match in re.finditer(r".{160}Italy.{160}", body, re.S):
+            print(f"    …{match.group(0)[:340]!r}…")
+            break
         return
 
     features = payload.get("features") if isinstance(payload, dict) else None

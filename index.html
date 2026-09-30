@@ -70,7 +70,22 @@
       <button class="theme-button" id="theme-button" type="button" aria-pressed="false"
               data-i18n-aria="header.darkMode" data-i18n-title="header.darkMode"
               aria-label="Dark mode" title="Dark mode">
-        <span class="theme-mark" aria-hidden="true"></span>
+        <!-- Both are here and CSS shows one. Drawn rather than typed: ☀ and
+             ☾ are at the mercy of whatever font the device has, and on many
+             Androids one of them arrives as a colour emoji and the other as a
+             thin outline, so the button would change weight as you pressed it.
+             Each shows the mode you are IN, which is what aria-pressed says
+             too — sun for light, moon for dark. -->
+        <svg class="theme-icon is-sun" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+             stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+          <circle cx="12" cy="12" r="4.4" />
+          <path d="M12 2.2v2.4M12 19.4v2.4M2.2 12h2.4M19.4 12h2.4
+                   M5.1 5.1l1.7 1.7M17.2 17.2l1.7 1.7M18.9 5.1l-1.7 1.7M6.8 17.2l-1.7 1.7" />
+        </svg>
+        <svg class="theme-icon is-moon" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+             stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20.8 13.4A8.9 8.9 0 1 1 10.6 3.2a7 7 0 0 0 10.2 10.2z" />
+        </svg>
       </button>
 
       <div class="top-actions">

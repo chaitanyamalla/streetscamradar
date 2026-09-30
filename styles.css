@@ -599,17 +599,17 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   background:transparent; cursor:pointer; }
 .theme-button:hover { border-color:var(--glow); }
 .theme-button:focus-visible { outline:2px solid var(--glow); outline-offset:2px; }
-.theme-mark { width:14px; height:14px; border-radius:50%;
-  border:2px solid var(--top-ink-2);
-  /* The crescent is a second circle cut out of the first with a shadow, so it
-     is one element and there is nothing to keep in step. */
-  box-shadow:inset -4px -1px 0 0 var(--top-bg);
-  transition:box-shadow .18s ease, background .18s ease, border-color .18s ease; }
-.theme-button:hover .theme-mark { border-color:var(--top-ink); }
-/* On: the moon fills, because the thing it switches on is now on. */
-.theme-button[aria-pressed="true"] .theme-mark { background:var(--glow);
-  border-color:var(--glow); box-shadow:inset -4px -1px 0 0 var(--top-bg); }
-@media (prefers-reduced-motion: reduce) { .theme-mark { transition:none; } }
+/* One of the two, never both, and chosen by the theme rather than by script:
+   the attribute is already on <html> before the first paint, so the right one
+   is there in the first frame. */
+.theme-icon { display:none; width:17px; height:17px; color:var(--top-ink-2);
+  transition:color .18s ease; }
+:root[data-theme="light"] .theme-icon.is-sun,
+:root:not([data-theme="dark"]) .theme-icon.is-sun { display:block; }
+:root[data-theme="dark"] .theme-icon.is-sun { display:none; }
+:root[data-theme="dark"] .theme-icon.is-moon { display:block; color:var(--glow); }
+.theme-button:hover .theme-icon { color:var(--top-ink); }
+@media (prefers-reduced-motion: reduce) { .theme-icon { transition:none; } }
 .lang-picker select:focus-visible { outline:2px solid var(--glow); outline-offset:1px; }
 /* The list itself is drawn by the browser, on the page's own background. */
 .lang-picker option { background:var(--paper); color:var(--ink); }

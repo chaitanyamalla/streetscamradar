@@ -11,10 +11,6 @@
 --
 -- Run: Database workflow, file = supabase/ops/diagnose_disasters.sql
 -- ---------------------------------------------------------------------------
-select severity, kind, count(*) as rows
-  from public.disaster_alerts
- group by severity, kind
- order by severity, kind;
 
 -- Rows the page would drop as finished, even though GDACS still lists them.
 select count(*) as finished_more_than_a_week_ago
@@ -42,3 +38,13 @@ select country_code, kind, severity, name,
   from public.disaster_alerts
  where kind <> 'wildfire'
  order by kind, country_code, event_id;
+
+-- The counts LAST, not first. A log tail is read from the end, and this is the
+-- line that answers "did the change do what it said" — putting it at the top
+-- meant it was the first thing to scroll out of reach.
+select severity, kind, count(*) as rows
+  from public.disaster_alerts
+ group by severity, kind
+ order by severity, kind;
+
+select count(*) as rows_in_all from public.disaster_alerts;

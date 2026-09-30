@@ -18,6 +18,7 @@ export default {
   'header.profile': 'Votre profil',
   'header.profile.of': 'Votre profil — {who}',
   'header.language': 'Langue',
+  'header.darkMode': 'Mode sombre',
 
   'intro.heading': 'Préparer le voyage,<br /><em>rue par rue.</em>',
   'intro.copy': 'Arnaques signalées par des voyageurs, conseils aux voyageurs officiels, vigilance météo et l’hôpital le plus proche — sur une seule carte.',

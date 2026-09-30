@@ -18,6 +18,7 @@ export default {
   'header.profile': 'Il tuo profilo',
   'header.profile.of': 'Il tuo profilo — {who}',
   'header.language': 'Lingua',
+  'header.darkMode': 'Modalità scura',
 
   'intro.heading': 'Pianifica il viaggio,<br /><em>strada per strada.</em>',
   'intro.copy': 'Truffe segnalate dai viaggiatori, avvisi ufficiali di viaggio, allerte meteo e l’ospedale più vicino — su un’unica mappa.',

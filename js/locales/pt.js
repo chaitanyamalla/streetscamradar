@@ -22,6 +22,7 @@ export default {
   'header.profile': 'O seu perfil',
   'header.profile.of': 'O seu perfil — {who}',
   'header.language': 'Idioma',
+  'header.darkMode': 'Modo escuro',
 
   // --- intro ---------------------------------------------------------------
   'intro.heading': 'Planear a viagem,<br /><em>rua a rua.</em>',

@@ -31,7 +31,12 @@ export const missingConfig = () => {
 };
 
 // --- Map -------------------------------------------------------------------
+// Two basemaps, one per theme. Positron over dark markers, Dark Matter under
+// them — the same CARTO cartography either way, so a street is in the same
+// place and the labels read the same. Anything else would be a different map.
 export const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+export const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+export const mapStyleFor = (theme) => (theme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE);
 
 // Where the map opens before we know anything about the visitor: a wide world
 // view rather than any one city, because this is a worldwide map.

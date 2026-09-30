@@ -10,15 +10,47 @@
 
 /* --- Tokens -------------------------------------------------------------- */
 :root {
+  color-scheme: light;
+
   --ink:#101d26; --ink-2:#2b4553; --ink-soft:#5d7481; --muted:#8a9aa2;
   --paper:#f6f4ef; --surface:#ffffff; --sand:#ece8df;
   --line:#e2ded4; --line-strong:#cec9bc;
 
-  --brand:#0e5f5a; --brand-lift:#12847b; --brand-deep:#0a3b3b; --glow:#7fe0cc;
+  /* --brand is overwhelmingly a TEXT and border colour — 31 uses against 7 —
+     so in the dark theme it has to lift far enough to read on a dark page.
+     --brand-fill is the other seven: a teal that white sits on, which is a
+     different requirement and now a different token. */
+  --brand:#0e5f5a; --brand-fill:#0e5f5a;
+  --brand-lift:#12847b; --brand-deep:#0a3b3b; --glow:#7fe0cc;
+  --on-accent:#ffffff;              /* text on a brand, pin or danger fill */
 
   /* One signal colour. Every report pin uses it — see js/config.js. */
   --pin:#e0713c; --pin-deep:#b84f22;
   --safe:#1f9d63; --danger:#c5382c;   /* errors and destructive actions only */
+
+  /* The header is dark in BOTH themes, so it has tokens of its own rather
+     than borrowing --ink. Flipping --ink for the dark theme would otherwise
+     have turned the one already-dark bar on the page white. */
+  --top-bg:#101d26; --top-ink:#ffffff; --top-ink-2:#cfe0e3; --top-ink-3:#8fb0b4;
+  --top-line:#2f4855; --top-chip:#14252f;
+
+  --map-bg:#dfe5e4;                 /* under the tiles, before they arrive */
+
+  /* The three panels that float ON the map are frosted rather than solid, so
+     the streets keep showing through them. They cannot use --surface: a solid
+     fill would blank the map behind the intro card. */
+  --frost:rgba(252,251,249,0.62); --frost-line:rgba(255,255,255,0.55);
+  --frost-solid:rgba(255,255,255,0.94);
+
+  /* Pale tints. Each is a wash of the colour it belongs to, and each needs a
+     dark counterpart — a 4% white wash reads as the same idea where a 97%
+     cream would glare. */
+  --tint-warm:#fbf1ea;     --tint-warm-line:#f0d7c6;
+  --tint-row:#fdf6f1;      --tint-brand:#f2f8f7;
+  --tint-money:#fdf7ec;    --tint-money-line:#e6cfa8;
+  --tint-harm:#fdf1ef;     --tint-harm-line:#eec3bd;
+  --tint-threats:#faf2fc;  --tint-threats-line:#e3cbe9;
+  --tint-hospital:#fbeceb; --tint-hospital-line:#f0c6c2;
 
   --gutter:4.5vw;
   /* A strip of PAGE down each side of the map, so the page can be scrolled
@@ -29,6 +61,58 @@
   --radius:6px;
   --shadow:0 10px 30px rgba(13,27,38,.10);
   --shadow-sm:0 2px 8px rgba(13,27,38,.08);
+}
+
+/* --- The dark theme ------------------------------------------------------
+   Set as an attribute rather than by media query alone, because the choice
+   has to be a choice: js/theme.js writes data-theme from what you last picked,
+   falling back to what the system asks for. index.html sets it before the
+   first paint, so the page never flashes light on the way to dark.
+
+   Not grey and white. The page is a deep blue-green ink, the surfaces sit a
+   step above it rather than being black, and the two colours that carry
+   meaning — the teal and the report orange — are LIFTED rather than dropped,
+   because a colour that reads as an accent on cream reads as a stain on ink.
+   -------------------------------------------------------------------------- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ink:#e9f1f3; --ink-2:#c3d5db; --ink-soft:#96aeb7; --muted:#7f959e;
+  --paper:#0c161c; --surface:#142229; --sand:#1b2b33;
+  --line:#22343d; --line-strong:#334b57;
+
+  /* Lifted to be read as text on ink. The fill keeps white on it. */
+  --brand:#49c3b1; --brand-fill:#13756c;
+  --brand-lift:#6fdcc9; --brand-deep:#09312f; --glow:#7fe0cc;
+  --on-accent:#ffffff;
+
+  --pin:#f0854c; --pin-deep:#ffab7a;
+  --safe:#35c281; --danger:#e8695c;
+
+  /* A shade darker than the page, so the bar reads as chrome rather than as
+     another panel floating on it. */
+  --top-bg:#081116; --top-ink:#ffffff; --top-ink-2:#b7ccd3; --top-ink-3:#7f9ba3;
+  --top-line:#27414d; --top-chip:#11202a;
+
+  --map-bg:#101b21;
+
+  /* Frost over dark tiles is a darkening, not a lightening. Same idea, and
+     the blur still does most of the legibility. */
+  --frost:rgba(11,20,26,0.72); --frost-line:rgba(255,255,255,0.10);
+  --frost-solid:rgba(13,23,29,0.94);
+
+  /* Washes, not creams: the same idea at 6–10% over the surface. */
+  --tint-warm:#2a2119;     --tint-warm-line:#4a3726;
+  --tint-row:#221b16;      --tint-brand:#122c2c;
+  --tint-money:#2a2418;    --tint-money-line:#4c4026;
+  --tint-harm:#2b1d1b;     --tint-harm-line:#4d3029;
+  --tint-threats:#241d2b;  --tint-threats-line:#3f3149;
+  --tint-hospital:#2b1c1c; --tint-hospital-line:#4d2e2e;
+
+  /* On ink a shadow is a hole, not a lift. Deeper and tighter, and the panels
+     lean on their borders instead. */
+  --shadow:0 12px 34px rgba(0,0,0,.55);
+  --shadow-sm:0 2px 10px rgba(0,0,0,.45);
 }
 
 /* --- Base ---------------------------------------------------------------- */
@@ -54,8 +138,8 @@ em { font-style:italic; }
 .muted-note { margin:0; color:var(--muted); font-size:12px; }
 
 /* --- Buttons ------------------------------------------------------------- */
-.primary-button { border:0; border-radius:var(--radius); background:var(--brand);
-  color:#fff; padding:11px 16px; font-size:13px; font-weight:800; letter-spacing:.01em; }
+.primary-button { border:0; border-radius:var(--radius); background:var(--brand-fill);
+  color:var(--on-accent); padding:11px 16px; font-size:13px; font-weight:800; letter-spacing:.01em; }
 .primary-button:hover { background:var(--brand-lift); }
 .primary-button.wide { width:100%; margin-top:18px; padding:14px; font-size:14px; }
 .ghost-button { border:1px solid var(--line-strong); border-radius:var(--radius);
@@ -75,12 +159,12 @@ em { font-style:italic; }
 
 /* --- Top bar ------------------------------------------------------------- */
 .topbar { display:flex; align-items:center; gap:22px; height:72px; padding:0 var(--gutter);
-  background:var(--ink); color:#eaf1f2; position:relative; z-index:20; }
+  background:var(--top-bg); color:var(--top-ink); position:relative; z-index:20; }
 .brand { display:flex; align-items:center; gap:11px; color:inherit; text-decoration:none; }
 .brand-text { display:flex; flex-direction:column; gap:1px; }
 .brand-word { font-size:18px; font-weight:800; letter-spacing:-.035em; line-height:1.1; }
 .brand-tagline { font:500 9.5px/1.2 'DM Mono',monospace; letter-spacing:.09em;
-  text-transform:uppercase; color:#8fb0b4; }
+  text-transform:uppercase; color:var(--top-ink-3); }
 .brand-mark { position:relative; width:26px; height:26px; border-radius:50%;
   border:2px solid var(--glow); flex:none; }
 .brand-mark::after { content:""; position:absolute; inset:5px; border-radius:50%;
@@ -88,19 +172,19 @@ em { font-style:italic; }
 .brand .accent { color:var(--glow); }
 
 .place-chip { display:flex; align-items:center; gap:8px; margin-right:auto;
-  border:1px solid #2c4350; border-radius:100px; background:#14252f;
-  color:#bcd2d6; padding:7px 14px; font-size:12px; font-weight:600; max-width:280px; }
-.place-chip:hover { border-color:var(--brand-lift); color:#fff; }
+  border:1px solid var(--top-line); border-radius:100px; background:var(--top-chip);
+  color:var(--top-ink-2); padding:7px 14px; font-size:12px; font-weight:600; max-width:280px; }
+.place-chip:hover { border-color:var(--brand-lift); color:var(--top-ink); }
 #place-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .place-ping { flex:none; width:7px; height:7px; border-radius:50%;
   background:var(--glow); box-shadow:0 0 0 3px rgba(127,227,208,.22); }
 
 .topbar nav { display:flex; gap:22px; }
-.topbar nav a { color:#9fb6bd; text-decoration:none; font-size:13px; font-weight:700; }
-.topbar nav a:hover, .topbar nav a.active { color:#fff; }
+.topbar nav a { color:var(--top-ink-2); text-decoration:none; font-size:13px; font-weight:700; }
+.topbar nav a:hover, .topbar nav a.active { color:var(--top-ink); }
 .top-actions { display:flex; align-items:center; gap:10px; }
-.topbar .ghost-button { border-color:#2f4855; color:#cfe0e3; }
-.topbar .ghost-button:hover { border-color:var(--glow); color:#fff; }
+.topbar .ghost-button { border-color:var(--top-line); color:var(--top-ink-2); }
+.topbar .ghost-button:hover { border-color:var(--glow); color:var(--top-ink); }
 
 /* --- Map area (desktop: panels float over a full-bleed map) --------------- */
 /* Page-coloured, not map-coloured: the rails either side have to LOOK like
@@ -111,7 +195,7 @@ em { font-style:italic; }
    page rather than as the page itself. */
 .map-frame { position:absolute; inset:0 var(--map-rail);
   border-left:1px solid var(--line-strong); border-right:1px solid var(--line-strong); }
-.city-map { position:absolute; inset:0; background:#dfe5e4; cursor:grab; }
+.city-map { position:absolute; inset:0; background:var(--map-bg); cursor:grab; }
 .maplibregl-map { width:100%; height:100%; font-family:Manrope,Arial,sans-serif; }
 .city-map.is-picking, .city-map.is-picking .maplibregl-canvas { cursor:crosshair; }
 
@@ -126,8 +210,8 @@ em { font-style:italic; }
    the dropdown far enough down to touch it. */
 .map-intro { position:absolute; z-index:4; top:30px;
   left:max(var(--gutter), calc(var(--map-rail) + 16px)); width:336px;
-  padding:16px 18px 18px; border:1px solid rgba(255,255,255,0.55);
-  border-radius:var(--radius); background:rgba(252,251,249,0.62);
+  padding:16px 18px 18px; border:1px solid var(--frost-line);
+  border-radius:var(--radius); background:var(--frost);
   /* Lighter than it looks: most of the legibility comes from the blur, not
      from the fill, so the map keeps showing through. */
   backdrop-filter:blur(16px) saturate(1.05);
@@ -147,9 +231,9 @@ em { font-style:italic; }
   border:1px solid var(--line-strong); border-radius:var(--radius); box-shadow:var(--shadow); }
 .search-icon { font-size:20px; color:var(--ink-soft); transform:rotate(-20deg); }
 .place-search input { flex:1; min-width:0; border:0; outline:0; background:none; font-size:13px; }
-.search-go { border:0; border-radius:4px; background:var(--ink); color:#fff;
+.search-go { border:0; border-radius:4px; background:var(--ink); color:var(--paper);
   padding:9px 14px; font-size:12px; font-weight:800; }
-.search-go:hover { background:var(--brand); }
+.search-go:hover { background:var(--brand-fill); }
 
 .search-results { position:relative; z-index:6; margin-top:6px; background:var(--surface);
   border:1px solid var(--line-strong); border-radius:var(--radius);
@@ -244,11 +328,11 @@ em { font-style:italic; }
   border-radius:var(--radius); }
 .hazard-tab:hover { border-color:var(--brand); }
 .hazard-tab:focus-visible { outline:2px solid var(--brand-lift); outline-offset:2px; }
-.hazard-tab[aria-expanded="true"] { background:var(--brand); border-color:var(--brand); }
+.hazard-tab[aria-expanded="true"] { background:var(--brand-fill); border-color:var(--brand-fill); }
 .hazard-caret { color:var(--muted); font-size:10px; line-height:1;
   transition:transform .15s ease; }
 .hazard-tab:hover .hazard-caret { color:var(--brand); }
-.hazard-tab[aria-expanded="true"] .hazard-caret { color:#fff;
+.hazard-tab[aria-expanded="true"] .hazard-caret { color:var(--on-accent);
   transform:rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .hazard-caret { transition:none; } }
 
@@ -402,14 +486,14 @@ em { font-style:italic; }
   gap:10px; padding:12px 14px 9px; }
 .reports-head h2 { margin:0; font-size:16px; line-height:1.2; }
 .count-pill { flex:none; min-width:30px; padding:5px 10px; border-radius:100px;
-  background:var(--pin); color:#fff; text-align:center;
+  background:var(--pin); color:var(--on-accent); text-align:center;
   font:600 12px 'DM Mono',monospace; }
 .report-list { overflow:auto; }
 .report-entry { display:flex; gap:10px; padding:11px 14px; border-top:1px solid var(--line);
   cursor:pointer; }
 .report-entry:hover { background:var(--paper); }
 .report-glyph { flex:none; width:28px; height:28px; border-radius:50%; display:grid;
-  place-items:center; font-size:14px; background:#fbf1ea; border:1px solid #f0d7c6; }
+  place-items:center; font-size:14px; background:var(--tint-warm); border:1px solid var(--tint-warm-line); }
 .report-copy { min-width:0; flex:1; }
 .report-copy b { display:block; font-size:12.5px; line-height:1.35; text-wrap:pretty; }
 .report-meta { display:block; margin-top:3px; color:var(--muted); font-size:11px; }
@@ -418,9 +502,9 @@ em { font-style:italic; }
    shows: a left edge that deepens, and the count spelled out. */
 .report-entry.is-confirmed { border-left:3px solid var(--pin); padding-left:11px; }
 .report-entry.is-confirmed-many { border-left:3px solid var(--pin-deep);
-  padding-left:11px; background:#fdf6f1; }
+  padding-left:11px; background:var(--tint-row); }
 .confirm-badge { display:inline-block; margin-top:6px; padding:2px 8px;
-  border-radius:100px; background:#fbf1ea; border:1px solid #f0d7c6;
+  border-radius:100px; background:var(--tint-warm); border:1px solid var(--tint-warm-line);
   color:var(--pin-deep); font-size:10.5px; font-weight:700; }
 
 /* What happened, as small factual tags on a report. */
@@ -428,14 +512,14 @@ em { font-style:italic; }
 .impact-tag { display:inline-flex; align-items:center; gap:4px; padding:2px 7px;
   border-radius:100px; border:1px solid var(--line-strong);
   color:var(--ink-2); font-size:10.5px; font-weight:700; white-space:nowrap; }
-.impact-tag.is-money   { border-color:#e6cfa8; background:#fdf7ec; }
-.impact-tag.is-harm    { border-color:#eec3bd; background:#fdf1ef; }
-.impact-tag.is-threats { border-color:#e3cbe9; background:#faf2fc; }
+.impact-tag.is-money   { border-color:var(--tint-money-line); background:var(--tint-money); }
+.impact-tag.is-harm    { border-color:var(--tint-harm-line); background:var(--tint-harm); }
+.impact-tag.is-threats { border-color:var(--tint-threats-line); background:var(--tint-threats); }
 .report-actions { display:flex; align-items:center; gap:10px; margin-top:7px; }
 .chip-action { border:1px solid var(--line-strong); border-radius:100px; background:none;
   padding:3px 9px; font-size:10.5px; font-weight:700; color:var(--ink-soft); }
 .chip-action:hover { border-color:var(--brand); color:var(--brand); }
-.chip-action[aria-pressed="true"] { background:var(--brand); border-color:var(--brand); color:#fff; }
+.chip-action[aria-pressed="true"] { background:var(--brand-fill); border-color:var(--brand-fill); color:var(--on-accent); }
 .empty-note { margin:0; padding:22px 16px; color:var(--muted); font-size:12.5px;
   border-top:1px solid var(--line); }
 .gate-note { padding:13px 16px; border-top:1px solid var(--line); background:var(--sand);
@@ -444,7 +528,7 @@ em { font-style:italic; }
 .gate-note button { margin-top:7px; }
 
 .map-attribution { position:absolute; z-index:2; margin:0; right:8px; bottom:5px;
-  padding:3px 7px; border-radius:3px; background:rgba(255,255,255,.82);
+  padding:3px 7px; border-radius:3px; background:var(--frost-solid);
   color:var(--ink-soft); font-size:9.5px; }
 .map-attribution a { color:inherit; }
 
@@ -489,7 +573,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
    what people already look for in that corner. */
 .avatar-button { display:grid; place-items:center; width:34px; height:34px;
   padding:0; border:1px solid var(--brand); border-radius:50%;
-  background:var(--brand); color:#fff; font:800 14px/1 inherit;
+  background:var(--brand-fill); color:var(--on-accent); font:800 14px/1 inherit;
   text-transform:uppercase; cursor:pointer; }
 .avatar-button:hover { background:var(--brand-lift, var(--brand)); }
 .avatar-button[hidden] { display:none; }
@@ -499,14 +583,33 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
    without any code of ours, and it is the one control on this site a visitor
    may need before they can read the rest. */
 .lang-picker { display:flex; align-items:center; }
-.lang-picker select { padding:7px 26px 7px 10px; border:1px solid #2f4855; border-radius:var(--radius);
-  background:transparent; color:#cfe0e3; font-size:12.5px; cursor:pointer;
+.lang-picker select { padding:7px 26px 7px 10px; border:1px solid var(--top-line); border-radius:var(--radius);
+  background:transparent; color:var(--top-ink-2); font-size:12.5px; cursor:pointer;
   appearance:none; -webkit-appearance:none;
-  background-image:linear-gradient(45deg,transparent 50%,#cfe0e3 50%),
-                   linear-gradient(135deg,#cfe0e3 50%,transparent 50%);
+  background-image:linear-gradient(45deg,transparent 50%,var(--top-ink-2) 50%),
+                   linear-gradient(135deg,var(--top-ink-2) 50%,transparent 50%);
   background-position:right 12px top 52%, right 7px top 52%;
   background-size:5px 5px, 5px 5px; background-repeat:no-repeat; }
-.lang-picker select:hover { border-color:var(--glow); color:#fff; }
+.lang-picker select:hover { border-color:var(--glow); color:var(--top-ink); }
+
+/* The dark-mode switch. A moon that fills in when it is on — one shape in two
+   states rather than two shapes, so nothing jumps as it toggles. */
+.theme-button { flex:none; display:grid; place-items:center; width:32px; height:32px;
+  padding:0; border:1px solid var(--top-line); border-radius:var(--radius);
+  background:transparent; cursor:pointer; }
+.theme-button:hover { border-color:var(--glow); }
+.theme-button:focus-visible { outline:2px solid var(--glow); outline-offset:2px; }
+.theme-mark { width:14px; height:14px; border-radius:50%;
+  border:2px solid var(--top-ink-2);
+  /* The crescent is a second circle cut out of the first with a shadow, so it
+     is one element and there is nothing to keep in step. */
+  box-shadow:inset -4px -1px 0 0 var(--top-bg);
+  transition:box-shadow .18s ease, background .18s ease, border-color .18s ease; }
+.theme-button:hover .theme-mark { border-color:var(--top-ink); }
+/* On: the moon fills, because the thing it switches on is now on. */
+.theme-button[aria-pressed="true"] .theme-mark { background:var(--glow);
+  border-color:var(--glow); box-shadow:inset -4px -1px 0 0 var(--top-bg); }
+@media (prefers-reduced-motion: reduce) { .theme-mark { transition:none; } }
 .lang-picker select:focus-visible { outline:2px solid var(--glow); outline-offset:1px; }
 /* The list itself is drawn by the browser, on the page's own background. */
 .lang-picker option { background:var(--paper); color:var(--ink); }
@@ -537,7 +640,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 .impact-picker label { display:flex; align-items:center; gap:9px; margin-top:8px;
   padding:10px 11px; border:1px solid var(--line-strong); border-radius:4px;
   font-size:12.5px; font-weight:600; cursor:pointer; }
-.impact-picker label:has(input:checked) { border-color:var(--brand); background:#f2f8f7; }
+.impact-picker label:has(input:checked) { border-color:var(--brand); background:var(--tint-brand); }
 .impact-picker input { flex:none; accent-color:var(--brand); }
 .impact-glyph { font-size:15px; line-height:1; }
 .field-hint { margin:8px 0 0; color:var(--muted); font-size:11px; }
@@ -560,7 +663,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px;
   max-width:calc(100% - 20px); padding:7px 11px;
   border:1px solid var(--line-strong); border-radius:var(--radius);
-  background:rgba(255,255,255,0.94); backdrop-filter:blur(3px);
+  background:var(--frost-solid); backdrop-filter:blur(3px);
   box-shadow:0 2px 10px rgba(20,30,28,0.10); font-size:11.5px; }
 .emergency-bar[hidden] { display:none; }
 .eb-label { color:var(--ink-2); font-weight:600; }
@@ -586,7 +689,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   background:var(--paper); text-align:center; cursor:pointer; font:inherit;
   transition:border-color .12s, background .12s; }
 .stat-tile:hover { border-color:var(--brand); }
-.stat-tile.is-active { border-color:var(--brand); background:#f2f8f7; }
+.stat-tile.is-active { border-color:var(--brand); background:var(--tint-brand); }
 .stat-tile b { display:block; font-size:19px; line-height:1.1; color:var(--brand); }
 .stat-tile span { display:block; margin-top:4px; color:var(--muted);
   font-size:10.5px; line-height:1.3; }
@@ -610,7 +713,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 #account-disclosure label { display:block; margin-top:12px; font-size:11.5px;
   font-weight:800; color:var(--ink-2); }
 .ghost-button.is-danger { margin-top:10px; border-color:var(--danger); color:var(--danger); }
-.ghost-button.is-danger:hover { background:var(--danger); color:#fff; }
+.ghost-button.is-danger:hover { background:var(--danger); color:var(--on-accent); }
 .ghost-button.is-danger:disabled { opacity:.5; cursor:not-allowed; }
 .ghost-button.is-danger:disabled:hover { background:none; color:var(--danger); }
 .profile-section .block-title { margin:0 0 10px; }
@@ -634,8 +737,8 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 .withdraw-confirm[hidden] { display:none; }
 .withdraw-confirm span { flex:1; min-width:150px; font-size:11.5px; font-weight:600; }
 .chip-action.is-danger { border-color:var(--danger); color:var(--danger); }
-.chip-action.is-danger:hover { background:var(--danger); color:#fff; }
-.chip-action.is-primary { border-color:var(--brand); background:var(--brand); color:#fff; }
+.chip-action.is-danger:hover { background:var(--danger); color:var(--on-accent); }
+.chip-action.is-primary { border-color:var(--brand-fill); background:var(--brand-fill); color:var(--on-accent); }
 
 .edit-form { margin-top:9px; padding:11px; border:1px solid var(--line-strong);
   border-radius:var(--radius); background:var(--paper); }
@@ -684,7 +787,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   background:var(--surface); font-size:13.5px; font-weight:700; }
 .google-button:hover { border-color:var(--ink-soft); background:var(--paper); }
 .g-mark { display:grid; place-items:center; width:20px; height:20px; border-radius:50%;
-  background:var(--ink); color:#fff; font:800 12px Manrope,sans-serif; }
+  background:var(--ink); color:var(--paper); font:800 12px Manrope,sans-serif; }
 .fine-print { margin:16px 0 0; color:var(--muted); font-size:11px; line-height:1.6; }
 
 /* --- Map popups ---------------------------------------------------------- */
@@ -696,8 +799,8 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 .maplibregl-popup-close-button:hover { background:var(--paper); color:var(--ink); }
 .popup-head { display:flex; gap:10px; align-items:flex-start; padding-right:20px; }
 .popup-glyph { flex:none; width:34px; height:34px; display:grid; place-items:center;
-  border-radius:50%; background:#fbf1ea; border:1px solid #f0d7c6; font-size:16px; }
-.popup-glyph.is-hospital { background:#fbeceb; border-color:#f0c6c2; }
+  border-radius:50%; background:var(--tint-warm); border:1px solid var(--tint-warm-line); font-size:16px; }
+.popup-glyph.is-hospital { background:var(--tint-hospital); border-color:var(--tint-hospital-line); }
 /* Three things can sit here now — kind, emergency department, hours — so it
    wraps rather than pushing the window wider. */
 .popup-kicker { margin:0 0 6px; line-height:1.5; font:10px 'DM Mono',monospace;
@@ -712,8 +815,8 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   color:var(--ink-2); font-size:11.5px; font-weight:800; text-decoration:none;
   white-space:nowrap; }
 .popup-action:hover { border-color:var(--brand); color:var(--brand); }
-.popup-action.is-primary { border-color:var(--brand); background:var(--brand); color:#fff; }
-.popup-action.is-primary:hover { background:var(--brand-deep, var(--brand)); color:#fff; }
+.popup-action.is-primary { border-color:var(--brand-fill); background:var(--brand-fill); color:var(--on-accent); }
+.popup-action.is-primary:hover { background:var(--brand-deep); color:var(--on-accent); }
 .popup-meta { margin:10px 0 0; padding-top:9px; border-top:1px solid var(--line);
   color:var(--muted); font:10px/1.5 'DM Mono',monospace; }
 
@@ -725,7 +828,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   width:max-content; height:auto; margin:0; overflow:visible;
   max-width:calc(100% - 32px); transform:translate(-50%,160px);
   padding:13px 18px; border:0; border-radius:var(--radius);
-  background:var(--ink); color:#fff;
+  background:var(--ink); color:var(--paper);
   box-shadow:0 10px 30px rgba(8,22,30,.45); font-size:12.5px;
   transition:transform .28s ease; }
 /* Without popover support the element is still in the flow, so it has to be

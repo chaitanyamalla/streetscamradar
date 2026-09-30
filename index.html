@@ -248,23 +248,30 @@
             <div id="category-filters" class="category-filters"><p class="muted-note" data-i18n="filters.loading">Loading…</p></div>
           </div>
 
+          <!-- One switch, one line, and no heading over it: "Safety & support"
+               was a section title for an audience of a single control, and the
+               three lines it cost were coming out of the map. The status moves
+               to the right of the same row, which is why the strings it shows
+               are short ones — "Zoom in", "None here" — rather than sentences.
+               The hospital emoji went with the heading: it was 24px of a
+               202px row, and it was decorating a label that already says
+               "Hospitals", which left the label itself being cut off.
+
+               The label lost its "nearby" for the same reason, and it was
+               saying it twice anyway: the status beside it reads "3 nearby".
+               In German the old one was "Krankenhäuser in der Nähe", which
+               overran a 202px row by seventy pixels on its own.
+
+               Natural hazards used to have a row here too. They are not a
+               filter on our reports — they are other people's official data
+               laid over the map — so they have their own control on the map
+               itself, where what they draw can be seen while switching. -->
           <div class="filter-section safety-filter">
-            <p class="filter-title" data-i18n="filters.safety">Safety &amp; support</p>
-            <!-- The status sits under the label rather than on a line of its
-                 own: same information, one row instead of two, and it reads as
-                 being about the hospitals rather than about the panel. -->
             <label class="filter-row">
               <input type="checkbox" id="safety-toggle" checked />
-              <span class="safety-glyphs" aria-hidden="true">🏥</span>
-              <span class="fr-text">
-                <span data-i18n="filters.hospitals">Hospitals nearby</span>
-                <span class="fr-note" id="safety-status" data-i18n="safety.zoomIn">Zoom in to see hospitals</span>
-              </span>
+              <span class="fr-name" data-i18n="filters.hospitals">Hospitals</span>
+              <span class="fr-note" id="safety-status" data-i18n="safety.zoomIn">Zoom in</span>
             </label>
-            <!-- Natural hazards used to have a row here. They are not a filter
-                 on our reports — they are other people's official data laid
-                 over the map — so they have their own control on the map
-                 itself, where what they draw can be seen while switching. -->
           </div>
         </details>
 

@@ -55,13 +55,12 @@ export default {
   'filters.noCategories': 'Nenhuma categoria carregada.',
   'filters.categoriesFailed': 'Não foi possível carregar as categorias — o schema.sql já foi aplicado?',
   'filters.connect': 'Ligue o Supabase para carregar as categorias.',
-  'filters.safety': 'Segurança e apoio',
-  'filters.hospitals': 'Hospitais por perto',
-  'safety.zoomIn': 'Aproxime para ver os hospitais',
+  'filters.hospitals': 'Hospitais',
+  'safety.zoomIn': 'Aproxime',
   'safety.off': 'Desligado',
   'safety.count': '{n} por perto',
-  'safety.none': 'Ainda não há nenhum registado nesta zona',
-  'safety.failed': 'Não foi possível carregar isto agora',
+  'safety.none': 'Nenhum aqui',
+  'safety.failed': 'Indisponível',
 
   // --- reports panel -------------------------------------------------------
   'reports.label': 'Relatos à vista',

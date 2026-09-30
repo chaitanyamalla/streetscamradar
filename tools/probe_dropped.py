@@ -92,44 +92,31 @@ def main():
         print(f"  {str(props.get('eventtype')):<3} {str(props.get('alertlevel')):<7} "
               f"{str(props.get('country'))[:26]:<28} {str(props.get('name'))[:34]:<36} {why}")
 
-    # --- a tally per kind, then the volcanoes and droughts in full -----------
+    # --- the droughts, in full, with every field GDACS sends -----------------
     #
-    # The floods answered the Turkey question: GDACS's own list still calls it
-    # current. Italy has no flood anywhere in the list — but their RSS says
-    # "Volcanic eruption is on going for Etna in Italy", and the tally below
-    # says not one volcano survives our rules. Same shape as the earthquakes:
-    # a whole kind wiped out by a single flag. So print them in full.
-    tally = {}
+    # "Are these still active, and why is Europe one of them?" The list holds
+    # seven. Five share a todate three days old; two carry one frozen months
+    # back. If that is the difference between a drought GDACS is still
+    # assessing and one it has stopped assessing, then the five are live and
+    # our seven-day cut is already removing the other two for us. Print every
+    # field of every one, and the report link, so it can be checked rather
+    # than inferred.
+    print(f"\n{'=' * 78}\nDROUGHTS, every field\n{'=' * 78}")
+    found = 0
     for feature in features:
         props = (feature or {}).get("properties") or {}
-        kind = str(props.get("eventtype") or "?").strip().upper()
+        if str(props.get("eventtype") or "").strip().upper() != "DR":
+            continue
+        found += 1
         state, why = verdict(props, feature)
-        seen = tally.setdefault(kind, {"KEEP": 0, "DROP": 0, "why": {}})
-        seen[state] += 1
-        if state == "DROP":
-            seen["why"][why] = seen["why"].get(why, 0) + 1
-    print(f"\n{'=' * 78}\nPER KIND\n{'=' * 78}")
-    for kind, seen in sorted(tally.items()):
-        print(f"  {kind:<4} kept {seen['KEEP']:>3}   dropped {seen['DROP']:>3}")
-        for why, count in sorted(seen["why"].items(), key=lambda kv: -kv[1])[:3]:
-            print(f"           {count:>3}  {why}")
-
-    for wanted, label in (("VO", "VOLCANOES"), ("DR", "DROUGHTS")):
-        print(f"\n{'=' * 78}\n{label}, in full\n{'=' * 78}")
-        found = 0
-        for feature in features:
-            props = (feature or {}).get("properties") or {}
-            if str(props.get("eventtype") or "").strip().upper() != wanted:
-                continue
-            found += 1
-            state, why = verdict(props, feature)
-            print(f"  {state:<4} {str(props.get('alertlevel')):<7} "
-                  f"{str(props.get('country'))[:24]:<26} "
-                  f"{str(props.get('name'))[:40]:<42} "
-                  f"{str(props.get('fromdate'))[:10]} -> {str(props.get('todate'))[:10]}  "
-                  f"current={str(props.get('iscurrent')):<6} {why}")
-        if not found:
-            print(f"  nothing of kind {wanted} in the list at all.")
+        print(f"\n  [{found}] {state}  {why or 'on the map'}")
+        for key in sorted(props):
+            value = str(props[key])
+            if len(value) > 150:
+                value = value[:150] + "…"
+            print(f"      {key:<22} = {value}")
+    if not found:
+        print("  nothing of kind DR in the list at all.")
 
     print("\nDone.")
 

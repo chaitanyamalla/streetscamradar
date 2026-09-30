@@ -65,24 +65,45 @@ export const runningDays = (row) => {
 };
 
 /**
+ * How long a kind can go unstamped before it has stopped, rather than merely
+ * not been looked at yet.
+ *
+ * `to_date` is the last moment GDACS vouched for the event, and they move it
+ * along while the thing runs — but at whatever rhythm that kind is ASSESSED,
+ * which is not the same for all six. A flood is watched daily, so two days of
+ * silence means it is over. A drought is reassessed about once a month, and
+ * every drought in the list carries the same to_date of the 27th: not five
+ * droughts that ended on the same day, one monthly assessment. Reading that
+ * as an end date put "Ended 27 Sep" on droughts that have been running since
+ * last November and have not stopped.
+ *
+ * An earthquake and an eruption are instants — from_date and to_date are the
+ * same moment — so they are never "running" and never "ended" either. Their
+ * window is past our seven days on purpose: within the week they are recent
+ * news, drawn in colour, and after it they are gone from the table entirely.
+ */
+const QUIET_BEFORE_ENDED = {
+  flood: 2, cyclone: 2, wildfire: 2,   // watched daily
+  drought: 40,                         // reassessed monthly
+  earthquake: 8, volcano: 8,           // instants; longer than the week we keep
+};
+const QUIET_DEFAULT = 2;
+
+/**
  * Is this still happening, as far as the agency is willing to say?
  *
- * `to_date` is the last moment GDACS vouched for the event. While something is
- * running they move it along with it, so a to_date at today's date means still
- * going and one in the past means finished — GDACS had the India flood ending
- * on the 28th, and our popup went on calling it "Ongoing since 9 Aug" for two
- * days after it stopped.
- *
- * A day of slack, because GDACS updates in batches a few times a day and an
- * event it has not got round to re-stamping this morning has not ended.
  * No to_date at all is GDACS declining to say, which is not the same as saying
  * it is over, so that reads as running.
  */
-export const stillRunning = (row, now = Date.now(), slackDays = 1) => {
+export const stillRunning = (row, now = Date.now()) => {
   const to = Date.parse(row?.to_date ?? '');
   if (!Number.isFinite(to)) return true;
-  return to >= now - slackDays * 86400000;
+  const quiet = QUIET_BEFORE_ENDED[row?.kind] ?? QUIET_DEFAULT;
+  return to >= now - quiet * 86400000;
 };
+
+/** The other way round, which is what the map asks. */
+export const hasEnded = (row, now = Date.now()) => !stillRunning(row, now);
 
 /** Whatever sits inside a map view. Used for both the earthquakes and the
  *  GDACS events, which is why it takes anything with a lat and a lng. */

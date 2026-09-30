@@ -39,7 +39,9 @@
 const WHITE = '#ffffff';
 const ACCENT = '#f5a623';          // lightning, lava — the one warm detail
 
-// What a hazard GDACS graded Green is drawn in, instead of its own colour.
+// What a hazard that has ENDED is drawn in, instead of its own colour. It used
+// to mean "GDACS graded this Green"; Green is not carried at all any more, and
+// grey now says the thing is over rather than that it was mild.
 //
 // Green is most of what GDACS publishes — seventy-two wildfires on an ordinary
 // day — and if all of it arrives in full colour, the one Red cyclone among
@@ -234,27 +236,25 @@ export const ALL_SIGN_KINDS = Object.keys(SIGNS).filter(k => k !== 'unknown');
 export const hazardSign = (kind) => SIGNS[kind] ?? SIGNS.unknown;
 
 /** The colour a kind is drawn in, for a swatch or a border that must match. */
-export const hazardColor = (kind, grade = null) => colorFor(kind, grade);
+export const hazardColor = (kind, dull = false) => colorFor(kind, dull);
 
-/** What a green-graded hazard is drawn in. */
+/** What a hazard that has ended is drawn in. */
 export const DULL_COLOR = DULL;
 
 const paintOf = (part, color, dull) =>
   part.on ? WHITE : part.accent ? (dull ? DULL : ACCENT) : color;
 
-/** The colour a kind is drawn in at a given grade. */
-const colorFor = (kind, grade) =>
-  (grade === 'routine' ? DULL : hazardSign(kind).color);
+/** The colour a kind is drawn in, alive or over. */
+const colorFor = (kind, dull) => (dull ? DULL : hazardSign(kind).color);
 
 /**
  * The sign as an inline SVG, for a panel key, a popup or a list row.
  * Decorative by default: the row beside it already says what it is in words,
  * and a screen reader does not need to hear "warning triangle" twice.
  */
-export function hazardSignSVG(kind, { size = 18, label = '', grade = null } = {}) {
+export function hazardSignSVG(kind, { size = 18, label = '', dull = false } = {}) {
   const { parts } = hazardSign(kind);
-  const dull = grade === 'routine';
-  const color = colorFor(kind, grade);
+  const color = colorFor(kind, dull);
   const ends = ' stroke-linecap="round" stroke-linejoin="round"';
 
   // Two passes: every edge first, then every glyph. One pass and each part's
@@ -278,10 +278,9 @@ export function hazardSignSVG(kind, { size = 18, label = '', grade = null } = {}
  * The white edge underneath is not decoration: without it a dark sign over a
  * dark park, or a blue one over water, loses its outline.
  */
-export function paintHazardSign(ctx, kind, box = 24, grade = null) {
+export function paintHazardSign(ctx, kind, box = 24, dull = false) {
   const { parts } = hazardSign(kind);
-  const dull = grade === 'routine';
-  const color = colorFor(kind, grade);
+  const color = colorFor(kind, dull);
   ctx.save();
   ctx.scale(box / 24, box / 24);
   ctx.translate(12, 12);

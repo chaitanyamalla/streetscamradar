@@ -70,21 +70,21 @@ export const runningDays = (row) => {
  *
  * `to_date` is the last moment GDACS vouched for the event, and they move it
  * along while the thing runs — but at whatever rhythm that kind is ASSESSED,
- * which is not the same for all six. A flood is watched daily, so two days of
- * silence means it is over. A drought is reassessed about once a month, and
- * every drought in the list carries the same to_date of the 27th: not five
- * droughts that ended on the same day, one monthly assessment. Reading that
- * as an end date put "Ended 27 Sep" on droughts that have been running since
- * last November and have not stopped.
+ * which is not the same for all of them. A flood is watched daily, so two days
+ * of silence means it is over.
  *
  * An earthquake and an eruption are instants — from_date and to_date are the
  * same moment — so they are never "running" and never "ended" either. Their
  * window is past our seven days on purpose: within the week they are recent
  * news, drawn in colour, and after it they are gone from the table entirely.
+ *
+ * Drought used to be the reason this table existed at all: reassessed monthly,
+ * so every drought carried the same to_date and a two-day rule called five
+ * still-running ones "Ended 27 Sep". Droughts are not carried any more, but
+ * the lesson is: one number here would be wrong for something.
  */
 const QUIET_BEFORE_ENDED = {
   flood: 2, cyclone: 2, wildfire: 2,   // watched daily
-  drought: 40,                         // reassessed monthly
   earthquake: 8, volcano: 8,           // instants; longer than the week we keep
 };
 const QUIET_DEFAULT = 2;
@@ -130,14 +130,13 @@ export const hazardLabel = (kind) => t(`hazard.kind.${kind}`);
 /**
  * A GDACS event name, short enough to read in a popup.
  *
- * A drought is one event across every country it touches, and GDACS names it
- * by listing them: "Drought in Austria, Bosnia  and  Herzegovina, Belgium,
- * Belarus, Switzerland, Czech Republic, Germany, Denmark, Spain, France,
- * Croatia, Hungary, Ireland, Italy, …" runs to 250 characters and fills a
- * popup with a gazetteer. The first few and a count is the same information a
- * reader can actually take in — the same "+N" the weather chip uses when a
- * country is being warned of six things at once, so there is no new wording to
- * translate and no new punctuation to learn.
+ * One event crosses as many countries as it likes, and GDACS names it by
+ * listing them: "Flood in Indonesia, Malaysia, Thailand", and worse. The
+ * droughts this was written for ran to 250 characters and filled a popup with
+ * a gazetteer; they are gone, and a bad monsoon will do it again. The first
+ * few and a count is the same information a reader can actually take in — the
+ * same "+N" the weather chip uses when a country is being warned of six things
+ * at once, so there is no new wording to translate.
  *
  * Names with one place, and names with none at all ("Tropical Cyclone POLO-26"),
  * come back untouched.

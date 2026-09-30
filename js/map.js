@@ -52,7 +52,7 @@ const DULL_SUFFIX = '-dull';
 
 const DISASTER_ICONS = {
   flood: 'hazard-icon-flood', cyclone: 'hazard-icon-cyclone',
-  wildfire: 'hazard-icon-wildfire', drought: 'hazard-icon-drought',
+  wildfire: 'hazard-icon-wildfire',
   // GDACS could publish a kind we have not drawn. Better a sign that says
   // "something here" than a marker that silently fails to appear.
   unknown: 'hazard-icon-unknown',
@@ -233,7 +233,7 @@ export function addLayers(map) {
   // Drawn where GDACS puts it, as a warning sign per kind. What that point MEANS
   // differs by kind, and the popup says so rather than letting the marker
   // imply more than it knows: a volcano and a wildfire are where they are, a
-  // cyclone is where the storm was last placed, and a flood or a drought is
+  // cyclone is where the storm was last placed, and a flood is
   // the centre of the area affected — which can sit well away from the water,
   // and is a region rather than a street.
   //
@@ -254,7 +254,6 @@ export function addLayers(map) {
           'flood', DISASTER_ICONS.flood,
           'cyclone', DISASTER_ICONS.cyclone,
           'wildfire', DISASTER_ICONS.wildfire,
-          'drought', DISASTER_ICONS.drought,
           DISASTER_ICONS.unknown],
         ['case', ['get', 'ended'], DULL_SUFFIX, '']],
       // Size carries how GDACS graded it, because colour is already carrying
@@ -581,7 +580,6 @@ export function registerSafetyIcons(map) {
                            [DISASTER_ICONS.flood, 'flood'],
                            [DISASTER_ICONS.cyclone, 'cyclone'],
                            [DISASTER_ICONS.wildfire, 'wildfire'],
-                           [DISASTER_ICONS.drought, 'drought'],
                            [DISASTER_ICONS.unknown, 'unknown']]) {
     sign(id, kind);
     sign(id + DULL_SUFFIX, kind, true);

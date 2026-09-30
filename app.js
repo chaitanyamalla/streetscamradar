@@ -64,7 +64,7 @@ const state = {
   // news wherever it happens. The reason for the exception went with the
   // change that made it, so the exception goes too.
   layers: { earthquake: true, flood: true, cyclone: true,
-            wildfire: true, volcano: true, drought: true },
+            wildfire: true, volcano: true },
   countryWeather: null,    // { code, weather } for the chip and its dialog
   advisoryCountry: null,   // whose advisory the chip is currently showing
   pin: null,          // { lat, lng, address, city, countryCode }
@@ -515,14 +515,14 @@ async function refreshSafety() {
 //                 everything else, and only the ones it grades Orange or Red,
 //                 or that reach magnitude 6: the green magnitude-fives a
 //                 hundred kilometres down are the ones nobody felt.
-//   GDACS events  floods, cyclones, wildfires, droughts and volcanoes, each
+//   GDACS events  floods, cyclones, wildfires and volcanoes, each
 //                 with a position and a glyph, counted for the view like the
 //                 earthquakes. What the position MEANS varies, and the popup
 //                 says which: a volcano and a fire are where they are, a
-//                 cyclone is where the storm was last placed, a flood or a
-//                 drought is the centre of the area affected — a region, not a
-//                 street. Better to draw it and say what it is than to leave a
-//                 flood off a map about travelling somewhere.
+//                 cyclone is where the storm was last placed, and a flood is
+//                 the centre of the area affected — a region, not a street.
+//                 Better to draw it and say what it is than to leave a flood
+//                 off a map about travelling somewhere.
 //   weather       a region, from the national met services through MeteoAlarm,
 //                 and the only one with no place to draw: a warning covers
 //                 counties at a time. So it stays a chip for the country in

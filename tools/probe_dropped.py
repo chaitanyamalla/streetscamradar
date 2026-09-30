@@ -2,8 +2,8 @@
 # ---------------------------------------------------------------------------
 # Why is something on gdacs.org missing from our map?
 #
-# It answered the orange flood in India, and now it is pointed at the
-# earthquakes, of which the table holds none. Rather than read our filters and
+# It has answered the orange flood in India, the earthquakes of which the table
+# held none, and the droughts that said they had ended when they had not. Rather than read our filters and
 # reason about them, this runs them: it fetches the same list the refresh does,
 # applies the real fetch_disasters rules to every event, and prints what each
 # one was kept or dropped FOR.
@@ -92,20 +92,19 @@ def main():
         print(f"  {str(props.get('eventtype')):<3} {str(props.get('alertlevel')):<7} "
               f"{str(props.get('country'))[:26]:<28} {str(props.get('name'))[:34]:<36} {why}")
 
-    # --- the droughts, in full, with every field GDACS sends -----------------
+    # --- whatever kind is in question, in full -------------------------------
     #
-    # "Are these still active, and why is Europe one of them?" The list holds
-    # seven. Five share a todate three days old; two carry one frozen months
-    # back. If that is the difference between a drought GDACS is still
-    # assessing and one it has stopped assessing, then the five are live and
-    # our seven-day cut is already removing the other two for us. Print every
-    # field of every one, and the report link, so it can be checked rather
-    # than inferred.
-    print(f"\n{'=' * 78}\nDROUGHTS, every field\n{'=' * 78}")
+    # Point this at the kind you are asking about. It has been EQ (why is
+    # nothing drawn), FL (why is Turkey on our map and not theirs), VO and DR
+    # (is a whole kind being wiped out by one flag). Every field, because the
+    # answer has twice now been in a field nobody had looked at: iscurrent for
+    # the earthquakes, and datemodified for the droughts.
+    LOOK_AT = "VO"
+    print(f"\n{'=' * 78}\n{LOOK_AT}, every field\n{'=' * 78}")
     found = 0
     for feature in features:
         props = (feature or {}).get("properties") or {}
-        if str(props.get("eventtype") or "").strip().upper() != "DR":
+        if str(props.get("eventtype") or "").strip().upper() != LOOK_AT:
             continue
         found += 1
         state, why = verdict(props, feature)
@@ -116,7 +115,7 @@ def main():
                 value = value[:150] + "…"
             print(f"      {key:<22} = {value}")
     if not found:
-        print("  nothing of kind DR in the list at all.")
+        print(f"  nothing of kind {LOOK_AT} in the list at all.")
 
     print("\nDone.")
 

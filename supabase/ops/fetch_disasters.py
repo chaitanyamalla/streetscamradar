@@ -23,7 +23,15 @@
 #
 # What is kept
 # ------------
-# Orange and Red. Not Green, for any kind.
+# Orange and Red. Not Green, for any kind. And five kinds, not six: no drought.
+#
+# GDACS's droughts come from the Copernicus Global Drought Observatory and are
+# agricultural — "Medium impact for agricultural drought in 677277 km2", read
+# off soil moisture. Worth publishing, and not something a traveller can act
+# on: nobody changes a trip to Vienna because Central European soil moisture is
+# low. They also dwarfed everything else, because one drought is one event
+# across every country it touches — 48 of the 51 rows in the table on the day
+# they were removed, against two floods and one cyclone.
 #
 # Green has been in and out of here twice, so it is worth writing down why it
 # is out. It is most of what GDACS publishes — 77 Green wildfires on the day
@@ -67,25 +75,22 @@
 #
 #   earthquake   the shaking lasts a minute
 #   volcano      an eruption is recorded at a single instant too
-#   drought      a slow condition with no end to reach; GDACS was still
-#                updating every one of them three days before this was written,
-#                and had every one flagged not current
 #
 # For all three the flag goes false while the thing is still worth knowing
 # about, and obeying it did not thin those kinds out — it removed them
 # entirely. A probe that runs these rules over the live list, one event at a
-# time, found NOT ONE survivor of any of them:
+# time, found NOT ONE survivor of either of them:
 #
 #         in the list   kept   dropped for iscurrent
 #   EQ             45      0                      24
 #   VO              6      0                       6
-#   DR              7      0                       7
 #
-# That is why the volcano and drought rows have read "None in view" everywhere
-# since the day they were added. So for these three the date is the whole of
-# the question, and the week's cut below asks it — which is strict enough on
-# its own: the newest volcano in the list erupted 26 days ago and still does
-# not get in.
+# That is why the volcano row read "None in view" everywhere from the day it
+# was added. So for these two the date is the whole of the question, and the
+# week's cut below asks it — which is strict enough on its own: the newest
+# volcano in the list erupted 26 days ago and still does not get in.
+#
+# Drought was the third, and it is not carried at all any more — see below.
 #
 # Refusing to write rubbish
 # -------------------------
@@ -113,9 +118,11 @@ RETRIES = 3
 INSERT_BATCH = 200
 
 # GDACS event types, as its `eventtype` field spells them.
+# The kinds we draw. GDACS also publishes DR, drought, which is deliberately
+# absent: see the header. An eventtype not in here falls out below.
 KINDS = {
     "EQ": "earthquake", "TC": "cyclone", "FL": "flood",
-    "VO": "volcano", "DR": "drought", "WF": "wildfire",
+    "VO": "volcano", "WF": "wildfire",
 }
 
 # The two grades we carry. GDACS publishes a third, Green, and Green is most of
@@ -132,7 +139,8 @@ MAX_QUIET_DAYS = 7
 
 # The kinds whose `iscurrent` flag we obey — see the header. A flood, a storm
 # and a fire each have a real end, and when the agency says one has reached it,
-# that is the agency's call to make and not ours.
+# that is the agency's call to make and not ours. The two that are left, an
+# earthquake and an eruption, are instants and are judged on their date.
 RUNNING_MEANS_SOMETHING = frozenset({"flood", "cyclone", "wildfire"})
 
 # The feed carries a hundred events on an ordinary day, most of them Green and

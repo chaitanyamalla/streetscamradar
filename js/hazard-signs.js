@@ -228,7 +228,10 @@ SIGNS['forest-fire'] = SIGNS.wildfire;
 
 /** The kinds drawn as symbols. The earthquake is a ring instead, sized by
  *  magnitude, so it is not in this list. */
-export const HAZARD_SIGN_KINDS = ['flood', 'cyclone', 'wildfire', 'drought', 'volcano'];
+// The GDACS kinds the map draws. 'drought' has a sign below and is not in
+// here: GDACS's droughts are agricultural and are no longer carried at all,
+// and the drawing is kept only so that putting them back is a one-word change.
+export const HAZARD_SIGN_KINDS = ['flood', 'cyclone', 'wildfire', 'volcano'];
 
 /** Every kind that has a sign at all, map or list. */
 export const ALL_SIGN_KINDS = Object.keys(SIGNS).filter(k => k !== 'unknown');

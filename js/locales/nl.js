@@ -54,13 +54,12 @@ export default {
   'filters.noCategories': 'Geen categorieën geladen.',
   'filters.categoriesFailed': 'Kon de categorieën niet laden — is schema.sql al toegepast?',
   'filters.connect': 'Verbind Supabase om de categorieën te laden.',
-  'filters.safety': 'Veiligheid en hulp',
-  'filters.hospitals': 'Ziekenhuizen in de buurt',
-  'safety.zoomIn': 'Zoom in om ziekenhuizen te zien',
+  'filters.hospitals': 'Ziekenhuizen',
+  'safety.zoomIn': 'Zoom in',
   'safety.off': 'Uitgeschakeld',
   'safety.count': '{n} in de buurt',
-  'safety.none': 'Hier nog geen enkele geregistreerd',
-  'safety.failed': 'Kon deze nu niet laden',
+  'safety.none': 'Geen hier',
+  'safety.failed': 'Mislukt',
 
   // --- reports panel -------------------------------------------------------
   'reports.label': 'Meldingen in beeld',

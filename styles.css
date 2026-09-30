@@ -351,17 +351,25 @@ em { font-style:italic; }
   letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
 .filter-row { display:flex; align-items:center; gap:8px; min-height:26px;
   color:var(--ink-2); font-size:12px; cursor:pointer; }
-/* A row that carries its own status line underneath, so the panel does not
-   spend a whole row saying "zoom in to see hospitals". */
-.fr-text { display:flex; flex-direction:column; gap:1px; min-width:0; }
 .fr-note { color:var(--muted); font-size:10.5px; line-height:1.35; }
 .filter-row input { accent-color:var(--brand); width:14px; height:14px; flex:none; }
 .filter-row b { margin-left:auto; color:var(--muted); font:500 10px 'DM Mono',monospace; }
 .category-section { border-top:1px solid var(--line); max-height:168px; overflow:auto; }
-.safety-filter { border-top:1px solid var(--line); }
-.safety-filter .filter-row { margin-bottom:2px; align-items:flex-start; }
-.safety-filter .filter-row input, .safety-filter .safety-glyphs { margin-top:1px; }
-.safety-glyphs { font-size:13px; letter-spacing:1px; }
+/* One line, no heading, and as little padding as a row can have and still be
+   a comfortable tap target. It used to be a section title plus a row plus a
+   status line underneath — three lines and 24px of padding for one switch,
+   all of it taken off the map. */
+.safety-filter { border-top:1px solid var(--line); padding:6px 13px; }
+.safety-filter .filter-row { gap:7px; min-height:24px; }
+/* The status never gives way and the label does. They compete for one row, and
+   the status is the half that changes as you move the map — "3 nearby" cut to
+   "3 ne…" is the one thing here that would be useless, where "Hospitals near…"
+   still reads. Neither wraps: a status that reflows the panel under the
+   pointer is worse than one that clips. */
+.fr-name { flex:0 1 auto; min-width:0; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; }
+.safety-filter .fr-note { flex:none; margin-left:auto; padding-left:6px;
+  text-align:right; white-space:nowrap; }
 #safety-status.is-warning { color:var(--pin-deep); font-weight:600; }
 .category-filters { display:flex; flex-wrap:wrap; gap:5px; }
 .cat-chip { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line-strong);

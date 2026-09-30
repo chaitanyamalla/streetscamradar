@@ -54,13 +54,12 @@ export default {
   'filters.noCategories': 'No categories loaded.',
   'filters.categoriesFailed': 'Could not load categories — is schema.sql applied?',
   'filters.connect': 'Connect Supabase to load categories.',
-  'filters.safety': 'Safety & support',
-  'filters.hospitals': 'Hospitals nearby',
-  'safety.zoomIn': 'Zoom in to see hospitals',
+  'filters.hospitals': 'Hospitals',
+  'safety.zoomIn': 'Zoom in',
   'safety.off': 'Turned off',
   'safety.count': '{n} nearby',
-  'safety.none': 'None recorded in this area yet',
-  'safety.failed': 'Could not load these right now',
+  'safety.none': 'None here',
+  'safety.failed': 'Unavailable',
 
   // --- reports panel -------------------------------------------------------
   'reports.label': 'Reports in view',

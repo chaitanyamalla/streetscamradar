@@ -305,6 +305,7 @@ export default {
   'hazard.grade.routine': 'Allerta verde di GDACS',
   'hazard.depth': '{km} km di profondità',
   'hazard.since': 'In corso dal {when}',
+  'hazard.ended': 'Terminato il {when}',
   'hazard.official': 'Dettagli ufficiali',
   'hazard.notAlert': 'Non è un servizio di allerta: controlla le fonti ufficiali prima di partire.',
   'hazard.source.quake': 'via GDACS',

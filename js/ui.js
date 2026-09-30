@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 import { PIN_COLOR } from './config.js';
 import { hazardSignSVG } from './hazard-signs.js';
-import { runningDays, eventName } from './hazards.js';
+import { runningDays, stillRunning, eventName } from './hazards.js';
 import { t, tn, plural, tOr, formatDate } from './i18n.js';
 import { STRINGS as ADVISORY, officialUrl, countryTitle, levelLabel, levelExplain,
          emergencyLine, contextLine } from './advisory.js';
@@ -567,13 +567,24 @@ const PLACEMENT = {
 export function disasterPopupHTML(props) {
   const kind = String(props.kind ?? 'flood');
 
-  // "11 days ago" about a fire still burning says the opposite of the truth.
-  // Past a day of running, the line becomes when it STARTED rather than how
-  // long ago that was, and says plainly that it has not stopped.
-  const days = runningDays(props);
-  const when = days >= 1
-    ? t('hazard.since', { when: formatDate(props.from_date, { day: 'numeric', month: 'short' }) })
-    : (props.from_date ? timeAgo(props.from_date) : '');
+  // Three different sentences, because there are three different situations
+  // and one of them used to be told wrong:
+  //
+  //   still running, days old   "Ongoing since 9 Aug"
+  //   finished                  "Ended 28 Sep"      <- said "Ongoing" before
+  //   happened just now         "4 h ago"
+  //
+  // "11 days ago" about a fire still burning says the opposite of the truth,
+  // and so does "Ongoing since 9 Aug" about a flood the agency closed on the
+  // 28th. Which one it is comes from to_date, the last moment GDACS vouched
+  // for it — not from how long it ran.
+  const day = { day: 'numeric', month: 'short' };
+  const running = stillRunning(props);
+  const when = !running && props.to_date
+    ? t('hazard.ended', { when: formatDate(props.to_date, day) })
+    : runningDays(props) >= 1
+      ? t('hazard.since', { when: formatDate(props.from_date, day) })
+      : (props.from_date ? timeAgo(props.from_date) : '');
 
   return `
     <div class="popup-head">

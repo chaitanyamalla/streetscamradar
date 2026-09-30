@@ -309,6 +309,7 @@ export default {
   'hazard.grade.routine': 'Zelený stupeň GDACS',
   'hazard.depth': 'hloubka {km} km',
   'hazard.since': 'Probíhá od {when}',
+  'hazard.ended': 'Skončilo {when}',
   'hazard.official': 'Úřední podrobnosti',
   'hazard.notAlert': 'Nejde o výstražnou službu — před cestou si ověřte úřední zdroje.',
   'hazard.source.quake': 'přes GDACS',

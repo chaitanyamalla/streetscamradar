@@ -49,7 +49,9 @@ def filler(n, level="Green"):
 
     Green earthquakes, which is what they really are: nineteen of the hundred
     events in a typical GDACS list are earthquakes, all Green, magnitude 4.5 to
-    5.6, most of them far out at sea or a hundred kilometres down.
+    5.6, most of them far out at sea or a hundred kilometres down. Green is
+    dropped whatever the kind, so these clear the floor — which counts what
+    GDACS sent — without ever reaching the table.
     """
     return [event("EQ", level, f"Thing {i}", ("ID",), 1000 + i,
                   severitydata="{'severity': 4.9, 'severitytext': "
@@ -71,7 +73,7 @@ check(("TC-2-1", "MZ") in by_key and ("TC-2-1", "MG") in by_key,
 check(by_key[("FL-1-1", "FR")]["kind"] == "flood", "eventtype maps to a kind")
 check(by_key[("TC-2-1", "MZ")]["severity"] == "severe", "Red is severe")
 check(by_key[("FL-1-1", "FR")]["severity"] == "notice", "Orange is a notice")
-check(all(r["kind"] != "Thing" for r in rows), "Green events are the routine background and are dropped")
+check(all(r["kind"] != "Thing" for r in rows), "Green events are dropped, whatever the kind")
 check(by_key[("FL-1-1", "FR")]["from_date"].startswith("2026-09-18"), "dates parse")
 check(by_key[("FL-1-1", "FR")]["from_date"].endswith("+00:00"),
       "and are pinned to UTC rather than left for Postgres to guess")
@@ -108,7 +110,11 @@ except fd.SourceProblem:
     check(True, "a full feed naming no countries is refused")
 
 
-# --- every alert level is kept, except the earthquakes nobody felt -----------
+# --- Orange and Red, and nothing else ---------------------------------------
+#
+# Green is most of what GDACS publishes and means "this happened and nobody was
+# affected". Carrying it put seventy-odd Australian bushfires on a map whose
+# reader wanted to know about the four floods.
 quake = lambda level, mag, depth=10, eid=500: event(
     "EQ", level, f"Earthquake M{mag}", ("ID",), eid,
     severitydata="{'severity': %s, 'severitytext': 'Magnitude %sM, Depth:%skm', "
@@ -118,14 +124,18 @@ rows = fd.rows_from(payload(filler(40) + [
     event("TC", "Green", "Tropical Cyclone NOLO", ("US",), 1),
     event("WF", "Green", "Forest fires in Australia", ("AU",), 2),
     event("FL", "Green", "Flood in Guinea", ("GN",), 3),
+    event("FL", "Orange", "Flood in India", ("IN",), 4),
+    event("TC", "Red", "Tropical Cyclone POLO", ("MX",), 5),
 ]))
 names = {r["name"] for r in rows}
-check("Tropical Cyclone NOLO" in names,
-      "a green cyclone is kept — it is still a storm somebody flies through")
-check("Forest fires in Australia" in names and "Flood in Guinea" in names,
-      "so are a green fire and a green flood")
-check(all(r["severity"] == "routine" for r in rows),
-      "and green is stored as what GDACS graded it, not flattened away")
+check("Tropical Cyclone NOLO" not in names, "a green cyclone is dropped")
+check("Forest fires in Australia" not in names,
+      "and so is the green fire that filled the map with Australia")
+check("Flood in Guinea" not in names, "and the green flood")
+check(names == {"Flood in India", "Tropical Cyclone POLO"},
+      f"leaving the orange and the red, and only those ({sorted(names)})")
+check({r["severity"] for r in rows} == {"notice", "severe"},
+      "so nothing is ever stored as routine any more")
 
 rows = fd.rows_from(payload(filler(40) + [
     quake("Green", 5.0, 158, 501),
@@ -134,27 +144,27 @@ rows = fd.rows_from(payload(filler(40) + [
     quake("Red", 7.1, 25, 504),
 ]))
 kept = {r["name"] for r in rows}
-check("Earthquake M5.0" not in kept,
-      "a green magnitude 5 is one nobody felt, and is dropped")
-check("Earthquake M6.4" in kept,
-      "a green magnitude 6.4 is kept anyway — that one makes the news wherever it is")
+check("Earthquake M5.0" not in kept, "a green magnitude 5 is one nobody felt")
+check("Earthquake M6.4" not in kept,
+      "and a green magnitude 6.4 goes too — GDACS grades by who it reached, and "
+      "green means nobody")
 check("Earthquake M4.8" in kept,
-      "and GDACS grading a smaller one Orange is reason enough to keep it")
+      "while GDACS grading a smaller one Orange is reason enough to keep it")
 check("Earthquake M7.1" in kept, "a red one, obviously")
 
-big = next(r for r in rows if r["name"] == "Earthquake M6.4")
-check(big["magnitude"] == 6.4, f"the magnitude is read off severitydata ({big['magnitude']})")
-check(big["depth_km"] == 12.0, f"and so is the depth ({big['depth_km']})")
+big = next(r for r in rows if r["name"] == "Earthquake M7.1")
+check(big["magnitude"] == 7.1, f"the magnitude is read off severitydata ({big['magnitude']})")
+check(big["depth_km"] == 25.0, f"and so is the depth ({big['depth_km']})")
 
 flood = next(r for r in fd.rows_from(payload(filler(40) + [
-    event("FL", "Green", "Flood in Guinea", ("GN",), 9,
+    event("FL", "Orange", "Flood in Guinea", ("GN",), 9,
           severitydata="{'severity': 0.0, 'severitytext': 'Magnitude 0 ', 'severityunit': ''}")]))
     if r["name"] == "Flood in Guinea")
 check(flood["magnitude"] is None,
       "a flood's severity number is not a magnitude, and is not stored as one")
 
 storm = next(r for r in fd.rows_from(payload(filler(40) + [
-    event("TC", "Green", "Storm", ("US",), 9,
+    event("TC", "Orange", "Storm", ("US",), 9,
           severitydata="{'severity': 249.9984, 'severitytext': "
                        "'Hurricane/Typhoon > 74 mph (maximum wind speed of 250 km/h)', "
                        "'severityunit': 'km/h'}")]))
@@ -170,12 +180,12 @@ NOW = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)
 ago = lambda d: (NOW - timedelta(days=d)).isoformat()
 
 rows = fd.rows_from(payload(filler(40) + [
-    event("TC", "Green", "Storm updated today", ("US",), 11, todate=ago(0.2)),
-    event("TC", "Green", "Storm nobody has touched", ("US",), 12, todate=ago(20)),
+    event("TC", "Orange", "Storm updated today", ("US",), 11, todate=ago(0.2)),
+    event("TC", "Orange", "Storm nobody has touched", ("US",), 12, todate=ago(20)),
     event("EQ", "Red", "Earthquake last month", ("JP",), 13, todate=ago(31),
           severitydata="{'severity': 7.0, 'severitytext': 'Magnitude 7M, Depth:10km', "
                        "'severityunit': 'M'}"),
-    event("FL", "Green", "Flood with no end date", ("GN",), 14, todate=""),
+    event("FL", "Orange", "Flood with no end date", ("GN",), 14, todate=""),
 ]), now=NOW)
 names = {r["name"] for r in rows}
 check("Storm updated today" in names, "an event GDACS updated today is kept")
@@ -203,8 +213,8 @@ check("Long-running cyclone" in {r["name"] for r in rows},
 app_list = payload([event("WF", "Green", f"Fire {i}", ("AU",), 700 + i) for i in range(8)])
 search_list = payload([
     event("FL", "Orange", "Flood in India", ("IN",), 1104121, todate=ago(1)),
-    event("DR", "Green", "Drought in Kenya", ("KE",), 801),
-    event("VO", "Green", "Volcano in Italy", ("IT",), 802),
+    event("DR", "Orange", "Drought in Kenya", ("KE",), 801),
+    event("VO", "Orange", "Volcano in Italy", ("IT",), 802),
 ])
 
 both = fd.merge([app_list, search_list])

@@ -64,6 +64,26 @@ export const runningDays = (row) => {
   return Math.max(0, (to - from) / 86400000);
 };
 
+/**
+ * Is this still happening, as far as the agency is willing to say?
+ *
+ * `to_date` is the last moment GDACS vouched for the event. While something is
+ * running they move it along with it, so a to_date at today's date means still
+ * going and one in the past means finished — GDACS had the India flood ending
+ * on the 28th, and our popup went on calling it "Ongoing since 9 Aug" for two
+ * days after it stopped.
+ *
+ * A day of slack, because GDACS updates in batches a few times a day and an
+ * event it has not got round to re-stamping this morning has not ended.
+ * No to_date at all is GDACS declining to say, which is not the same as saying
+ * it is over, so that reads as running.
+ */
+export const stillRunning = (row, now = Date.now(), slackDays = 1) => {
+  const to = Date.parse(row?.to_date ?? '');
+  if (!Number.isFinite(to)) return true;
+  return to >= now - slackDays * 86400000;
+};
+
 /** Whatever sits inside a map view. Used for both the earthquakes and the
  *  GDACS events, which is why it takes anything with a lat and a lng. */
 export const inBounds = (rows, bounds) => rows.filter(r =>

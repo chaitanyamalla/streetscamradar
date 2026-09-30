@@ -23,18 +23,22 @@
 #
 # What is kept
 # ------------
-# Every alert level GDACS publishes: Red, Orange and Green. Green used to be
-# dropped, on the argument that it is the routine background of a working
-# planet. That is true of a magnitude 4.7 under the sea floor. It is not true
-# of a tropical cyclone, which is a storm somebody's flight goes through
-# whatever its humanitarian grading — and dropping Green left ONE event on our
-# whole map on a day gdacs.org was showing seven storms, two floods and
-# seventy-two fires.
+# Orange and Red. Not Green, for any kind.
 #
-# Earthquakes are the exception, and are held to a higher bar: Orange or Red,
-# or magnitude 6 and above. Nineteen of the hundred events in a typical list
-# are earthquakes and every one of them is Green, magnitude 4.5 to 5.6, most
-# far out at sea or a hundred kilometres down. Those are the ones nobody felt.
+# Green has been in and out of here twice, so it is worth writing down why it
+# is out. It is most of what GDACS publishes — 77 Green wildfires on the day
+# this was written, against four Orange floods and one Red cyclone — and it
+# means "this happened and nobody was affected". Carrying it and drawing it
+# grey put seventy-odd markers on the map that no traveller needed and that
+# GDACS's own public map does not show, which is how we ended up with a screen
+# full of Australian bushfires while gdacs.org showed a handful in Africa.
+#
+# The earthquake exception went with it. It kept a Green quake of magnitude 6
+# or more, on the argument that one makes the news wherever it happens. But
+# GDACS grades by human impact, so a Green magnitude 7 is one that shook an
+# empty stretch of ocean — which is exactly the kind of thing this rule now
+# says we do not carry. If that turns out to be wrong, it is four lines to put
+# back; the constant was called BIG_QUAKE.
 #
 # One row per event per country. GDACS names every country an event touches,
 # and "is anything happening where I am going" is a question about a country,
@@ -114,26 +118,28 @@ KINDS = {
     "VO": "volcano", "DR": "drought", "WF": "wildfire",
 }
 
-# GDACS's three grades, kept as its own words mean them.
-SEVERITY = {"Red": "severe", "Orange": "notice", "Green": "routine"}
+# The two grades we carry. GDACS publishes a third, Green, and Green is most of
+# what it publishes: on an ordinary day the list is 77 Green wildfires, a Green
+# flood or two, a dozen Green earthquakes nobody felt, and a handful of Orange
+# and Red. Green is GDACS saying "this happened and nobody was affected", which
+# is a fine thing for a monitoring agency to record and not something to put in
+# front of somebody planning a trip. Anything Green falls through the lookup
+# below and is dropped.
+SEVERITY = {"Red": "severe", "Orange": "notice"}
 
 # How long since GDACS last touched an event before we stop believing it.
 MAX_QUIET_DAYS = 7
-
-# An earthquake GDACS grades Green is kept only if it was this big anyway. A
-# magnitude 6 is felt over a wide area and makes the news wherever it happens,
-# which is the line between "worth knowing before you travel" and "the ground
-# is never still". Below it, a Green quake is one nobody noticed.
-BIG_QUAKE = 6.0
 
 # The kinds whose `iscurrent` flag we obey — see the header. A flood, a storm
 # and a fire each have a real end, and when the agency says one has reached it,
 # that is the agency's call to make and not ours.
 RUNNING_MEANS_SOMETHING = frozenset({"flood", "cyclone", "wildfire"})
 
-# The feed carries a hundred events on an ordinary day, most of them Green. A
-# response with nothing in it at all is a broken response rather than a quiet
-# planet, and must not be allowed to empty the table.
+# The feed carries a hundred events on an ordinary day, most of them Green and
+# so most of them dropped. This floor is on what GDACS SENT, not on what we
+# keep, because a quiet week is a real thing and an empty response is not: the
+# latter is a broken response rather than a quiet planet, and must not be
+# allowed to empty the table.
 MIN_PLAUSIBLE_EVENTS = 20
 
 NOT_AN_EVENT = {"contentList"}
@@ -333,11 +339,6 @@ def rows_from(payload, now=None):
             continue
 
         magnitude, depth = severity_numbers(props)
-
-        # The one kind held to a higher bar — see BIG_QUAKE.
-        if kind == "earthquake" and severity == "routine" \
-                and not (magnitude is not None and magnitude >= BIG_QUAKE):
-            continue
 
         name = str(props.get("name") or props.get("description") or "").strip()
         if not name:

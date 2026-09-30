@@ -37,11 +37,12 @@ def verdict(props, feature):
     severity = fd.SEVERITY.get(str(props.get("alertlevel") or "").strip())
     if not severity:
         return "DROP", f"alertlevel {props.get('alertlevel')!r} is not one we keep"
-    if str(props.get("iscurrent") or "true").strip().lower() == "false":
-        return "DROP", "iscurrent is false"
     kind = fd.KINDS.get(str(props.get("eventtype") or "").strip().upper())
     if not kind:
         return "DROP", f"eventtype {props.get('eventtype')!r} is not a kind we draw"
+    if kind in fd.RUNNING_MEANS_SOMETHING \
+            and str(props.get("iscurrent") or "true").strip().lower() == "false":
+        return "DROP", "iscurrent is false"
     if not str(props.get("name") or props.get("description") or "").strip():
         return "DROP", "no name"
 
@@ -49,6 +50,14 @@ def verdict(props, feature):
     if fd.is_stale(to_date, NOW):
         age = (NOW - datetime.fromisoformat(to_date)).days if to_date else "?"
         return "DROP", f"last update {age} days ago, past the {fd.MAX_QUIET_DAYS}-day cut"
+
+    if kind not in fd.RUNNING_MEANS_SOMETHING:
+        when = to_date or fd.as_timestamp(props.get("fromdate"))
+        if not when:
+            return "DROP", "no date at all, so it cannot be placed in the week"
+        if fd.is_stale(when, NOW):
+            days = (NOW - datetime.fromisoformat(when)).days
+            return "DROP", f"happened {days} days ago, past the {fd.MAX_QUIET_DAYS}-day cut"
 
     magnitude, _ = fd.severity_numbers(props)
     if kind == "earthquake" and severity == "routine" \

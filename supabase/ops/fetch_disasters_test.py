@@ -247,13 +247,16 @@ rows = fd.rows_from(payload(filler(40) + [
 names = {r["name"] for r in rows}
 check(names == {"Good"}, f"only the usable event survives ({sorted(names)})")
 
-# --- iscurrent, which means something different for an earthquake -----------
+# --- iscurrent, and the three kinds it does not fit -------------------------
 #
-# A probe of the live list found 39 earthquakes and stored none of them: 24 were
-# dropped for iscurrent=false, and the most recent of those had happened 32 days
-# earlier. The flag is right for a flood, where the agency is saying it is over.
-# It is a category error for an earthquake, which stops being "current" within a
-# day or two of the only minute it ever happened.
+# A probe of the live list found NOT ONE survivor of three whole kinds: 0 of 45
+# earthquakes, 0 of 6 volcanoes and 0 of 7 droughts, every one of them dropped
+# for iscurrent alone. The flag is right for a flood, a storm or a fire, where
+# the agency is saying the thing has finished. It is a category error for an
+# earthquake and an eruption, which are recorded at a single instant, and for a
+# drought, which is a condition with no end to reach — GDACS was still updating
+# all seven of them three days before this was written, with all seven flagged
+# not current.
 BIG = "{'severity': 7.1, 'severitytext': 'Magnitude 7.1M, Depth:12km', 'severityunit': 'M'}"
 rows = fd.rows_from(payload(filler(40) + [
     event("EQ", "Orange", "Quake two days ago", ("ID",), 7001, current="false",
@@ -272,7 +275,26 @@ check("Quake five weeks ago" not in names,
 check("Quake with no date at all" not in names,
       "an earthquake nobody dated cannot be placed in the week, so it is not stored")
 check("Flood the agency called over" not in names,
-      "and iscurrent still means what it says for every other kind")
+      "and iscurrent still means what it says for a kind that can finish")
+
+# The same flag, the same week's cut, for the other two kinds it does not fit.
+rows = fd.rows_from(payload(filler(40) + [
+    event("VO", "Orange", "Eruption three days ago", ("ID",), 7101, current="false",
+          fromdate="2026-09-26T04:00:00", todate="2026-09-26T04:00:00"),
+    event("VO", "Red", "Eruption a month ago", ("ID",), 7102, current="false",
+          fromdate="2026-08-26T04:00:00", todate="2026-08-26T04:00:00"),
+    event("DR", "Orange", "Drought updated this week", ("KE",), 7103, current="false",
+          fromdate="2025-05-21T00:00:00", todate="2026-09-27T00:00:00"),
+    event("TC", "Red", "Storm the agency called over", ("MX",), 7104, current="false"),
+]), now=NOW)
+names = {r["name"] for r in rows}
+check("Eruption three days ago" in names,
+      "an eruption is kept on its date too — GDACS never calls one current for long")
+check("Eruption a month ago" not in names, "and a month-old one is still too old")
+check("Drought updated this week" in names,
+      "a drought GDACS updated this week is kept, though it flags every drought not current")
+check("Storm the agency called over" not in names,
+      "while a storm the agency called over is still over")
 
 # --- awkward values ---------------------------------------------------------
 check(fd.point_of({"geometry": {"coordinates": [2.3, 46.6]}}) == (46.6, 2.3),

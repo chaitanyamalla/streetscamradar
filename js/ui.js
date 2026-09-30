@@ -589,7 +589,7 @@ export function disasterPopupHTML(props) {
   return `
     <div class="popup-head">
       <span class="popup-glyph is-hazard">${
-        hazardSignSVG(kind, { size: 26, grade: props.severity })}</span>
+        hazardSignSVG(kind, { size: 26, dull: !running })}</span>
       <div>
         <p class="popup-kicker">${esc(t(`hazard.kind.${kind}`))}</p>
         <p class="popup-title">${esc(eventName(props.name))}</p>

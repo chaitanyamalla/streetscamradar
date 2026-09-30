@@ -23,7 +23,7 @@ import { emergencyFor } from './js/emergency.js';
 import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
          setHazards, setDisasters, maplibregl } from './js/map.js';
-import { quakesIn, inBounds, quakeTone, hazardLabel, isLive } from './js/hazards.js';
+import { quakesIn, inBounds, quakeTone, hazardLabel, isLive, hasEnded } from './js/hazards.js';
 import { hazardSignSVG } from './js/hazard-signs.js';
 import { esc, toast, liftToast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
@@ -566,7 +566,7 @@ function paintQuakes() {
       id: row.event_id, lat: row.lat, lng: row.lng, kind: 'earthquake',
       magnitude: asMagnitude(row.magnitude), depth_km: row.depth_km,
       place: row.name, at: row.from_date, url: row.url,
-      severity: row.severity, tsunami: false,
+      severity: row.severity, ended: hasEnded(row), tsunami: false,
       tone: quakeTone(Number(row.magnitude)),
     }))
     .filter(q => Number.isFinite(q.magnitude));
@@ -691,7 +691,12 @@ function paintDisasterMarkers() {
   // information a symbol cannot carry.
   paintQuakes();
 
-  const rows = uniqueEvents(row => row.kind !== 'earthquake');
+  // Whether it is over is worked out once, here, and travels with the row: the
+  // map greys an ended marker and the popup says "Ended 28 Sep" instead of
+  // claiming it is still going. Both need the clock, which a style expression
+  // does not have.
+  const rows = uniqueEvents(row => row.kind !== 'earthquake')
+    .map(row => ({ ...row, ended: hasEnded(row) }));
   state.disasterMarkers = rows.filter(r => state.layers[r.kind]);
   setDisasters(map, state.disasterMarkers);
 

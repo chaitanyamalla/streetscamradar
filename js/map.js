@@ -45,7 +45,9 @@ export const ICON_ZOOM = 11.5;
 const FALLBACK_ICON = 'scam-icon-fallback';
 const HOSPITAL_ICON = 'safety-icon-hospital';
 const VOLCANO_ICON = 'hazard-icon-volcano';
-// Glued onto an image name for anything GDACS graded Green.
+// Glued onto an image name for anything that has ENDED. It used to mean
+// "graded Green"; Green is not carried at all now, and grey says the thing is
+// over rather than that it was mild.
 const DULL_SUFFIX = '-dull';
 
 const DISASTER_ICONS = {
@@ -56,16 +58,17 @@ const DISASTER_ICONS = {
   unknown: 'hazard-icon-unknown',
 };
 
-// How much bigger a hazard is drawn for the grade GDACS gave it. Every level
-// is on the map now, and the great majority of what GDACS publishes is Green,
-// so the few that are not have to be findable at a glance.
+// How much bigger a hazard is drawn for the grade GDACS gave it. Only two
+// grades reach the map, and a Red is the one you want to see first from across
+// a continent. The fallback is the Orange size: an unrecognised grade should
+// look like the ordinary case, not shrink into the background.
 const GRADE_SIZE = ['match', ['get', 'severity'],
-  'severe', 1.3, 'notice', 1.1, 0.82];
+  'severe', 1.3, 1.1];
 
 // Earthquakes are drawn in a colour used nowhere else here, so the mark cannot
 // be mistaken for a scam report. See the layer for why that matters.
 const QUAKE_COLOR = '#5c2d91';
-const QUAKE_RING = ['case', ['==', ['get', 'severity'], 'routine'], '#8d949a', QUAKE_COLOR];
+const QUAKE_RING = ['case', ['get', 'ended'], '#8d949a', QUAKE_COLOR];
 
 export function createMap(container) {
   const map = new maplibregl.Map({
@@ -204,7 +207,7 @@ export function addLayers(map) {
       // start at M4.5, so the scale is drawn for the range that arrives.
       'circle-radius': ['interpolate', ['linear'], ['get', 'magnitude'],
         4, 7, 5, 11, 6, 16, 7.5, 24],
-      // Grey for a green-graded quake, for the same reason the symbols are.
+      // Grey once it is over, for the same reason the symbols are.
       'circle-color': QUAKE_RING,
       'circle-opacity': 0.09,
       'circle-stroke-width': 2.2,
@@ -244,7 +247,7 @@ export function addLayers(map) {
     filter: ['!=', ['get', 'kind'], 'volcano'],
     layout: {
       // Two images per kind: its own colour, and a grey one for anything GDACS
-      // graded Green. The suffix is glued on rather than a second match, so a
+      // ended. The suffix is glued on rather than a second match, so a
       // kind added later cannot get one variant and forget the other.
       'icon-image': ['concat',
         ['match', ['get', 'kind'],
@@ -253,7 +256,7 @@ export function addLayers(map) {
           'wildfire', DISASTER_ICONS.wildfire,
           'drought', DISASTER_ICONS.drought,
           DISASTER_ICONS.unknown],
-        ['case', ['==', ['get', 'severity'], 'routine'], DULL_SUFFIX, '']],
+        ['case', ['get', 'ended'], DULL_SUFFIX, '']],
       // Size carries how GDACS graded it, because colour is already carrying
       // which kind it is. Most of what GDACS publishes is Green — seventy-two
       // wildfires on an ordinary day — and the one Red cyclone among them has
@@ -274,7 +277,7 @@ export function addLayers(map) {
     filter: ['==', ['get', 'kind'], 'volcano'],
     layout: {
       'icon-image': ['concat', VOLCANO_ICON,
-        ['case', ['==', ['get', 'severity'], 'routine'], DULL_SUFFIX, '']],
+        ['case', ['get', 'ended'], DULL_SUFFIX, '']],
       // Size carries how GDACS graded it, because colour is already carrying
       // which kind it is. Most of what GDACS publishes is Green — seventy-two
       // wildfires on an ordinary day — and the one Red cyclone among them has
@@ -351,7 +354,8 @@ export const toHazardFeatures = (quakes) => ({
     properties: {
       id: q.id, kind: q.kind, magnitude: q.magnitude, tone: q.tone,
       place: q.place, at: q.at, url: q.url ?? '', tsunami: q.tsunami ? 'true' : 'false',
-      severity: q.severity ?? 'routine', depth_km: q.depth_km ?? '',
+      severity: q.severity ?? 'notice', ended: Boolean(q.ended),
+      depth_km: q.depth_km ?? '',
     },
   })),
 });
@@ -367,6 +371,10 @@ export const toDisasterFeatures = (rows) => ({
     geometry: { type: 'Point', coordinates: [d.lng, d.lat] },
     properties: {
       id: d.event_id, kind: d.kind, name: d.name, severity: d.severity,
+      // Worked out once, here, rather than in a layer expression: "has it
+      // ended" needs the clock and a per-kind window, and neither is something
+      // a style expression can be given.
+      ended: Boolean(d.ended),
       country_code: d.country_code, from_date: d.from_date ?? '',
       to_date: d.to_date ?? '', url: d.url ?? '',
       magnitude: d.magnitude ?? '', depth_km: d.depth_km ?? '',
@@ -564,9 +572,9 @@ export function registerSafetyIcons(map) {
 
   // Every hazard is a warning sign instead — see js/hazard-signs.js for why a
   // triangle and not the emoji that used to be here.
-  const sign = (id, kind, grade = null) => {
+  const sign = (id, kind, dull = false) => {
     if (map.hasImage?.(id)) return;
-    const image = drawSign(kind, grade);
+    const image = drawSign(kind, dull);
     if (image) map.addImage(id, image, { pixelRatio: 2 });
   };
   for (const [id, kind] of [[VOLCANO_ICON, 'volcano'],
@@ -576,18 +584,18 @@ export function registerSafetyIcons(map) {
                            [DISASTER_ICONS.drought, 'drought'],
                            [DISASTER_ICONS.unknown, 'unknown']]) {
     sign(id, kind);
-    sign(id + DULL_SUFFIX, kind, 'routine');
+    sign(id + DULL_SUFFIX, kind, true);
   }
 }
 
 /** A hazard sign at the size MapLibre wants it: 46px drawn at 2×. */
-function drawSign(kind, grade = null) {
+function drawSign(kind, dull = false) {
   const size = 46, ratio = 2;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size * ratio;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   ctx.scale(ratio, ratio);
-  paintHazardSign(ctx, kind, size, grade);
+  paintHazardSign(ctx, kind, size, dull);
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
 }

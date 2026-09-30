@@ -305,6 +305,7 @@ export default {
   'hazard.grade.routine': 'Grüne Warnstufe von GDACS',
   'hazard.depth': '{km} km Tiefe',
   'hazard.since': 'Läuft seit {when}',
+  'hazard.ended': 'Beendet {when}',
   'hazard.official': 'Amtliche Details',
   'hazard.notAlert': 'Kein Warndienst — prüfe vor der Reise die amtlichen Quellen.',
   'hazard.source.quake': 'über GDACS',

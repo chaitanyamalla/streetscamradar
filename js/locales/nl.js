@@ -325,6 +325,7 @@ export default {
   'hazard.grade.routine': 'Groene waarschuwing van GDACS',
   'hazard.depth': '{km} km diep',
   'hazard.since': 'Loopt sinds {when}',
+  'hazard.ended': 'Beëindigd {when}',
   'hazard.official': 'Officiële details',
   'hazard.notAlert': 'Geen waarschuwingsdienst — raadpleeg officiële bronnen voordat je reist.',
   'hazard.source.quake': 'via GDACS',

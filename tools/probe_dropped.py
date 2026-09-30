@@ -37,6 +37,7 @@ def verdict(props, feature):
     severity = fd.SEVERITY.get(str(props.get("alertlevel") or "").strip())
     if not severity:
         return "DROP", f"alertlevel {props.get('alertlevel')!r} is not one we keep"
+    del severity          # only its presence matters now that Green is gone
     kind = fd.KINDS.get(str(props.get("eventtype") or "").strip().upper())
     if not kind:
         return "DROP", f"eventtype {props.get('eventtype')!r} is not a kind we draw"
@@ -58,11 +59,6 @@ def verdict(props, feature):
         if fd.is_stale(when, NOW):
             days = (NOW - datetime.fromisoformat(when)).days
             return "DROP", f"happened {days} days ago, past the {fd.MAX_QUIET_DAYS}-day cut"
-
-    magnitude, _ = fd.severity_numbers(props)
-    if kind == "earthquake" and severity == "routine" \
-            and not (magnitude is not None and magnitude >= fd.BIG_QUAKE):
-        return "DROP", f"green earthquake below M{fd.BIG_QUAKE} (M{magnitude})"
 
     if not fd.countries_of(props):
         return "DROP", "no usable country code, so it cannot answer the country question"

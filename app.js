@@ -20,7 +20,9 @@ import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPa
          signInWithGoogle, signOut, enabledProviders, changePassword } from './js/auth.js';
 import { searchPlaces, suggestPlaces, describePoint, locateMe } from './js/geo.js';
 import { emergencyFor } from './js/emergency.js';
-import { createMap, addLayers, setReports, setDensity, boundsOf, flyToPlace,
+import { preferredTheme, currentTheme, applyTheme, toggleTheme,
+         onThemeChange, followSystem } from './js/theme.js';
+import { createMap, addLayers, setMapTheme, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
          setHazards, setDisasters, maplibregl } from './js/map.js';
 import { quakesIn, inBounds, quakeTone, hazardLabel, isLive, hasEnded } from './js/hazards.js';
@@ -77,16 +79,32 @@ const signedIn = () => Boolean(state.user);
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
-const map = createMap('city-map');
+// index.html already wrote data-theme before the first paint; this hands the
+// same answer to the map, so it starts on the right basemap rather than
+// loading the light one and swapping a moment later.
+applyTheme(preferredTheme(), { remember: false });
+followSystem();
+
+const map = createMap('city-map', currentTheme());
 let layersReady = false;
 let openPopup = null;   // only one info window at a time
 
-map.on('load', () => {
+/**
+ * Everything that lives on the map rather than in the style.
+ *
+ * Called on first load and again after every basemap swap, because setStyle
+ * throws all of it away — sources, layers and the images the layers name.
+ */
+function buildMapLayers() {
   addLayers(map);
   layersReady = true;
   if (state.categories.length) registerCategoryIcons(map, state.categories);
   registerSafetyIcons(map);
   setSafetyVisible(map, state.safetyOn);
+}
+
+map.on('load', () => {
+  buildMapLayers();
 
   // A pin that opens something should look like it.
   for (const layer of ['report-point', 'report-icon', 'clusters', 'safety-icon',
@@ -1387,6 +1405,29 @@ function wireUI() {
       refreshHazards();
     });
   }
+
+  // --- light and dark ------------------------------------------------------
+  //
+  // The button only ever says what it wants; everything that follows from a
+  // theme change is subscribed to the change itself, so the system switch
+  // flipping at sunset takes the map with it exactly as a click does.
+  const themeButton = $('#theme-button');
+  themeButton.addEventListener('click', () => toggleTheme());
+  onThemeChange((theme) => {
+    themeButton.setAttribute('aria-pressed', String(theme === 'dark'));
+    if (!layersReady) return;      // the load handler will use the right one
+    // The basemap swap discards every source, layer and image, so they are
+    // rebuilt and then filled again — without the redraw the new basemap
+    // arrives with nothing on it, which looks like a map with no reports.
+    layersReady = false;
+    setMapTheme(map, theme, () => {
+      buildMapLayers();
+      refresh();
+      refreshSafety();
+      refreshHazards();
+    });
+  });
+  themeButton.setAttribute('aria-pressed', String(currentTheme() === 'dark'));
 
   $('#hazard-layers').addEventListener('click', () => toggleHazardPanel());
   $('#hazard-panel-close').addEventListener('click', () => toggleHazardPanel(false));

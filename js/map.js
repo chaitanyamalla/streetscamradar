@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
 import { paintHazardSign } from './hazard-signs.js';
-import { MAP_STYLE, WORLD_VIEW, PIN_COLOR, CLUSTER_COLOR,
+import { mapStyleFor, WORLD_VIEW, PIN_COLOR, CLUSTER_COLOR,
          SAFETY_MIN_ZOOM } from './config.js';
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
@@ -70,10 +70,10 @@ const GRADE_SIZE = ['match', ['get', 'severity'],
 const QUAKE_COLOR = '#5c2d91';
 const QUAKE_RING = ['case', ['get', 'ended'], '#8d949a', QUAKE_COLOR];
 
-export function createMap(container) {
+export function createMap(container, theme = 'light') {
   const map = new maplibregl.Map({
     container,
-    style: MAP_STYLE,
+    style: mapStyleFor(theme),
     center: WORLD_VIEW.center,
     zoom: WORLD_VIEW.zoom,
     attributionControl: false,
@@ -90,6 +90,22 @@ export function createMap(container) {
       typeof container === 'string' ? document.getElementById(container) : container);
   }
   return map;
+}
+
+/**
+ * Swap the basemap for the other theme, keeping where you are.
+ *
+ * setStyle throws away every source, layer and image on the map — they belong
+ * to the style, not to the map — so the caller has to build them all again.
+ * That is what `rebuild` is for, and why this is one function rather than a
+ * setter: forgetting the second half leaves a basemap with nothing drawn on
+ * it, which looks exactly like a map that has no reports.
+ *
+ * The camera survives: setStyle changes the style, not the view.
+ */
+export function setMapTheme(map, theme, rebuild) {
+  map.setStyle(mapStyleFor(theme));
+  map.once('styledata', () => rebuild?.());
 }
 
 export function addLayers(map) {

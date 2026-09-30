@@ -21,6 +21,7 @@ export default {
   'header.profile': 'Je profiel',
   'header.profile.of': 'Je profiel — {who}',
   'header.language': 'Taal',
+  'header.darkMode': 'Donkere modus',
 
   // --- intro ---------------------------------------------------------------
   'intro.heading': 'Plan je reis,<br /><em>straat voor straat.</em>',

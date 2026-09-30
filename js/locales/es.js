@@ -18,6 +18,7 @@ export default {
   'header.profile': 'Tu perfil',
   'header.profile.of': 'Tu perfil — {who}',
   'header.language': 'Idioma',
+  'header.darkMode': 'Modo oscuro',
 
   'intro.heading': 'Planea tu viaje,<br /><em>calle por calle.</em>',
   'intro.copy': 'Estafas reportadas por viajeros, avisos oficiales de viaje, alertas meteorológicas y el hospital más cercano, en un solo mapa.',

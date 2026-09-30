@@ -18,6 +18,7 @@ export default {
   'header.profile': 'Twój profil',
   'header.profile.of': 'Twój profil — {who}',
   'header.language': 'Język',
+  'header.darkMode': 'Tryb ciemny',
 
   'intro.heading': 'Zaplanuj podróż,<br /><em>ulica po ulicy.</em>',
   'intro.copy': 'Oszustwa zgłaszane przez podróżnych, oficjalne komunikaty dla podróżujących, ostrzeżenia pogodowe i najbliższy szpital — na jednej mapie.',

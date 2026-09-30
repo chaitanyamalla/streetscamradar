@@ -18,6 +18,7 @@ export default {
   'header.profile': 'Váš profil',
   'header.profile.of': 'Váš profil — {who}',
   'header.language': 'Jazyk',
+  'header.darkMode': 'Tmavý režim',
 
   'intro.heading': 'Naplánovat cestu,<br /><em>ulici po ulici.</em>',
   'intro.copy': 'Podvody hlášené cestovateli, oficiální cestovní doporučení, výstrahy počasí a nejbližší nemocnice — na jedné mapě.',

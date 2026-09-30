@@ -3,7 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0d1b26" />
+    <meta name="theme-color" content="#101d26" />
+    <!-- Before the first paint, and before any module loads: a reader who
+         chose dark must not watch a cream page arrive and then turn. It reads
+         the same key js/theme.js writes, and falls back to the system switch.
+         Inline because an external file is one more round trip, and this has
+         to run before the body renders or it has not done its job. -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('ssr.theme');
+          var dark = saved ? saved === 'dark'
+            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          if (dark) document.querySelector('meta[name="theme-color"]')
+            .setAttribute('content', '#081116');
+        } catch (e) { /* blocked storage: the page is simply light */ }
+      })();
+    </script>
     <meta name="description" content="Plan your trip, travel informed. One map for street scams reported by travellers, official government travel advice, severe weather warnings, earthquakes and the nearest hospital — anywhere in the world." />
     <title>StreetScamRadar — plan your trip, travel informed</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -45,6 +62,16 @@
         <span class="visually-hidden" data-i18n="header.language">Language</span>
         <select id="lang-select" data-i18n-aria="header.language" aria-label="Language"></select>
       </label>
+
+      <!-- aria-pressed rather than a label that changes: the button IS dark
+           mode, and it is either on or off. A label reading "Light mode" while
+           the page is light leaves a reader guessing whether it describes the
+           state or the destination. -->
+      <button class="theme-button" id="theme-button" type="button" aria-pressed="false"
+              data-i18n-aria="header.darkMode" data-i18n-title="header.darkMode"
+              aria-label="Dark mode" title="Dark mode">
+        <span class="theme-mark" aria-hidden="true"></span>
+      </button>
 
       <div class="top-actions">
         <button class="avatar-button" id="profile-button" type="button" hidden

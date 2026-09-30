@@ -18,6 +18,7 @@ export default {
   'header.profile': 'Dein Profil',
   'header.profile.of': 'Dein Profil — {who}',
   'header.language': 'Sprache',
+  'header.darkMode': 'Dunkler Modus',
 
   'intro.heading': 'Reise planen,<br /><em>Straße für Straße.</em>',
   'intro.copy': 'Von Reisenden gemeldete Maschen, offizielle Reisehinweise, Wetterwarnungen und das nächste Krankenhaus — auf einer Karte.',

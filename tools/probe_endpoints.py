@@ -2,15 +2,19 @@
 # ---------------------------------------------------------------------------
 # Which GDACS endpoint does gdacs.org's own map read?
 #
-# An orange flood in India is on their live map. The list we mirror —
-# geteventlist/EVENTS4APP — carries nothing for India at all, so the event
-# never reached any filter of ours. That means we are reading a narrower feed
-# than the site shows, and the question is which one it is reading instead.
+# It answered the India flood: EVENTS4APP and SEARCH disagree, and both are
+# merged now. It is pointed at Italy for the same reason — gdacs.org shows a
+# flood there and the merged list carries nothing for Italy at all, so either
+# some third list has it, or their map is drawing something that is not a
+# GDACS event.
 #
-# This tries the endpoints GDACS publishes, and for each one reports: does it
-# answer, how many events, how many are floods, and is India in there. No
-# guessing from documentation — the travel advisory work already cost a release
-# that way.
+# So this does two things. It asks every endpoint we know of for its floods,
+# in full, and says whether Italy is anywhere in the body. Then it reads the
+# map pages themselves and prints every API URL they reference, because the
+# only authority on what their map calls is their map.
+#
+# No guessing from documentation — the travel advisory work already cost a
+# release that way.
 #
 # Reads only, writes nothing. Run it from the Probe workflow.
 # ---------------------------------------------------------------------------
@@ -25,19 +29,38 @@ TODAY = datetime.now(timezone.utc).date()
 WEEK = TODAY - timedelta(days=7)
 MONTH = TODAY - timedelta(days=30)
 
+# Anything that would name Italy, in the spellings GDACS uses.
+ITALY = ("Italy", "Italia", "'IT'", '"IT"', "ITA")
+
 BASE = "https://www.gdacs.org/gdacsapi/api/events/geteventlist"
 CANDIDATES = [
-    ("EVENTS4APP (what we mirror)", f"{BASE}/EVENTS4APP"),
-    ("SEARCH, no arguments", f"{BASE}/SEARCH"),
-    ("SEARCH, last 30 days, all kinds",
-     f"{BASE}/SEARCH?fromDate={MONTH}&toDate={TODAY}&alertlevel=&eventlist=EQ;TC;FL;VO;WF;DR"),
+    ("EVENTS4APP (half of what we mirror)", f"{BASE}/EVENTS4APP"),
+    ("SEARCH, no arguments (the other half)", f"{BASE}/SEARCH"),
     ("SEARCH, last 7 days, floods only",
      f"{BASE}/SEARCH?fromDate={WEEK}&toDate={TODAY}&alertlevel=&eventlist=FL"),
-    ("MAP", f"{BASE}/MAP"),
-    ("MAP, last 30 days",
-     f"{BASE}/MAP?fromDate={MONTH}&toDate={TODAY}&alertlevel=&eventlist=EQ;TC;FL;VO;WF;DR"),
+    ("SEARCH, last 30 days, all kinds",
+     f"{BASE}/SEARCH?fromDate={MONTH}&toDate={TODAY}&alertlevel=&eventlist=EQ;TC;FL;VO;WF;DR"),
+    # What gdacs.org's own home page calls, one request per kind. The argument
+    # is `eventtypes`, PLURAL — `eventlist`, which every other endpoint here
+    # takes, gets a 400 "Eventtype is required." from this one. That single
+    # letter is why we had never read the list their map draws.
+    ("MAP eventtypes=FL (what their map draws)", f"{BASE}/MAP?eventtypes=FL"),
+    ("MAP eventtypes=EQ", f"{BASE}/MAP?eventtypes=EQ"),
+    ("MAP eventtypes=TC", f"{BASE}/MAP?eventtypes=TC"),
+    ("MAP eventtypes=VO", f"{BASE}/MAP?eventtypes=VO"),
+    ("MAP eventtypes=DR", f"{BASE}/MAP?eventtypes=DR"),
+    ("MAP eventtypes=WF", f"{BASE}/MAP?eventtypes=WF"),
+    ("homepagetable", f"{BASE}/homepagetable"),
     ("rss.xml", "https://www.gdacs.org/xml/rss.xml"),
     ("rss_7d.xml", "https://www.gdacs.org/xml/rss_7d.xml"),
+]
+
+# The pages their live map is drawn on. We do not parse these for events — we
+# read them for the URLs they call, which is the only reliable answer to "what
+# is their map actually showing".
+PAGES = [
+    ("home", "https://www.gdacs.org/"),
+    ("alerts", "https://www.gdacs.org/Alerts/default.aspx"),
 ]
 
 
@@ -52,6 +75,11 @@ def fetch(url):
         return None, f"{type(err).__name__}: {err}"
 
 
+def mentions_italy(body):
+    return {word: len(re.findall(re.escape(word), body)) for word in ITALY
+            if re.search(re.escape(word), body)}
+
+
 def look(name, url):
     status, body = fetch(url)
     print(f"\n{'-' * 78}\n{name}\n  {url}\n  status {status}, {len(body)} bytes")
@@ -59,16 +87,15 @@ def look(name, url):
         print(f"  body: {body[:200]!r}")
         return
 
-    india = len(re.findall(r"India", body))
+    italy = mentions_italy(body)
     try:
         payload = json.loads(body)
     except json.JSONDecodeError:
         floods = len(re.findall(r"eventtype>FL|FL</", body))
-        print(f"  not JSON — mentions of India: {india}, of FL: {floods}")
-        if india:
-            for m in re.finditer(r".{200}India.{200}", body):
-                print(f"    …{m.group(0)}…")
-                break
+        print(f"  not JSON — FL mentions: {floods}, Italy: {italy or 'none'}")
+        for match in re.finditer(r".{160}Italy.{160}", body, re.S):
+            print(f"    …{match.group(0)[:340]!r}…")
+            break
         return
 
     features = payload.get("features") if isinstance(payload, dict) else None
@@ -76,26 +103,46 @@ def look(name, url):
         print(f"  JSON, top level {sorted(payload) if isinstance(payload, dict) else type(payload)}")
         return
 
-    kinds, flood_rows = {}, []
-    for f in features:
-        props = (f or {}).get("properties") or {}
+    kinds, floods = {}, []
+    for feature in features:
+        props = (feature or {}).get("properties") or {}
         kind = str(props.get("eventtype") or "?")
         kinds[kind] = kinds.get(kind, 0) + 1
-        blob = str(props.get("country")) + str(props.get("affectedcountries"))
-        if kind == "FL" and "India" in blob:
-            flood_rows.append(props)
+        if kind == "FL":
+            floods.append(props)
     print(f"  {len(features)} events  {kinds}")
-    print(f"  mentions of India anywhere in the body: {india}")
-    for props in flood_rows:
-        print(f"    FLOOD IN INDIA: {props.get('alertlevel')} {str(props.get('name'))[:60]!r} "
-              f"from {props.get('fromdate')} to {props.get('todate')} "
-              f"current={props.get('iscurrent')} id={props.get('eventid')}")
+    print(f"  Italy anywhere in the body: {italy or 'none'}")
+    print(f"  every flood it carries ({len(floods)}):")
+    for props in floods:
+        print(f"    {str(props.get('alertlevel')):<7} {str(props.get('country'))[:30]:<32} "
+              f"{str(props.get('fromdate'))[:10]} -> {str(props.get('todate'))[:10]}  "
+              f"current={props.get('iscurrent')}  id={props.get('eventid')}")
+
+
+def read_page(name, url):
+    status, body = fetch(url)
+    print(f"\n{'-' * 78}\nPAGE {name}\n  {url}\n  status {status}, {len(body)} bytes")
+    if status != 200:
+        return
+    print(f"  Italy anywhere on the page: {mentions_italy(body) or 'none'}")
+    seen = []
+    for match in re.finditer(r"""["'(]([^"'()\s]*(?:gdacsapi|geteventlist|\.json|/xml/)[^"'()\s]*)""",
+                             body, re.IGNORECASE):
+        found = match.group(1)
+        if found not in seen:
+            seen.append(found)
+    print(f"  data URLs it references ({len(seen)}):")
+    for found in seen[:40]:
+        print(f"    {found}")
 
 
 def main():
-    print("Which GDACS endpoint has the India flood? Nothing is written.")
+    print("What does gdacs.org's own map read, and does anything have Italy? "
+          "Nothing is written.")
     for name, url in CANDIDATES:
         look(name, url)
+    for name, url in PAGES:
+        read_page(name, url)
     print("\nDone.")
 
 

@@ -37,11 +37,12 @@ def verdict(props, feature):
     severity = fd.SEVERITY.get(str(props.get("alertlevel") or "").strip())
     if not severity:
         return "DROP", f"alertlevel {props.get('alertlevel')!r} is not one we keep"
-    if str(props.get("iscurrent") or "true").strip().lower() == "false":
-        return "DROP", "iscurrent is false"
     kind = fd.KINDS.get(str(props.get("eventtype") or "").strip().upper())
     if not kind:
         return "DROP", f"eventtype {props.get('eventtype')!r} is not a kind we draw"
+    if kind in fd.RUNNING_MEANS_SOMETHING \
+            and str(props.get("iscurrent") or "true").strip().lower() == "false":
+        return "DROP", "iscurrent is false"
     if not str(props.get("name") or props.get("description") or "").strip():
         return "DROP", "no name"
 
@@ -49,6 +50,14 @@ def verdict(props, feature):
     if fd.is_stale(to_date, NOW):
         age = (NOW - datetime.fromisoformat(to_date)).days if to_date else "?"
         return "DROP", f"last update {age} days ago, past the {fd.MAX_QUIET_DAYS}-day cut"
+
+    if kind not in fd.RUNNING_MEANS_SOMETHING:
+        when = to_date or fd.as_timestamp(props.get("fromdate"))
+        if not when:
+            return "DROP", "no date at all, so it cannot be placed in the week"
+        if fd.is_stale(when, NOW):
+            days = (NOW - datetime.fromisoformat(when)).days
+            return "DROP", f"happened {days} days ago, past the {fd.MAX_QUIET_DAYS}-day cut"
 
     magnitude, _ = fd.severity_numbers(props)
     if kind == "earthquake" and severity == "routine" \
@@ -87,39 +96,44 @@ def main():
         print(f"  {str(props.get('eventtype')):<3} {str(props.get('alertlevel')):<7} "
               f"{str(props.get('country'))[:26]:<28} {str(props.get('name'))[:34]:<36} {why}")
 
-    # --- and specifically: every earthquake, one line each --------------------
+    # --- a tally per kind, then the volcanoes and droughts in full -----------
     #
-    # None of them reach the table, and several very different things would look
-    # like that from outside: an ordinary week where GDACS graded them all Green
-    # and none reached magnitude 6, a magnitude that is never read, or a list
-    # that is simply not carrying recent quakes. One line each fits in a log
-    # tail, where a full dump of 39 events does not — and a tally of the reasons
-    # answers it outright.
-    print(f"\n{'=' * 78}\nEARTHQUAKES, newest first\n{'=' * 78}")
-    quakes = []
+    # The floods answered the Turkey question: GDACS's own list still calls it
+    # current. Italy has no flood anywhere in the list — but their RSS says
+    # "Volcanic eruption is on going for Etna in Italy", and the tally below
+    # says not one volcano survives our rules. Same shape as the earthquakes:
+    # a whole kind wiped out by a single flag. So print them in full.
+    tally = {}
     for feature in features:
         props = (feature or {}).get("properties") or {}
-        if str(props.get("eventtype") or "").strip().upper() != "EQ":
-            continue
+        kind = str(props.get("eventtype") or "?").strip().upper()
         state, why = verdict(props, feature)
-        quakes.append((str(props.get("fromdate") or ""), props, state, why))
-    quakes.sort(key=lambda q: q[0], reverse=True)
+        seen = tally.setdefault(kind, {"KEEP": 0, "DROP": 0, "why": {}})
+        seen[state] += 1
+        if state == "DROP":
+            seen["why"][why] = seen["why"].get(why, 0) + 1
+    print(f"\n{'=' * 78}\nPER KIND\n{'=' * 78}")
+    for kind, seen in sorted(tally.items()):
+        print(f"  {kind:<4} kept {seen['KEEP']:>3}   dropped {seen['DROP']:>3}")
+        for why, count in sorted(seen["why"].items(), key=lambda kv: -kv[1])[:3]:
+            print(f"           {count:>3}  {why}")
 
-    reasons = {}
-    for when, props, state, why in quakes:
-        magnitude, depth = fd.severity_numbers(props)
-        age = "?"
-        stamp = fd.as_timestamp(props.get("fromdate"))
-        if stamp:
-            age = (NOW - datetime.fromisoformat(stamp)).days
-        reasons[why or "on the map"] = reasons.get(why or "on the map", 0) + 1
-        print(f"  {state:<4} M{str(magnitude):<5} {str(props.get('alertlevel')):<7} "
-              f"{str(props.get('country'))[:22]:<24} {when[:16]:<18} {age} d ago  "
-              f"iscurrent={props.get('iscurrent')}  {why}")
-
-    print(f"\n  {len(quakes)} earthquakes seen. Why:")
-    for why, count in sorted(reasons.items(), key=lambda kv: -kv[1]):
-        print(f"      {count:>3}  {why}")
+    for wanted, label in (("VO", "VOLCANOES"), ("DR", "DROUGHTS")):
+        print(f"\n{'=' * 78}\n{label}, in full\n{'=' * 78}")
+        found = 0
+        for feature in features:
+            props = (feature or {}).get("properties") or {}
+            if str(props.get("eventtype") or "").strip().upper() != wanted:
+                continue
+            found += 1
+            state, why = verdict(props, feature)
+            print(f"  {state:<4} {str(props.get('alertlevel')):<7} "
+                  f"{str(props.get('country'))[:24]:<26} "
+                  f"{str(props.get('name'))[:40]:<42} "
+                  f"{str(props.get('fromdate'))[:10]} -> {str(props.get('todate'))[:10]}  "
+                  f"current={str(props.get('iscurrent')):<6} {why}")
+        if not found:
+            print(f"  nothing of kind {wanted} in the list at all.")
 
     print("\nDone.")
 

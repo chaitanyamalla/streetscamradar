@@ -31,3 +31,14 @@ select country_code, kind, severity, name,
   from public.disaster_alerts
  where severity in ('severe', 'notice')
  order by severity, country_code, event_id;
+
+-- Everything that is not a wildfire, whatever its grade. The wildfires are 77
+-- of the 84 rows and would push the rest out of the readable end of the log;
+-- what is left is small enough to read and is where a wrong row shows up.
+select country_code, kind, severity, name,
+       to_char(from_date, 'YYYY-MM-DD') as started,
+       to_char(to_date,   'YYYY-MM-DD') as ends,
+       to_char(refreshed_at, 'YYYY-MM-DD HH24:MI') as seen_at
+  from public.disaster_alerts
+ where kind <> 'wildfire'
+ order by kind, country_code, event_id;

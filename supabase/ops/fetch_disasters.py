@@ -55,17 +55,33 @@
 # being old would be exactly wrong. For an earthquake the two dates are the
 # same instant, so there the week is a real window.
 #
-# Earthquakes and `iscurrent`
-# ---------------------------
-# Every other kind is dropped when GDACS says iscurrent=false, which for a
-# flood or a cyclone means the agency has called it over. An earthquake is
-# never "current" for long — the shaking lasts a minute — and GDACS flips the
-# flag within a day or two, so applying it here hid every significant quake
-# almost as soon as it happened. A probe of the live list found 39 earthquakes
-# and dropped all 39: 24 for iscurrent, and 15 green ones below magnitude 6.
-# Of the 24, the most recent had happened 32 days earlier — the week's cut
-# would have removed every one of them on its own. So earthquakes are judged
-# on their date, which is the only thing about them that can be judged.
+# `iscurrent`, and the three kinds it does not fit
+# -----------------------------------------------
+# GDACS sets iscurrent=false when a situation has finished. For a flood, a
+# storm or a fire that is a real judgement by the agency running the alert,
+# and it is theirs to make. For the other three kinds it is a category error:
+#
+#   earthquake   the shaking lasts a minute
+#   volcano      an eruption is recorded at a single instant too
+#   drought      a slow condition with no end to reach; GDACS was still
+#                updating every one of them three days before this was written,
+#                and had every one flagged not current
+#
+# For all three the flag goes false while the thing is still worth knowing
+# about, and obeying it did not thin those kinds out — it removed them
+# entirely. A probe that runs these rules over the live list, one event at a
+# time, found NOT ONE survivor of any of them:
+#
+#         in the list   kept   dropped for iscurrent
+#   EQ             45      0                      24
+#   VO              6      0                       6
+#   DR              7      0                       7
+#
+# That is why the volcano and drought rows have read "None in view" everywhere
+# since the day they were added. So for these three the date is the whole of
+# the question, and the week's cut below asks it — which is strict enough on
+# its own: the newest volcano in the list erupted 26 days ago and still does
+# not get in.
 #
 # Refusing to write rubbish
 # -------------------------
@@ -109,6 +125,11 @@ MAX_QUIET_DAYS = 7
 # which is the line between "worth knowing before you travel" and "the ground
 # is never still". Below it, a Green quake is one nobody noticed.
 BIG_QUAKE = 6.0
+
+# The kinds whose `iscurrent` flag we obey — see the header. A flood, a storm
+# and a fire each have a real end, and when the agency says one has reached it,
+# that is the agency's call to make and not ours.
+RUNNING_MEANS_SOMETHING = frozenset({"flood", "cyclone", "wildfire"})
 
 # The feed carries a hundred events on an ordinary day, most of them Green. A
 # response with nothing in it at all is a broken response rather than a quiet
@@ -305,13 +326,9 @@ def rows_from(payload, now=None):
         kind = KINDS.get(str(props.get("eventtype") or "").strip().upper())
         if not kind:
             continue
-        # `iscurrent` asks whether the situation is still running, which is the
-        # right question for a flood and a category error for an earthquake:
-        # the shaking is over in a minute and GDACS flips the flag within a day
-        # or two, so this gate was quietly hiding every significant quake long
-        # before the week was up. For an earthquake the date is the whole of
-        # the question, and the window below asks it.
-        if kind != "earthquake" \
+        # See RUNNING_MEANS_SOMETHING and the header: obeyed for the three
+        # kinds that can actually finish, ignored for the three that cannot.
+        if kind in RUNNING_MEANS_SOMETHING \
                 and str(props.get("iscurrent") or "true").strip().lower() == "false":
             continue
 
@@ -329,11 +346,11 @@ def rows_from(payload, now=None):
         to_date = as_timestamp(props.get("todate"))
         if is_stale(to_date, now):
             continue
-        # With no `iscurrent` behind it, an earthquake has nothing else keeping
-        # a year-old one out: GDACS's list carries two dozen of them. A missing
-        # date is not stale for an event somebody is still updating, but an
-        # earthquake nobody dated is an earthquake we cannot place in time.
-        if kind == "earthquake":
+        # With no `iscurrent` behind them, these three have nothing else keeping
+        # a year-old one out, and GDACS's list carries plenty. A missing date is
+        # not stale for an event somebody is still updating, but an earthquake
+        # nobody dated is one we cannot place in the week at all.
+        if kind not in RUNNING_MEANS_SOMETHING:
             when = to_date or as_timestamp(props.get("fromdate"))
             if not when or is_stale(when, now):
                 continue

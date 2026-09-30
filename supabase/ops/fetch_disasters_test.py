@@ -213,7 +213,7 @@ check("Long-running cyclone" in {r["name"] for r in rows},
 app_list = payload([event("WF", "Green", f"Fire {i}", ("AU",), 700 + i) for i in range(8)])
 search_list = payload([
     event("FL", "Orange", "Flood in India", ("IN",), 1104121, todate=ago(1)),
-    event("DR", "Orange", "Drought in Kenya", ("KE",), 801),
+    event("WF", "Orange", "Fire in Kenya", ("KE",), 801),
     event("VO", "Orange", "Volcano in Italy", ("IT",), 802),
 ])
 
@@ -242,7 +242,7 @@ check(len(fd.merge([app_list, None, "not a payload"])["features"]) == 8,
       "and a list that is not a list is skipped rather than throwing")
 
 rows = fd.rows_from(fd.merge([payload(filler(40)), search_list]), now=NOW)
-check({r["name"] for r in rows} >= {"Flood in India", "Drought in Kenya", "Volcano in Italy"},
+check({r["name"] for r in rows} >= {"Flood in India", "Fire in Kenya", "Volcano in Italy"},
       "the merged list goes through the ordinary rules unchanged")
 
 # --- rubbish inside an otherwise good response ------------------------------
@@ -257,16 +257,14 @@ rows = fd.rows_from(payload(filler(40) + [
 names = {r["name"] for r in rows}
 check(names == {"Good"}, f"only the usable event survives ({sorted(names)})")
 
-# --- iscurrent, and the three kinds it does not fit -------------------------
+# --- iscurrent, and the kinds it does not fit -------------------------------
 #
-# A probe of the live list found NOT ONE survivor of three whole kinds: 0 of 45
-# earthquakes, 0 of 6 volcanoes and 0 of 7 droughts, every one of them dropped
-# for iscurrent alone. The flag is right for a flood, a storm or a fire, where
-# the agency is saying the thing has finished. It is a category error for an
-# earthquake and an eruption, which are recorded at a single instant, and for a
-# drought, which is a condition with no end to reach — GDACS was still updating
-# all seven of them three days before this was written, with all seven flagged
-# not current.
+# A probe of the live list found NOT ONE survivor of two whole kinds: 0 of 45
+# earthquakes and 0 of 6 volcanoes, every one of them dropped for iscurrent
+# alone. The flag is right for a flood, a storm or a fire, where the agency is
+# saying the thing has finished. It is a category error for an earthquake and
+# an eruption, which are recorded at a single instant. (Drought was the third,
+# and is not carried at all now — see KINDS.)
 BIG = "{'severity': 7.1, 'severitytext': 'Magnitude 7.1M, Depth:12km', 'severityunit': 'M'}"
 rows = fd.rows_from(payload(filler(40) + [
     event("EQ", "Orange", "Quake two days ago", ("ID",), 7001, current="false",
@@ -287,24 +285,38 @@ check("Quake with no date at all" not in names,
 check("Flood the agency called over" not in names,
       "and iscurrent still means what it says for a kind that can finish")
 
-# The same flag, the same week's cut, for the other two kinds it does not fit.
+# The same flag, the same week's cut, for the eruptions it does not fit either.
 rows = fd.rows_from(payload(filler(40) + [
     event("VO", "Orange", "Eruption three days ago", ("ID",), 7101, current="false",
           fromdate="2026-09-26T04:00:00", todate="2026-09-26T04:00:00"),
     event("VO", "Red", "Eruption a month ago", ("ID",), 7102, current="false",
           fromdate="2026-08-26T04:00:00", todate="2026-08-26T04:00:00"),
-    event("DR", "Orange", "Drought updated this week", ("KE",), 7103, current="false",
-          fromdate="2025-05-21T00:00:00", todate="2026-09-27T00:00:00"),
     event("TC", "Red", "Storm the agency called over", ("MX",), 7104, current="false"),
 ]), now=NOW)
 names = {r["name"] for r in rows}
 check("Eruption three days ago" in names,
       "an eruption is kept on its date too — GDACS never calls one current for long")
 check("Eruption a month ago" not in names, "and a month-old one is still too old")
-check("Drought updated this week" in names,
-      "a drought GDACS updated this week is kept, though it flags every drought not current")
 check("Storm the agency called over" not in names,
       "while a storm the agency called over is still over")
+
+
+# --- drought is not a kind we carry -----------------------------------------
+#
+# GDACS's droughts come from the Copernicus Global Drought Observatory and are
+# agricultural. One is also one event across every country it touches, so five
+# of them were 48 of the table's 51 rows.
+rows = fd.rows_from(payload(filler(40) + [
+    event("DR", "Red", "Drought updated this morning", ("KE", "SO", "ET"), 7103,
+          fromdate="2026-05-21T00:00:00", todate=ago(0.2)),
+    event("FL", "Orange", "Flood in Kenya", ("KE",), 7105),
+]), now=NOW)
+names = {r["name"] for r in rows}
+check("Drought updated this morning" not in names,
+      "a red drought GDACS updated this morning is still not stored")
+check("Flood in Kenya" in names,
+      "and dropping the kind did not take the other kinds in those countries with it")
+check(all(r["kind"] != "drought" for r in rows), "nothing reaches the table as a drought")
 
 # --- awkward values ---------------------------------------------------------
 check(fd.point_of({"geometry": {"coordinates": [2.3, 46.6]}}) == (46.6, 2.3),

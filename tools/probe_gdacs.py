@@ -27,7 +27,7 @@ import urllib.request
 SOURCE = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/EVENTS4APP"
 UA = "StreetScamRadar/1.0 (+https://streetscamradar.vercel.app)"
 KINDS = {"EQ": "earthquake", "TC": "cyclone", "FL": "flood",
-         "VO": "volcano", "DR": "drought", "WF": "wildfire"}
+         "VO": "volcano", "WF": "wildfire"}   # DR, drought, is not carried
 
 
 def get(url):

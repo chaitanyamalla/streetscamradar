@@ -894,8 +894,14 @@ create index if not exists safety_places_kind_idx on public.safety_places (kind)
 create table if not exists public.disaster_alerts (
   event_id     text    not null,          -- GDACS eventtype-eventid-episodeid
   country_code char(2) not null,
+  -- Five kinds, not six. Drought was here and is gone: GDACS's droughts come
+  -- from the Copernicus Global Drought Observatory and are AGRICULTURAL —
+  -- "Medium impact for agricultural drought in 677277 km2", measured from soil
+  -- moisture. That is a real thing to publish and not a thing a traveller can
+  -- act on, and it dwarfed everything else on the map: 48 of 51 rows on the
+  -- day it was removed, one event spread across twenty-six countries.
   kind         text    not null check (kind in
-                 ('earthquake','cyclone','flood','volcano','drought','wildfire')),
+                 ('earthquake','cyclone','flood','volcano','wildfire')),
   -- GDACS's own grading of likely humanitarian impact: Red, Orange, Green.
   -- All three are kept. Green used to be dropped on the argument that it is
   -- the routine background of a working planet — true of a magnitude 4.7 under
@@ -912,7 +918,7 @@ create table if not exists public.disaster_alerts (
   url          text,
   -- Where GDACS puts the event. What it MEANS differs by kind: a volcano and
   -- a wildfire are at the point; a cyclone is where the storm was last
-  -- placed; a flood or a drought is the centroid of everything affected,
+  -- placed; a flood is the centroid of everything affected,
   -- which is open water or empty country as often as not. The page draws all
   -- of them and says which in the popup, rather than implying a street.
   lat          double precision,
@@ -936,6 +942,16 @@ alter table public.disaster_alerts add column if not exists depth_km  numeric(6,
 alter table public.disaster_alerts drop constraint if exists disaster_alerts_severity_check;
 alter table public.disaster_alerts add constraint disaster_alerts_severity_check
   check (severity in ('severe','notice','routine'));
+
+-- Drought left after the table already existed, so the rows go before the
+-- constraint does. The other way round and the ALTER is rejected by the very
+-- rows it is meant to forbid. The refresh would have cleared them on its next
+-- run anyway — it deletes whatever it did not just write — but a schema that
+-- cannot be applied to a live database is not a schema.
+delete from public.disaster_alerts where kind = 'drought';
+alter table public.disaster_alerts drop constraint if exists disaster_alerts_kind_check;
+alter table public.disaster_alerts add constraint disaster_alerts_kind_check
+  check (kind in ('earthquake','cyclone','flood','volcano','wildfire'));
 
 create index if not exists disaster_alerts_country_idx
   on public.disaster_alerts (country_code);

@@ -550,7 +550,7 @@ export function quakePopupHTML(props) {
  *
  * The important line here is the one about the position. A marker implies "it
  * happened here", and for a volcano or a wildfire that is true. For a flood or
- * a drought GDACS gives the centre of the area affected, which can be tens of
+ * a flood GDACS gives the centre of the area affected, which can be tens of
  * kilometres from any water and is a region rather than a spot; for a cyclone
  * it is where the storm was last placed, which by definition has moved. Saying
  * so costs one line and is the difference between a marker that informs and a
@@ -561,7 +561,6 @@ const PLACEMENT = {
   wildfire: 'hazard.place.exact',
   cyclone: 'hazard.place.moving',
   flood: 'hazard.place.area',
-  drought: 'hazard.place.area',
 };
 
 export function disasterPopupHTML(props) {

@@ -419,21 +419,6 @@
 
         <div class="stat-row" id="profile-stats"></div>
 
-        <form id="name-form" class="profile-section" method="dialog">
-          <label for="profile-name" data-i18n="profile.displayName">Display name</label>
-          <div class="inline-row">
-            <input id="profile-name" maxlength="40" data-i18n-placeholder="profile.displayNamePlaceholder"
-                   placeholder="Optional — only you see this for now" />
-            <button class="ghost-button small" type="submit" data-i18n="profile.save">Save</button>
-          </div>
-        </form>
-
-        <div class="profile-section">
-          <label for="profile-lang" data-i18n="profile.language">Language</label>
-          <select id="profile-lang"></select>
-          <p class="field-hint" data-i18n="profile.languageHint">The site opens in this language wherever you sign in.</p>
-        </div>
-
         <section class="profile-section">
           <div class="section-head">
             <p class="block-title" id="reports-heading" data-i18n="profile.list.filed">Your reports</p>
@@ -447,8 +432,43 @@
         <!-- One disclosure, not two. Both of these are things you do to the
              account itself, and rarely; two collapsed rows for that was more
              furniture than the page needed. -->
+        <!-- Display name, language and theme used to sit open in the dialog
+             body, above your reports — three full-width blocks and their hints,
+             most of a phone screen, for settings somebody changes once. They
+             are in here now, with the things they belong with: this is the
+             drawer for everything you do TO the account rather than with it. -->
         <details class="profile-section disclosure" id="account-disclosure">
           <summary class="block-title" data-i18n="profile.settings">Account settings</summary>
+
+          <form id="name-form" method="dialog">
+            <label for="profile-name" data-i18n="profile.displayName">Display name</label>
+            <div class="inline-row">
+              <input id="profile-name" maxlength="40" data-i18n-placeholder="profile.displayNamePlaceholder"
+                     placeholder="Optional — only you see this for now" />
+              <button class="ghost-button small" type="submit" data-i18n="profile.save">Save</button>
+            </div>
+          </form>
+
+          <div class="settings-pair">
+            <div>
+              <label for="profile-lang" data-i18n="profile.language">Language</label>
+              <select id="profile-lang"></select>
+              <!-- Under the select it belongs to. Left at the bottom of the
+                   pair it sat beneath Theme and read as a claim about that. -->
+              <p class="field-hint" data-i18n="profile.languageHint">The site opens in this language wherever you sign in.</p>
+            </div>
+            <!-- Three choices rather than two, because following the device is
+                 a real answer and the one most people are already on. Picking
+                 Light or Dark is what overrules it. -->
+            <div>
+              <label for="profile-theme" data-i18n="profile.theme">Theme</label>
+              <select id="profile-theme">
+                <option value="system" data-i18n="theme.system">Match my device</option>
+                <option value="light" data-i18n="theme.light">Light</option>
+                <option value="dark" data-i18n="theme.dark">Dark</option>
+              </select>
+            </div>
+          </div>
 
           <form id="profile-password-form" method="dialog">
             <p class="settings-label" data-i18n="profile.changePassword">Change password</p>

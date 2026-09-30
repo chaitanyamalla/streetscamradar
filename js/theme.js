@@ -31,7 +31,20 @@ function stored() {
   }
 }
 
+function forget() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch { /* see above */ }
+}
+
 export const preferredTheme = () => stored() || fromSystem();
+
+/**
+ * What was CHOSEN, which is not the same as what is showing.
+ *
+ * 'system' means nothing is stored and the page is following the device. The
+ * header button only ever sets light or dark; the picker in the profile is
+ * where you can hand the decision back.
+ */
+export const themeChoice = () => stored() ?? 'system';
 export const currentTheme = () =>
   (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 
@@ -56,6 +69,16 @@ export function applyTheme(theme, { remember = true } = {}) {
 
 export const toggleTheme = () =>
   applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+
+/** 'system', 'light' or 'dark' — what the picker sets. */
+export function chooseTheme(choice) {
+  if (choice !== 'system') return applyTheme(choice);
+  // Handing the decision back means forgetting ours, not storing the word
+  // "system": a stored theme is what stops followSystem from acting, and
+  // whatever the device says today it may say otherwise at sunset.
+  forget();
+  return applyTheme(fromSystem(), { remember: false });
+}
 
 /**
  * Follow the system switch until the reader overrules it.

@@ -20,8 +20,8 @@ import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPa
          signInWithGoogle, signOut, enabledProviders, changePassword } from './js/auth.js';
 import { searchPlaces, suggestPlaces, describePoint, locateMe } from './js/geo.js';
 import { emergencyFor } from './js/emergency.js';
-import { preferredTheme, currentTheme, applyTheme, toggleTheme,
-         onThemeChange, followSystem } from './js/theme.js';
+import { preferredTheme, currentTheme, applyTheme, toggleTheme, chooseTheme,
+         themeChoice, onThemeChange, followSystem } from './js/theme.js';
 import { createMap, addLayers, setMapTheme, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
          setHazards, setDisasters, maplibregl } from './js/map.js';
@@ -1412,9 +1412,16 @@ function wireUI() {
   // theme change is subscribed to the change itself, so the system switch
   // flipping at sunset takes the map with it exactly as a click does.
   const themeButton = $('#theme-button');
+  const themePicker = $('#profile-theme');
   themeButton.addEventListener('click', () => toggleTheme());
+  themePicker.addEventListener('change', (e) => chooseTheme(e.target.value));
   onThemeChange((theme) => {
     themeButton.setAttribute('aria-pressed', String(theme === 'dark'));
+    // The picker shows the CHOICE, not the result: the header button sets an
+    // explicit light or dark, so using it has to move the picker off "match
+    // my device" — otherwise it would claim to be following a device it is
+    // no longer following.
+    themePicker.value = themeChoice();
     if (!layersReady) return;      // the load handler will use the right one
     // The basemap swap discards every source, layer and image, so they are
     // rebuilt and then filled again — without the redraw the new basemap
@@ -1428,6 +1435,7 @@ function wireUI() {
     });
   });
   themeButton.setAttribute('aria-pressed', String(currentTheme() === 'dark'));
+  themePicker.value = themeChoice();
 
   $('#hazard-layers').addEventListener('click', () => toggleHazardPanel());
   $('#hazard-panel-close').addEventListener('click', () => toggleHazardPanel(false));

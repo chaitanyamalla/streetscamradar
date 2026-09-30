@@ -87,39 +87,58 @@ def main():
         print(f"  {str(props.get('eventtype')):<3} {str(props.get('alertlevel')):<7} "
               f"{str(props.get('country'))[:26]:<28} {str(props.get('name'))[:34]:<36} {why}")
 
-    # --- and specifically: every earthquake, one line each --------------------
+    # --- a tally per kind, then every flood, one line each --------------------
     #
-    # None of them reach the table, and several very different things would look
-    # like that from outside: an ordinary week where GDACS graded them all Green
-    # and none reached magnitude 6, a magnitude that is never read, or a list
-    # that is simply not carrying recent quakes. One line each fits in a log
-    # tail, where a full dump of 39 events does not — and a tally of the reasons
-    # answers it outright.
-    print(f"\n{'=' * 78}\nEARTHQUAKES, newest first\n{'=' * 78}")
-    quakes = []
+    # "Our map has a flood in Turkey and gdacs.org does not, and gdacs.org has
+    # one in Italy and our map does not" is two questions about the same list,
+    # and both are answered by printing the floods rather than reasoning about
+    # them. The per-kind tally above it says whether a whole kind is missing.
+    tally = {}
     for feature in features:
         props = (feature or {}).get("properties") or {}
-        if str(props.get("eventtype") or "").strip().upper() != "EQ":
+        kind = str(props.get("eventtype") or "?").strip().upper()
+        state, _ = verdict(props, feature)
+        seen = tally.setdefault(kind, {"KEEP": 0, "DROP": 0})
+        seen[state] += 1
+    print(f"\n{'=' * 78}\nPER KIND\n{'=' * 78}")
+    for kind, seen in sorted(tally.items()):
+        print(f"  {kind:<4} kept {seen['KEEP']:>3}   dropped {seen['DROP']:>3}")
+
+    print(f"\n{'=' * 78}\nFLOODS, newest first\n{'=' * 78}")
+    floods = []
+    for feature in features:
+        props = (feature or {}).get("properties") or {}
+        if str(props.get("eventtype") or "").strip().upper() != "FL":
             continue
+        floods.append((str(props.get("fromdate") or ""), props, feature))
+    floods.sort(key=lambda f: f[0], reverse=True)
+    for when, props, feature in floods:
         state, why = verdict(props, feature)
-        quakes.append((str(props.get("fromdate") or ""), props, state, why))
-    quakes.sort(key=lambda q: q[0], reverse=True)
+        print(f"  {state:<4} {str(props.get('alertlevel')):<7} "
+              f"{str(props.get('country'))[:26]:<28} {when[:10]:<12} "
+              f"-> {str(props.get('todate'))[:10]:<12} "
+              f"iscurrent={str(props.get('iscurrent')):<6} {why}")
+    if not floods:
+        print("  GDACS's event list carries no floods at all.")
 
-    reasons = {}
-    for when, props, state, why in quakes:
-        magnitude, depth = fd.severity_numbers(props)
-        age = "?"
-        stamp = fd.as_timestamp(props.get("fromdate"))
-        if stamp:
-            age = (NOW - datetime.fromisoformat(stamp)).days
-        reasons[why or "on the map"] = reasons.get(why or "on the map", 0) + 1
-        print(f"  {state:<4} M{str(magnitude):<5} {str(props.get('alertlevel')):<7} "
-              f"{str(props.get('country'))[:22]:<24} {when[:16]:<18} {age} d ago  "
-              f"iscurrent={props.get('iscurrent')}  {why}")
-
-    print(f"\n  {len(quakes)} earthquakes seen. Why:")
-    for why, count in sorted(reasons.items(), key=lambda kv: -kv[1]):
-        print(f"      {count:>3}  {why}")
+    # --- and the two countries in question, in full ---------------------------
+    print(f"\n{'=' * 78}\nTURKEY AND ITALY, in full\n{'=' * 78}")
+    found = 0
+    for feature in features:
+        props = (feature or {}).get("properties") or {}
+        blob = (str(props.get("country")) + str(props.get("affectedcountries"))
+                + str(props.get("name")))
+        if not any(word in blob for word in
+                   ("Turkey", "T\u00fcrkiye", "'TR'", "Italy", "Italia", "'IT'")):
+            continue
+        found += 1
+        state, why = verdict(props, feature)
+        print(f"\n  {state}  {why or 'on the map'}")
+        for key in ("eventtype", "alertlevel", "name", "country", "affectedcountries",
+                    "fromdate", "todate", "iscurrent", "eventid", "episodeid"):
+            print(f"      {key:<20} = {str(props.get(key))[:100]!r}")
+    if not found:
+        print("  Nothing for either country in the list at all.")
 
     print("\nDone.")
 

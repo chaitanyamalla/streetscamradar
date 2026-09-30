@@ -85,3 +85,30 @@ export const quakeTitle = (quake) =>
     .filter(Boolean).join(' — ');
 
 export const hazardLabel = (kind) => t(`hazard.kind.${kind}`);
+
+/**
+ * A GDACS event name, short enough to read in a popup.
+ *
+ * A drought is one event across every country it touches, and GDACS names it
+ * by listing them: "Drought in Austria, Bosnia  and  Herzegovina, Belgium,
+ * Belarus, Switzerland, Czech Republic, Germany, Denmark, Spain, France,
+ * Croatia, Hungary, Ireland, Italy, …" runs to 250 characters and fills a
+ * popup with a gazetteer. The first few and a count is the same information a
+ * reader can actually take in — the same "+N" the weather chip uses when a
+ * country is being warned of six things at once, so there is no new wording to
+ * translate and no new punctuation to learn.
+ *
+ * Names with one place, and names with none at all ("Tropical Cyclone POLO-26"),
+ * come back untouched.
+ */
+export const eventName = (name, keep = 3) => {
+  // GDACS's own strings carry doubled spaces around "and". Whatever we do with
+  // the list, the text has to survive being read.
+  const text = String(name ?? '').replace(/\s+/g, ' ').trim();
+  const at = text.indexOf(' in ');
+  if (at < 0) return text;
+
+  const places = text.slice(at + 4).split(',').map(part => part.trim()).filter(Boolean);
+  if (places.length <= keep) return text;
+  return `${text.slice(0, at + 4)}${places.slice(0, keep).join(', ')} +${places.length - keep}`;
+};

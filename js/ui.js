@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 import { PIN_COLOR } from './config.js';
 import { hazardSignSVG } from './hazard-signs.js';
-import { runningDays } from './hazards.js';
+import { runningDays, eventName } from './hazards.js';
 import { t, tn, plural, tOr, formatDate } from './i18n.js';
 import { STRINGS as ADVISORY, officialUrl, countryTitle, levelLabel, levelExplain,
          emergencyLine, contextLine } from './advisory.js';
@@ -581,7 +581,7 @@ export function disasterPopupHTML(props) {
         hazardSignSVG(kind, { size: 26, grade: props.severity })}</span>
       <div>
         <p class="popup-kicker">${esc(t(`hazard.kind.${kind}`))}</p>
-        <p class="popup-title">${esc(props.name ?? '')}</p>
+        <p class="popup-title">${esc(eventName(props.name))}</p>
       </div>
     </div>
     ${gradeLine(props.severity)}

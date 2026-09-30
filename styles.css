@@ -717,6 +717,13 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 .ghost-button.is-danger:disabled { opacity:.5; cursor:not-allowed; }
 .ghost-button.is-danger:disabled:hover { background:none; color:var(--danger); }
 .profile-section .block-title { margin:0 0 10px; }
+/* Language and theme side by side: two short selects that each took a full
+   row, and neither needs one. Falls back to stacking where there is no room. */
+.settings-pair { display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:start; }
+.settings-pair .field-hint { margin-top:6px; }
+.settings-pair select { width:100%; }
+@media (max-width: 420px) { .settings-pair { grid-template-columns:1fr; gap:0; } }
+
 .inline-row { display:flex; gap:8px; align-items:stretch; }
 .inline-row input { flex:1; min-width:0; }
 .inline-row .ghost-button { flex:none; margin-top:6px; }

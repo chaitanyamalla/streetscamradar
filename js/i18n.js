@@ -18,20 +18,35 @@
 // demand, so a French reader never downloads Polish. English being present
 // from the first line of script means t() can never return a bare key, even
 // if something asks for a string before the chosen language has loaded.
+//
+// Only the languages in LANGUAGES below are served. A reader whose browser
+// asks for one that is muted, or who chose one here before it was muted, gets
+// English — never a half-translated page and never a stored code the rest of
+// the module does not recognise.
 // ---------------------------------------------------------------------------
 
 import en from './locales/en.js';
 
+// The languages we SERVE. Everything downstream reads this one list: the
+// picker is built from it, the browser's preference is matched against it, a
+// stored choice outside it is ignored, and an account asking for one outside
+// it is refused (isSupported, below).
+//
+// Seven of the nine are muted while this is a prototype — English and German
+// only, deliberately, so there is one language to get right and one to prove
+// the translation machinery on. The files under js/locales are untouched and
+// still checked by the locale test on every run, so they cannot rot while they
+// are switched off. Serving Spanish again is deleting two slashes.
 export const LANGUAGES = [
   { code: 'en', label: 'English' },
   { code: 'de', label: 'Deutsch' },
-  { code: 'es', label: 'Español' },
-  { code: 'fr', label: 'Français' },
-  { code: 'it', label: 'Italiano' },
-  { code: 'pt', label: 'Português' },
-  { code: 'nl', label: 'Nederlands' },
-  { code: 'cs', label: 'Čeština' },
-  { code: 'pl', label: 'Polski' },
+  // { code: 'es', label: 'Español' },
+  // { code: 'fr', label: 'Français' },
+  // { code: 'it', label: 'Italiano' },
+  // { code: 'pt', label: 'Português' },
+  // { code: 'nl', label: 'Nederlands' },
+  // { code: 'cs', label: 'Čeština' },
+  // { code: 'pl', label: 'Polski' },
 ];
 
 const CODES = LANGUAGES.map(l => l.code);

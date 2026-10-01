@@ -798,9 +798,15 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 .fine-print { margin:16px 0 0; color:var(--muted); font-size:11px; line-height:1.6; }
 
 /* --- Map popups ---------------------------------------------------------- */
+/* Background and colour are set here on purpose. MapLibre's own stylesheet
+   paints this element white with black text, and we were only overriding the
+   padding, radius and shadow — so in the dark theme every popup opened as a
+   white card over a dark map. It is ours to colour, not the library's. */
 .maplibregl-popup-content { padding:14px 15px; border-radius:var(--radius);
-  box-shadow:0 14px 38px rgba(16,29,38,.22); font-family:Manrope,Arial,sans-serif; }
-.maplibregl-popup-tip { display:none; }
+  background:var(--surface); color:var(--ink);
+  border:1px solid var(--line-strong);
+  box-shadow:var(--shadow); font-family:Manrope,Arial,sans-serif; }
+.maplibregl-popup-tip { display:none; }   /* we draw no tip, so no colour to fix */
 .maplibregl-popup-close-button { top:4px; right:6px; width:28px; height:28px;
   border-radius:4px; color:var(--muted); font-size:19px; background:none; }
 .maplibregl-popup-close-button:hover { background:var(--paper); color:var(--ink); }

@@ -494,6 +494,65 @@ with (security_invoker = false) as
 revoke all on public.reports_feed from anon;
 grant select on public.reports_feed to authenticated;
 
+-- The reports you have confirmed, however old they are.
+--
+-- reports_feed cannot answer this. Its WHERE clause keeps somebody else's
+-- report only while it is inside the week, so a report you confirmed nine days
+-- ago drops out of the view — while the row in report_supports stays forever.
+-- That is why the profile could say "2 you have confirmed" and then list none
+-- of them: the counter was reading the supports and the list was reading the
+-- feed, and the two were answering different questions.
+--
+-- A function rather than widening the view, because this is a different
+-- question with a different rule. The view says what is CURRENT; this says
+-- what YOU vouched for. Widening the view would have let every member read
+-- any aged-out report they had once tapped, through every query that uses it.
+--
+-- SECURITY DEFINER, so it needs no grants on reports, and scoped to auth.uid()
+-- on the inside: the caller cannot ask for anybody else's confirmations.
+-- reporter_id is dropped here exactly as the view drops it.
+drop function if exists public.my_confirmed_reports();
+create or replace function public.my_confirmed_reports()
+returns table (
+  id uuid, category text, impacts text[], headline text, description text,
+  lat double precision, lng double precision, address text, city text,
+  country_code char(2), happened_at timestamptz, created_at timestamptz,
+  support_count int, flag_count int, is_mine boolean
+) language sql security definer set search_path = public stable as $$
+  select r.id, r.category, r.impacts, r.headline, r.description,
+         r.lat, r.lng, r.address, r.city, r.country_code,
+         r.happened_at, r.created_at,
+         r.support_count, r.flag_count,
+         (r.reporter_id = auth.uid()) as is_mine
+    from public.reports r
+    join public.report_supports s on s.report_id = r.id
+   where s.user_id = auth.uid()
+     and r.status = 'published'
+   order by r.happened_at desc;
+$$;
+
+revoke all on function public.my_confirmed_reports() from anon;
+grant execute on function public.my_confirmed_reports() to authenticated;
+
+-- How many of them there are, counted over EXACTLY the rows the list returns.
+--
+-- The tile used to count report_supports directly, which includes supports on
+-- reports that have since been removed — so the number could be larger than
+-- the list by rows nobody can show. Counting the same join closes that off by
+-- construction rather than by anyone remembering to keep two queries in step.
+drop function if exists public.my_confirmation_count();
+create or replace function public.my_confirmation_count()
+returns int language sql security definer set search_path = public stable as $$
+  select count(*)::int
+    from public.report_supports s
+    join public.reports r on r.id = s.report_id
+   where s.user_id = auth.uid()
+     and r.status = 'published';
+$$;
+
+revoke all on function public.my_confirmation_count() from anon;
+grant execute on function public.my_confirmation_count() to authenticated;
+
 -- Withdraw your own report. SECURITY DEFINER so it needs no table grants.
 create or replace function public.delete_my_report(p_report_id uuid)
 returns boolean language plpgsql security definer set search_path = public as $$

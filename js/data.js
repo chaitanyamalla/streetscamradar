@@ -236,30 +236,29 @@ export async function deleteMyAccount() {
  *  that has aged off the map is gone for everyone but its author. */
 export async function myConfirmedReports() {
   need();
-  const { data: supports, error } = await supabase
-    .from('report_supports').select('report_id');
+  // One call, and NOT through reports_feed. That view keeps somebody else's
+  // report only while it is inside the week, so this used to collect the right
+  // ids from report_supports and then lose half of them on the way back — the
+  // tile said two and the list showed none. my_confirmed_reports() asks the
+  // question the tile is counting. See supabase/schema.sql.
+  const { data, error } = await supabase.rpc('my_confirmed_reports');
   if (error) throw error;
-  const ids = (supports ?? []).map(s => s.report_id);
-  if (!ids.length) return [];
-
-  const { data, error: err2 } = await supabase
-    .from('reports_feed')
-    .select('id,category,impacts,headline,description,lat,lng,address,city,country_code,happened_at,created_at,support_count,flag_count,is_mine')
-    .in('id', ids)
-    .order('happened_at', { ascending: false });
-  if (err2) throw err2;
   return data ?? [];
 }
 
-/** How many other people's reports you have confirmed. RLS limits the rows
- *  here to your own, so no filter is needed — or possible. */
+/**
+ * How many other people's reports you have confirmed.
+ *
+ * Counted over exactly the rows myConfirmedReports() returns, by the same
+ * join, so the tile and the list it opens cannot disagree. Counting
+ * report_supports directly included supports on reports that have since been
+ * removed, which is a number with nothing behind it.
+ */
 export async function myConfirmationCount() {
   need();
-  const { count, error } = await supabase
-    .from('report_supports')
-    .select('report_id', { count: 'exact', head: true });
+  const { data, error } = await supabase.rpc('my_confirmation_count');
   if (error) throw error;
-  return count ?? 0;
+  return Number(data) || 0;
 }
 
 export async function saveHomeArea({ label, lat, lng }) {

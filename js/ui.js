@@ -343,9 +343,14 @@ export function renderProfileReports(host, reports, categories, windowDays,
 
     // Somebody else's report you confirmed: the only thing that is yours here
     // is the confirmation, so that is the only thing you can take back.
+    //
+    // It carries the same on-the-map line and the same dulling as your own,
+    // because the question a reader has is the same one — is this still up? —
+    // and a list where half the rows answer it and half do not is a list that
+    // looks broken.
     if (!mine) {
       return `
-      <article class="profile-report" data-report="${id}">
+      <article class="profile-report${live ? '' : ' is-expired'}" data-report="${id}">
         <span class="report-glyph" aria-hidden="true">${esc(cat?.glyph ?? '⚠')}</span>
         <div class="report-copy">
           <button type="button" class="report-open" data-show="${id}">${esc(r.headline)}</button>
@@ -353,6 +358,12 @@ export function renderProfileReports(host, reports, categories, windowDays,
             ${r.city ? esc(r.city) + ' · ' : ''}${esc(categoryLabel(cat, r.category))} · ${timeAgo(r.happened_at)}
           </span>
           ${impactTags(r.impacts)}
+          <span class="profile-status">
+            <span class="${live ? 'is-live' : 'is-gone'}">${esc(live
+              ? plural('profile.onMap', daysLeft)
+              : t('profile.offMap', { days: windowDays }))}</span>
+            ${confirms ? `<span class="is-confirms">${esc(t('profile.confirms', { n: confirms }))}</span>` : ''}
+          </span>
           <div class="report-actions">
             <button class="chip-action" data-unconfirm="${id}">${esc(t('profile.unconfirm'))}</button>
           </div>

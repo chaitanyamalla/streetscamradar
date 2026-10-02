@@ -347,6 +347,7 @@ export default {
   'weather.alsoHere.one': '{n} autre alerte de ce type se trouve sur ce point — ouvrez la pastille pour toutes les voir.',
   'weather.alsoHere.other': '{n} autres alertes de ce type se trouvent sur ce point — ouvrez la pastille pour toutes les voir.',
   'weather.fanned': 'Légèrement écarté des autres alertes situées au même point, pour que chacune reste ouvrable.',
+  'weather.onMeteoalarm': 'Voir sur MeteoAlarm',
   'weather.source': 'Émis par {who}',
   'weather.source.meteoalarm': 'Émis par {who}, via MeteoAlarm',
   'advisory.chipName': 'Conseils aux voyageurs',

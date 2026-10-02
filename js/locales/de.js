@@ -347,6 +347,7 @@ export default {
   'weather.alsoHere.one': '{n} weitere Warnung dieser Art liegt auf diesem Punkt — alle im Chip oben.',
   'weather.alsoHere.other': '{n} weitere Warnungen dieser Art liegen auf diesem Punkt — alle im Chip oben.',
   'weather.fanned': 'Etwas von anderen Warnungen am selben Punkt abgerückt, damit jede anklickbar bleibt.',
+  'weather.onMeteoalarm': 'Auf MeteoAlarm ansehen',
   'weather.source': 'Herausgegeben von {who}',
   'weather.source.meteoalarm': 'Herausgegeben von {who}, über MeteoAlarm',
   'advisory.chipName': 'Reisehinweise',

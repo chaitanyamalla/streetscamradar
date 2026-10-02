@@ -367,6 +367,7 @@ export default {
   'weather.alsoHere.one': '{n} andere waarschuwing van dit soort ligt op dit punt — open de chip voor alle.',
   'weather.alsoHere.other': '{n} andere waarschuwingen van dit soort liggen op dit punt — open de chip voor alle.',
   'weather.fanned': 'Iets uit elkaar gezet van andere waarschuwingen op hetzelfde punt, zodat elk te openen is.',
+  'weather.onMeteoalarm': 'Bekijk op MeteoAlarm',
   'weather.source': 'Uitgegeven door {who}',
   'weather.source.meteoalarm': 'Uitgegeven door {who}, via MeteoAlarm',
   'advisory.chipName': 'Reisadvies',

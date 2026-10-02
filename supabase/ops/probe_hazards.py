@@ -525,6 +525,22 @@ def probe_official_links(sample=("spain", "greece", "portugal", "germany",
         for link, n in shown:
             print(f"                 x{n:<4} {link[:88]}")
 
+    # The page is linked in the reader's language, so the language segment has to
+    # be one MeteoAlarm actually serves. Italy's feed proves /en/ and /it/; the
+    # rest is a question, and the site is a single-page app that returns the same
+    # shell for every path, so a 200 alone proves nothing. What distinguishes a
+    # real language is the shell carrying that language's own words.
+    print("\n  WHICH LANGUAGE SEGMENTS METEOALARM SERVES")
+    for lang, word in (("en", "warning"), ("de", "warnung"), ("it", "allerta"),
+                       ("fr", "vigilance"), ("es", "aviso"), ("nl", "waarschuwing"),
+                       ("pt", "aviso"), ("pl", "ostrzeż"), ("cs", "výstrah"),
+                       ("zz", "warning")):
+        status, _h, body = fetch(f"https://meteoalarm.org/{lang}/live/region/ES")
+        lowered = (body or "").lower()
+        has = word in lowered
+        print(f"    /{lang}/  {status}  {len(body or ''):>7} bytes  "
+              f"{'carries ' + word if has else 'NO ' + word}")
+
     print("\n  DOES METEOALARM HAVE A PAGE PER COUNTRY")
     for pattern in METEOALARM_PAGES:
         url = pattern.format("spain") if "{}" in pattern else pattern

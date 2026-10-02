@@ -365,6 +365,7 @@ export default {
   'weather.alsoHere.one': '{n} more warning of this kind sits on this point — open the chip for all of them.',
   'weather.alsoHere.other': '{n} more warnings of this kind sit on this point — open the chip for all of them.',
   'weather.fanned': 'Nudged a little apart from other warnings on the same point, so each can be opened.',
+  'weather.onMeteoalarm': 'See it on MeteoAlarm',
   'weather.source': 'Issued by {who}',
   'weather.source.meteoalarm': 'Issued by {who}, via MeteoAlarm',
   'advisory.chipName': 'Travel advisory',

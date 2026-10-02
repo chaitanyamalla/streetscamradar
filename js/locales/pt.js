@@ -368,6 +368,7 @@ export default {
   'weather.alsoHere.one': '{n} outro aviso deste tipo está neste ponto — abra o selo para os ver todos.',
   'weather.alsoHere.other': '{n} outros avisos deste tipo estão neste ponto — abra o selo para os ver todos.',
   'weather.fanned': 'Afastado um pouco de outros avisos no mesmo ponto, para que cada um possa ser aberto.',
+  'weather.onMeteoalarm': 'Ver no MeteoAlarm',
   'weather.source': 'Emitido por {who}',
   'weather.source.meteoalarm': 'Emitido por {who}, via MeteoAlarm',
   'advisory.chipName': 'Conselhos de viagem',

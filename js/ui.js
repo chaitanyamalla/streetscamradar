@@ -5,7 +5,7 @@
 import { PIN_COLOR, METEOALARM_COUNTRIES } from './config.js';
 import { hazardSignSVG } from './hazard-signs.js';
 import { runningDays, stillRunning, eventName, isUpcoming } from './hazards.js';
-import { t, tn, plural, tOr, formatDate } from './i18n.js';
+import { t, tn, plural, tOr, formatDate, currentLanguage } from './i18n.js';
 import { STRINGS as ADVISORY, officialUrl, countryTitle, levelLabel, levelExplain,
          emergencyLine, contextLine } from './advisory.js';
 
@@ -625,6 +625,36 @@ export function disasterPopupHTML(props) {
 }
 
 /**
+ * MeteoAlarm's own page for a country, in the reader's language.
+ *
+ * Why this exists. The popup used to offer one link: CAP's <web>, whatever the
+ * issuing service put there. Across the live feeds that is anything from a real
+ * warnings page — dwd.de/warnungen, met.ie/warnings, knmi.nl/waarschuwingen —
+ * to a bare front door. Greece sends "https://www.emy.gr" on every one of its
+ * warnings, so clicking a Greek rain warning opened a Greek weather homepage
+ * with no sign of the warning you clicked.
+ *
+ * MeteoAlarm shows the same warning on a map, in the reader's language, the same
+ * way for all thirty-eight countries. So that becomes the first link and the
+ * service's own page stays as the second, named, because it is still the
+ * authority and for half of them it is the better page.
+ *
+ * The URL shape is not guessed. Italy's own CAP feed publishes
+ * "https://meteoalarm.org/en/live/region/IT?s=valle" — a national met service
+ * using MeteoAlarm's URL, with the ISO code and a language segment in it. That
+ * is as authoritative as a URL shape gets.
+ */
+const METEOALARM_LANGS = new Set(['en', 'de']);
+
+export function meteoalarmUrl(code) {
+  const country = String(code ?? '').trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(country)) return null;
+  const spoken = String(currentLanguage() ?? 'en').slice(0, 2).toLowerCase();
+  const lang = METEOALARM_LANGS.has(spoken) ? spoken : 'en';
+  return `https://meteoalarm.org/${lang}/live/region/${country}`;
+}
+
+/**
  * When a weather warning applies, in one line.
  *
  * Three situations, and they are genuinely different things to tell somebody:
@@ -670,6 +700,32 @@ export function warningCredit(rows) {
  * lie with a precision attached. The popup says which, in words, and the areas
  * are named underneath either way.
  */
+/**
+ * The two ways out of a weather popup, in the order they are useful.
+ *
+ * MeteoAlarm first: one page, the reader's language, the warning drawn on a map,
+ * and the same for every country. The issuing service second, named, because it
+ * is the authority and because for several of them — the DWD, the KNMI, AEMET —
+ * it is a better page than MeteoAlarm's. Named rather than called "official
+ * details", so a reader can see where each one goes before clicking.
+ */
+function weatherLinks(props) {
+  const meteoalarm = meteoalarmUrl(props.country_code);
+  const service = String(props.source ?? '').trim();
+  const links = [];
+  if (meteoalarm) {
+    links.push(`<a class="popup-action is-primary" href="${esc(meteoalarm)}"
+      target="_blank" rel="noopener noreferrer">${esc(t('weather.onMeteoalarm'))}</a>`);
+  }
+  if (props.url) {
+    // The service's own name on the button. "Official details" told a reader
+    // nothing about which of two official places they were about to go to.
+    links.push(`<a class="popup-action" href="${esc(props.url)}"
+      target="_blank" rel="noopener noreferrer">${esc(service || t('hazard.official'))}</a>`);
+  }
+  return links.length ? `<div class="popup-actions">${links.join('')}</div>` : '';
+}
+
 export function weatherPopupHTML(props) {
   const kind = String(props.kind ?? 'wind');
   const when = warningWhen(props);
@@ -695,10 +751,7 @@ export function weatherPopupHTML(props) {
       : ''}
     ${props.fanned === true || props.fanned === 'true'
       ? `<p class="popup-fine">${esc(t('weather.fanned'))}</p>` : ''}
-    ${props.url ? `<div class="popup-actions">
-      <a class="popup-action is-primary" href="${esc(props.url)}"
-         target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>
-    </div>` : ''}
+    ${weatherLinks(props)}
     <p class="popup-meta">${esc(when)}${when ? ' \u00b7 ' : ''}${esc(
       warningCredit([props]))}</p>
     <p class="popup-fine">${esc(t('hazard.notAlert'))}</p>`;
@@ -757,8 +810,20 @@ export function weatherDialogHTML(rows) {
         <p class="disaster-kind">${esc(t(`hazard.kind.${row.kind}`))}</p>
         <p class="disaster-name">${esc(rest > 0 ? `${shown} +${rest}` : shown)}</p>
         ${when ? `<p class="disaster-when">${esc(when)}</p>` : ''}
-        ${row.url ? `<a class="disaster-link" href="${esc(row.url)}"
-             target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>` : ''}
+        ${(() => {
+          const meteoalarm = meteoalarmUrl(row.country_code);
+          const out = [];
+          if (meteoalarm) {
+            out.push(`<a class="disaster-link" href="${esc(meteoalarm)}"
+               target="_blank" rel="noopener noreferrer">${esc(t('weather.onMeteoalarm'))}</a>`);
+          }
+          if (row.url) {
+            out.push(`<a class="disaster-link is-quiet" href="${esc(row.url)}"
+               target="_blank" rel="noopener noreferrer">${esc(
+                 String(row.source ?? '').trim() || t('hazard.official'))}</a>`);
+          }
+          return out.join(' ');
+        })()}
       </div>`;
   }).join('');
 

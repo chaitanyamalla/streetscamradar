@@ -445,6 +445,11 @@ em { font-style:italic; }
 .disaster-when { margin-top:3px; color:var(--muted); font:11px/1.5 'DM Mono',monospace; }
 .disaster-link { display:inline-block; margin-top:6px; color:var(--brand);
   font-size:12px; font-weight:700; }
+/* The second link in a row — the issuing service's own page. Quieter than the
+   first because MeteoAlarm is the one that always works and always speaks the
+   reader's language; this one is the authority behind it. */
+.disaster-link.is-quiet { margin-left:12px; color:var(--muted); font-weight:600; }
+.disaster-link.is-quiet:hover { color:var(--brand); }
 /* A weather warning that has not started yet. Held back rather than greyed:
    grey means "this is over" everywhere else here, and a red wind warning for
    Friday morning is the opposite of over — it is the one you can still act on.

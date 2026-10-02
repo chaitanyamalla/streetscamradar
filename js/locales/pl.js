@@ -352,6 +352,7 @@ export default {
   'weather.alsoHere.one': 'W tym punkcie jest {n} kolejne ostrzeżenie tego rodzaju — wszystkie w plakietce.',
   'weather.alsoHere.other': 'W tym punkcie jest {n} kolejnych ostrzeżeń tego rodzaju — wszystkie w plakietce.',
   'weather.fanned': 'Odsunięte nieco od innych ostrzeżeń w tym samym punkcie, by każde dało się otworzyć.',
+  'weather.onMeteoalarm': 'Zobacz na MeteoAlarm',
   'weather.source': 'Wydane przez {who}',
   'weather.source.meteoalarm': 'Wydane przez {who}, przez MeteoAlarm',
   'advisory.chipName': 'Porady dla podróżnych',

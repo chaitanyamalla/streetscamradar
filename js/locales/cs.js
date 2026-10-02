@@ -352,6 +352,7 @@ export default {
   'weather.alsoHere.one': 'Na tomto bodě je {n} další výstraha tohoto druhu — všechny najdete v odznaku.',
   'weather.alsoHere.other': 'Na tomto bodě je {n} dalších výstrah tohoto druhu — všechny najdete v odznaku.',
   'weather.fanned': 'Mírně odsunuto od dalších výstrah na stejném bodě, aby šla každá otevřít.',
+  'weather.onMeteoalarm': 'Zobrazit na MeteoAlarm',
   'weather.source': 'Vydal {who}',
   'weather.source.meteoalarm': 'Vydal {who}, přes MeteoAlarm',
   'advisory.chipName': 'Cestovní doporučení',

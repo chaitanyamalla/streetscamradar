@@ -182,8 +182,17 @@ check(sql.count("begin;") == 1 and sql.count("commit;") == 1, "the refresh is on
 check("Donegal''s coast" in sql, "an apostrophe is escaped, not injected")
 check("on conflict (warning_id, country_code) do update set" in sql,
       "an existing warning is updated in place")
-check("delete from public.weather_warnings where refreshed_at < now();" in sql,
+check("refreshed_at < now();" in sql and "country_code in (" in sql,
       "whatever MeteoAlarm stopped publishing is deleted")
+# The bug this guards: the table has two writers now. NOAA writes the United
+# States and runs after this step, so an unscoped delete here removed every US
+# row on every refresh and they only came back because the next step happened to
+# succeed. A generator deletes what it wrote and nothing else.
+stale = sql[sql.index("refreshed_at < now();") - 400:sql.index("refreshed_at < now();")]
+check("'ES'" in stale and "'DE'" in stale,
+      "and the delete names MeteoAlarm's own countries")
+check("'US'" not in stale,
+      "and never touches a row another generator wrote")
 check("to_date < now()" in sql,
       "and so is a warning that has simply run out, which weather warnings do")
 check(sql.index("insert into") < sql.index("delete from"),
@@ -195,6 +204,63 @@ with redirect_stdout(buffer):
 empty = buffer.getvalue()
 check("insert into" not in empty and "delete from" in empty,
       "a calm afternoon still clears the table rather than leaving yesterday's warnings up")
+
+# --- where a warning is, when the feed says ---------------------------------
+# Eight of the thirty-eight countries send a CAP <polygon>; the rest send region
+# codes only. The trap is the coordinate order: CAP writes "lat,lon" and GeoJSON
+# wants "lon,lat", so reading the pairs the wrong way round puts a warning for
+# the Gulf of Finland in Somalia.
+GULF = ("58.9909,23.0513 58.9858,22.8864 59.3382,22.8386 59.4833,23.1917")
+
+lat, lng = fw.centre_of({"polygon": [GULF]})
+check(lat is not None, "an area with a polygon gets a position")
+check(55 < lat < 61 and 20 < lng < 26,
+      f"and it is in the Gulf of Finland, not in Somalia ({lat}, {lng})")
+check(lat > lng, "latitude is read first, as CAP writes it")
+
+check(fw.centre_of({"polygon": GULF})[0] is not None,
+      "a polygon sent as a bare string rather than a list is read too")
+check(fw.centre_of({"areaDesc": "Somewhere"}) == (None, None),
+      "an area with no polygon is no position — most of Europe is this")
+check(fw.centre_of({"polygon": []}) == (None, None), "an empty polygon list too")
+check(fw.centre_of({"polygon": ["nonsense here"]}) == (None, None),
+      "and nonsense is no position rather than a crash")
+check(fw.centre_of({"polygon": ["999,999 998,998"]}) == (None, None),
+      "coordinates off the Earth are refused")
+check(fw.centre_of(None) == (None, None), "and so is no area at all")
+
+# A warning over six provinces takes the first NAMED area's shape, not the
+# average of all six — the average can be somewhere the warning does not apply.
+first = fw.position_of({"area": [
+    {"areaDesc": "No shape here"},
+    {"areaDesc": "Gulf", "polygon": [GULF]},
+]})
+check(first[0] is not None, "the first area that has a shape is the one used")
+check(fw.position_of({"area": [{"areaDesc": "Nowhere"}]}) == (None, None),
+      "and a warning where no area has a shape has no position, not a guess")
+check(fw.position_of({}) == (None, None), "nor does one with no areas at all")
+
+# The whole point: it reaches the SQL.
+buffer = io.StringIO()
+with redirect_stdout(buffer):
+    fw.emit_sql([{"warning_id": "x", "country_code": "EE", "kind": "wind",
+                  "severity": "severe", "areas": "Gulf", "from_date": None,
+                  "to_date": None, "source": "Riigi Ilmateenistus", "url": None,
+                  "lat": 59.2, "lng": 23.0}])
+placed_sql = buffer.getvalue()
+check("59.2" in placed_sql and "23.0" in placed_sql,
+      "a position reaches the insert")
+check("lat = excluded.lat" in placed_sql,
+      "and a position that moved is updated with the rest")
+
+buffer = io.StringIO()
+with redirect_stdout(buffer):
+    fw.emit_sql([{"warning_id": "y", "country_code": "ES", "kind": "wind",
+                  "severity": "severe", "areas": "Litoral de Barcelona",
+                  "from_date": None, "to_date": None, "source": "AEMET",
+                  "url": None, "lat": None, "lng": None}])
+check("null" in buffer.getvalue(),
+      "and a warning with no position writes null, not a zero off West Africa")
 
 # --- the country list -------------------------------------------------------
 check(len(fw.COUNTRIES) == len(set(fw.COUNTRIES.values())),

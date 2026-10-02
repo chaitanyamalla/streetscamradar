@@ -380,6 +380,60 @@ def probe_meteoalarm_geometry():
     print(f"      {busy[:20]}")
 
 
+# Where MeteoAlarm's own region shapes might be published. Thirty of its
+# thirty-eight countries send a region CODE and no shape, Spain among them, so
+# drawing Spain means resolving EMMA_ID (e.g. ES418) to a point. MeteoAlarm
+# defines those regions, so it may publish them; NUTS2 and NUTS3 are Eurostat's
+# and are certainly published.
+#
+# Guesses, every one of them, which is exactly why they are probed rather than
+# coded against. Whichever answers with geodata is the one to build on; if none
+# does, Europe outside the eight polygon countries cannot be drawn from what we
+# can reach, and the chip stays the honest answer there.
+REGION_SOURCES = {
+    "MeteoAlarm regions (api v1)": "https://feeds.meteoalarm.org/api/v1/regions",
+    "MeteoAlarm regions (feeds)": "https://feeds.meteoalarm.org/regions",
+    "MeteoAlarm areas (api v1)": "https://feeds.meteoalarm.org/api/v1/areas",
+    "MeteoAlarm emma regions": "https://feeds.meteoalarm.org/api/v1/emma-regions",
+    "MeteoAlarm site regions": "https://www.meteoalarm.org/api/v1/regions",
+    "Eurostat NUTS 2021 (level 3)":
+        "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/"
+        "NUTS_LB_2021_4326_LEVL_3.geojson",
+    "Eurostat NUTS 2021 (level 2)":
+        "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/"
+        "NUTS_LB_2021_4326_LEVL_2.geojson",
+}
+
+
+def probe_region_shapes():
+    """Could Spain ever get a marker, and from where?
+
+    Spain sends 200 orange-and-red warnings and not one shape — only EMMA_ID
+    codes. A marker for Spain therefore needs a code-to-point table built once,
+    offline, from somebody's published region geometry. This asks who publishes
+    any, and says what came back.
+
+    NUTS_LB_* are Eurostat's "label points" — one point per region rather than a
+    whole boundary, which is exactly what a marker needs and a fraction of the
+    size. They would cover France, Bulgaria, Romania and Hungary, which send
+    NUTS3 or NUTS2. They would NOT cover Spain, which uses EMMA_ID.
+    """
+    print(f"\n{'=' * 72}\nCOULD THE REST OF EUROPE BE DRAWN — who publishes region shapes\n{'=' * 72}")
+    for name, url in REGION_SOURCES.items():
+        status, headers, body = fetch(url)
+        kind = headers.get("content-type", "—") if headers else "—"
+        size = len(body or "")
+        print(f"  {name}")
+        print(f"    {status}  {kind}  {size} bytes")
+        if status == 200 and size:
+            head = (body or "")[:200].replace("\n", " ")
+            print(f"    starts: {head}")
+            # Does it mention the identifiers we would need to join on?
+            for marker in ("EMMA_ID", "emma_id", "NUTS_ID", "nuts_id", "FeatureCollection"):
+                if marker in (body or ""):
+                    print(f"    contains {marker!r}")
+
+
 def main():
     print("Probing the hazard sources. Nothing is written.")
     everything = {}
@@ -388,6 +442,7 @@ def main():
     probe_meteoalarm()
     probe_meteoalarm_detail()
     probe_meteoalarm_geometry()
+    probe_region_shapes()
 
     print(f"\n{'=' * 72}\nHOW CROWDED WOULD THE MAP GET\n{'=' * 72}")
     print(f"  A city view here is +/-{CITY_BOX} degrees, about a city and its suburbs.")

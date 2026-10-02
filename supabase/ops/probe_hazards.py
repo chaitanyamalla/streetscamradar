@@ -295,6 +295,89 @@ def probe_meteoalarm_detail():
         print(f"    did not answer      : {failures}")
 
 
+def probe_meteoalarm_geometry():
+    """Can a MeteoAlarm warning be put on the map at all?
+
+    The question came from a reader: Spain has 44 live warnings and not one
+    marker, while the United States has 91. NOAA sends a polygon with most of
+    its serious alerts; the fetcher only ever reads `areaDesc` out of
+    MeteoAlarm, and nobody has checked whether there is more in there.
+
+    CAP allows three ways to say where an area is — <polygon>, <circle> and
+    <geocode> — so this counts all three across every country, and prints the
+    geocode naming schemes it finds. A scheme like EMMA_ID is a published region
+    code we could resolve to a point once, offline; a polygon we could use
+    directly. If all three come back empty everywhere, then Europe genuinely
+    cannot be drawn from this feed and the chip is the honest answer.
+    """
+    print(f"\n{'=' * 72}\nMETEOALARM — is there anything to put on a map\n{'=' * 72}")
+
+    polygons = circles = areas_total = with_any = 0
+    schemes, samples, per_country = {}, [], {}
+    for slug in METEO_COUNTRIES:
+        status, _headers, body = fetch(METEO_FEED.format(slug))
+        if status != 200:
+            continue
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            continue
+        warnings = payload.get("warnings") if isinstance(payload, dict) else None
+        if not isinstance(warnings, list):
+            continue
+
+        placed = 0
+        for warning in warnings:
+            alert = (warning or {}).get("alert") or {}
+            for info in alert.get("info") or []:
+                for area in info.get("area") or []:
+                    if not isinstance(area, dict):
+                        continue
+                    areas_total += 1
+                    has = False
+                    if area.get("polygon"):
+                        polygons += 1
+                        has = True
+                        if len(samples) < 2:
+                            samples.append((slug, "polygon",
+                                            str(area["polygon"])[:160]))
+                    if area.get("circle"):
+                        circles += 1
+                        has = True
+                        if len(samples) < 4:
+                            samples.append((slug, "circle", str(area["circle"])[:160]))
+                    for code in area.get("geocode") or []:
+                        if not isinstance(code, dict):
+                            continue
+                        name = str(code.get("valueName") or "?")
+                        schemes[name] = schemes.get(name, 0) + 1
+                        has = True
+                        if len(samples) < 8:
+                            samples.append((slug, f"geocode {name}",
+                                            str(code.get("value"))[:80]))
+                    if has:
+                        with_any += 1
+                        placed += 1
+        if placed:
+            per_country[slug] = placed
+
+    for slug, what, value in samples:
+        print(f"  {slug:<18} {what:<18} {value}")
+
+    print("\n  SUMMARY")
+    print(f"    area blocks seen        : {areas_total}")
+    print(f"    with <polygon>          : {polygons}")
+    print(f"    with <circle>           : {circles}")
+    print(f"    with any geometry/code  : {with_any}")
+    print(f"    geocode schemes         : {schemes}")
+    print(f"    countries with any      : {dict(list(per_country.items())[:12])}")
+    if not polygons and not circles and not schemes:
+        print("    -> nothing to place a marker with. The chip is the honest answer.")
+    elif schemes and not polygons:
+        print("    -> no shapes, but there ARE region codes: resolvable to points")
+        print("       ONCE, offline, into a lookup table the fetcher reads.")
+
+
 def main():
     print("Probing the hazard sources. Nothing is written.")
     everything = {}
@@ -302,6 +385,7 @@ def main():
         everything[name] = report(name, url)
     probe_meteoalarm()
     probe_meteoalarm_detail()
+    probe_meteoalarm_geometry()
 
     print(f"\n{'=' * 72}\nHOW CROWDED WOULD THE MAP GET\n{'=' * 72}")
     print(f"  A city view here is +/-{CITY_BOX} degrees, about a city and its suburbs.")

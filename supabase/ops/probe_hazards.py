@@ -295,6 +295,145 @@ def probe_meteoalarm_detail():
         print(f"    did not answer      : {failures}")
 
 
+def probe_meteoalarm_geometry():
+    """Can a MeteoAlarm warning be put on the map, and for which countries?
+
+    The question came from a reader: Spain has 44 live orange-and-red warnings
+    and not one marker, while the United States has 91. The fetcher only ever
+    read `areaDesc`, and the first pass of this probe showed that was a mistake
+    — 4,790 of 32,313 area blocks DO carry a <polygon>, and every single block
+    carries at least one geocode (EMMA_ID mostly, with NUTS2 and NUTS3).
+
+    So the question is no longer "is there anything" but "what, where, and in
+    what format". This prints, per country: how many area blocks it sends, how
+    many have a polygon, and which geocode schemes it uses — plus a real polygon
+    string, because CAP writes them "lat,lon lat,lon ..." which is the opposite
+    order from GeoJSON and getting it backwards puts Madrid in the Indian Ocean.
+    """
+    print(f"\n{'=' * 72}\nMETEOALARM — what can be put on a map, by country\n{'=' * 72}")
+
+    rows, polygon_samples, schemes_seen = [], [], {}
+    for slug in METEO_COUNTRIES:
+        status, _headers, body = fetch(METEO_FEED.format(slug))
+        if status != 200:
+            continue
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            continue
+        warnings = payload.get("warnings") if isinstance(payload, dict) else None
+        if not isinstance(warnings, list):
+            continue
+
+        blocks = polys = 0
+        schemes = {}
+        serious = 0
+        for warning in warnings:
+            alert = (warning or {}).get("alert") or {}
+            for info in alert.get("info") or []:
+                params = cap_parameters(info)
+                level = params.get("awareness_level", "").lower()
+                # Only the two grades we actually store. A country whose
+                # polygons are all on green warnings would be no use to us.
+                if "orange" in level or "red" in level:
+                    serious += 1
+                for area in info.get("area") or []:
+                    if not isinstance(area, dict):
+                        continue
+                    blocks += 1
+                    if area.get("polygon"):
+                        polys += 1
+                        if len(polygon_samples) < 3:
+                            polygon_samples.append(
+                                (slug, str(area.get("areaDesc"))[:30],
+                                 str(area["polygon"])[:150]))
+                    for code in area.get("geocode") or []:
+                        if isinstance(code, dict):
+                            name = str(code.get("valueName") or "?")
+                            schemes[name] = schemes.get(name, 0) + 1
+                            schemes_seen.setdefault(name, str(code.get("value"))[:24])
+        rows.append((slug, blocks, polys, serious, schemes))
+
+    print("  A REAL POLYGON, so the format is not guessed at:")
+    for slug, where, poly in polygon_samples:
+        print(f"    {slug} / {where}")
+        print(f"      {poly}")
+    if not polygon_samples:
+        print("    none sent one")
+
+    print("\n  WHAT EACH GEOCODE SCHEME LOOKS LIKE:")
+    for name, example in sorted(schemes_seen.items()):
+        print(f"    {name:<12} e.g. {example}")
+
+    print(f"\n  {'country':<20}{'areas':>7}{'polygons':>10}{'orange+red':>12}  schemes")
+    for slug, blocks, polys, serious, schemes in sorted(rows, key=lambda r: -r[2]):
+        names = ",".join(sorted(schemes)) or "—"
+        print(f"  {slug:<20}{blocks:>7}{polys:>10}{serious:>12}  {names}")
+
+    # The line that decides what to build. Counted over the countries that have
+    # warnings we would actually store.
+    drawable = sum(1 for _s, _b, p, serious, _c in rows if p and serious)
+    busy = [s for s, _b, p, serious, _c in rows if serious and not p]
+    print(f"\n  SUMMARY")
+    print(f"    countries sending polygons AND serious warnings : {drawable}")
+    print(f"    countries with serious warnings but NO polygon  : {len(busy)}")
+    print(f"      {busy[:20]}")
+
+
+# Where MeteoAlarm's own region shapes might be published. Thirty of its
+# thirty-eight countries send a region CODE and no shape, Spain among them, so
+# drawing Spain means resolving EMMA_ID (e.g. ES418) to a point. MeteoAlarm
+# defines those regions, so it may publish them; NUTS2 and NUTS3 are Eurostat's
+# and are certainly published.
+#
+# Guesses, every one of them, which is exactly why they are probed rather than
+# coded against. Whichever answers with geodata is the one to build on; if none
+# does, Europe outside the eight polygon countries cannot be drawn from what we
+# can reach, and the chip stays the honest answer there.
+REGION_SOURCES = {
+    "MeteoAlarm regions (api v1)": "https://feeds.meteoalarm.org/api/v1/regions",
+    "MeteoAlarm regions (feeds)": "https://feeds.meteoalarm.org/regions",
+    "MeteoAlarm areas (api v1)": "https://feeds.meteoalarm.org/api/v1/areas",
+    "MeteoAlarm emma regions": "https://feeds.meteoalarm.org/api/v1/emma-regions",
+    "MeteoAlarm site regions": "https://www.meteoalarm.org/api/v1/regions",
+    "Eurostat NUTS 2021 (level 3)":
+        "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/"
+        "NUTS_LB_2021_4326_LEVL_3.geojson",
+    "Eurostat NUTS 2021 (level 2)":
+        "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/"
+        "NUTS_LB_2021_4326_LEVL_2.geojson",
+}
+
+
+def probe_region_shapes():
+    """Could Spain ever get a marker, and from where?
+
+    Spain sends 200 orange-and-red warnings and not one shape — only EMMA_ID
+    codes. A marker for Spain therefore needs a code-to-point table built once,
+    offline, from somebody's published region geometry. This asks who publishes
+    any, and says what came back.
+
+    NUTS_LB_* are Eurostat's "label points" — one point per region rather than a
+    whole boundary, which is exactly what a marker needs and a fraction of the
+    size. They would cover France, Bulgaria, Romania and Hungary, which send
+    NUTS3 or NUTS2. They would NOT cover Spain, which uses EMMA_ID.
+    """
+    print(f"\n{'=' * 72}\nCOULD THE REST OF EUROPE BE DRAWN — who publishes region shapes\n{'=' * 72}")
+    for name, url in REGION_SOURCES.items():
+        status, headers, body = fetch(url)
+        kind = headers.get("content-type", "—") if headers else "—"
+        size = len(body or "")
+        print(f"  {name}")
+        print(f"    {status}  {kind}  {size} bytes")
+        if status == 200 and size:
+            head = (body or "")[:200].replace("\n", " ")
+            print(f"    starts: {head}")
+            # Does it mention the identifiers we would need to join on?
+            for marker in ("EMMA_ID", "emma_id", "NUTS_ID", "nuts_id", "FeatureCollection"):
+                if marker in (body or ""):
+                    print(f"    contains {marker!r}")
+
+
 def main():
     print("Probing the hazard sources. Nothing is written.")
     everything = {}
@@ -302,6 +441,8 @@ def main():
         everything[name] = report(name, url)
     probe_meteoalarm()
     probe_meteoalarm_detail()
+    probe_meteoalarm_geometry()
+    probe_region_shapes()
 
     print(f"\n{'=' * 72}\nHOW CROWDED WOULD THE MAP GET\n{'=' * 72}")
     print(f"  A city view here is +/-{CITY_BOX} degrees, about a city and its suburbs.")

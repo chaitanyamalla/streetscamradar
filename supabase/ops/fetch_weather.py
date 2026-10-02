@@ -22,6 +22,14 @@
 # where to read it — facts about the warning — and the text stays with the
 # service that wrote it, in their words and current. One row per CAP alert.
 #
+# A position, for the eight countries that send one. CAP allows a <polygon> in
+# each area block and eight of the thirty-eight fill it: Israel, Latvia, Ukraine,
+# Estonia, Norway, Sweden, Iceland and the United Kingdom. Those get a marker on
+# the map. The other thirty send region codes only — EMMA_ID, NUTS2, NUTS3,
+# WARNCELLID — and Spain, France, Germany, Greece, Ireland and Portugal are among
+# them, so they stay chip-only until those codes can be resolved to points.
+# Measured from the live feeds, not assumed; see probe_hazards.py.
+#
 # What leaves, and when
 # ---------------------
 # Whatever MeteoAlarm stops publishing, plus anything whose own expiry has
@@ -185,6 +193,63 @@ def areas_of(info):
     return names
 
 
+# How CAP writes a shape, and the trap in it: "lat,lon lat,lon ...", which is
+# the OPPOSITE order from GeoJSON. Read the pairs the wrong way round and a
+# warning for the Gulf of Finland lands in Somalia.
+#
+# Only eight of the thirty-eight countries send one at all — Israel, Latvia,
+# Ukraine, Estonia, Norway, Sweden, Iceland and the United Kingdom, measured
+# rather than assumed. Spain, France, Germany, Greece, Ireland and Portugal send
+# region codes only, so they stay chip-only until we have a way to resolve those
+# codes to points. A country that sends nothing is not a country we guess about.
+def centre_of(area):
+    """The middle of an area's polygon, where CAP gave one, else (None, None).
+
+    The mean of the first ring's vertices rather than a true centroid: these are
+    warning regions a few tens of kilometres across, the difference is small
+    against the size of the thing being described, and the marker is a "a
+    warning covers here" rather than a survey mark. The popup says as much.
+    """
+    if not isinstance(area, dict):
+        return None, None
+    shapes = area.get("polygon")
+    if isinstance(shapes, str):
+        shapes = [shapes]
+    if not isinstance(shapes, list) or not shapes:
+        return None, None
+
+    points = []
+    for pair in str(shapes[0] or "").split():
+        bits = pair.split(",")
+        if len(bits) < 2:
+            continue
+        try:
+            lat, lng = float(bits[0]), float(bits[1])
+        except ValueError:
+            continue
+        if -90 <= lat <= 90 and -180 <= lng <= 180:
+            points.append((lat, lng))
+    if not points:
+        return None, None
+    return (round(sum(p[0] for p in points) / len(points), 4),
+            round(sum(p[1] for p in points) / len(points), 4))
+
+
+def position_of(info):
+    """Where to draw a warning: the first area that came with a shape.
+
+    The first rather than an average of all of them. A warning covering six
+    provinces averages to a point in the middle of the six, which is somewhere
+    the warning may not even apply; one of the named areas is a place the
+    warning is genuinely about.
+    """
+    for area in info.get("area") or []:
+        lat, lng = centre_of(area)
+        if lat is not None:
+            return lat, lng
+    return None, None
+
+
 def rows_from(payloads):
     """Every warning worth storing, from {country_code: payload}.
 
@@ -244,6 +309,9 @@ def rows_from(payloads):
                 "to_date": as_timestamp(info.get("expires")),
                 "source": source[:120], "url": url,
             }
+            lat, lng = position_of(info)
+            rows[(identifier, code)]["lat"] = lat
+            rows[(identifier, code)]["lng"] = lng
 
     return sorted(rows.values(), key=lambda r: (r["country_code"], r["warning_id"]))
 
@@ -254,18 +322,23 @@ def sql_str(value):
     return "'" + str(value).replace("'", "''") + "'"
 
 
+def sql_num(value):
+    return "null" if value is None else str(value)
+
+
 def emit_sql(rows):
     columns = ("warning_id", "country_code", "kind", "severity", "areas",
-               "from_date", "to_date", "source", "url")
+               "from_date", "to_date", "source", "url", "lat", "lng")
     print(f"-- {len(rows)} orange/red weather warnings from MeteoAlarm")
     print("begin;")
 
     if rows:
         values = [
-            "  ({}, {}, {}, {}, {}, {}, {}, {}, {}, now())".format(
+            "  ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, now())".format(
                 sql_str(r["warning_id"]), sql_str(r["country_code"]), sql_str(r["kind"]),
                 sql_str(r["severity"]), sql_str(r["areas"]), sql_str(r["from_date"]),
-                sql_str(r["to_date"]), sql_str(r["source"]), sql_str(r["url"]))
+                sql_str(r["to_date"]), sql_str(r["source"]), sql_str(r["url"]),
+                sql_num(r.get("lat")), sql_num(r.get("lng")))
             for r in rows
         ]
         for start in range(0, len(values), INSERT_BATCH):
@@ -276,13 +349,22 @@ def emit_sql(rows):
                   "kind = excluded.kind, severity = excluded.severity, "
                   "areas = excluded.areas, from_date = excluded.from_date, "
                   "to_date = excluded.to_date, source = excluded.source, "
-                  "url = excluded.url, refreshed_at = now();")
+                  "url = excluded.url, lat = excluded.lat, lng = excluded.lng, "
+                  "refreshed_at = now();")
 
     # Zero orange or red warnings across Europe is a real and welcome state of
     # the weather, unlike an interface returning nothing, so this runs even
     # when there is nothing to insert. now() is the transaction's start time
     # and does not move, so every row this run touched carries exactly it.
-    print("delete from public.weather_warnings where refreshed_at < now();")
+    #
+    # SCOPED TO MeteoAlarm's OWN COUNTRIES, which it was not when this table had
+    # only one writer. NOAA now writes the United States into the same table and
+    # runs after this step: an unscoped delete here removed every US row on every
+    # single refresh, and they only came back because the next step happened to
+    # succeed. A generator deletes what it wrote and nothing else.
+    print("delete from public.weather_warnings where country_code in ({}) "
+          "and refreshed_at < now();"
+          .format(", ".join(sql_str(c) for c in sorted(set(COUNTRIES.values())))))
 
     # A warning that has run out has run out, whatever the feed still lists.
     print("delete from public.weather_warnings where to_date is not null "

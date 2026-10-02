@@ -1078,18 +1078,27 @@ create table if not exists public.weather_warnings (
   source       text    not null,          -- e.g. "Deutscher Wetterdienst"
   url          text,
   -- Where to put a marker, when the feed said. Nullable on purpose and most
-  -- rows are null: MeteoAlarm names regions and never gives a shape, and only
-  -- 103 of 361 live NWS alerts carried a polygon inline — the rest point at
-  -- forecast zones by URL. A row without a position is still a real warning
-  -- and still reaches the chip and the list; it just has nowhere to be drawn.
+  -- rows are null, for two different reasons:
+  --
+  --   NOAA sends a polygon with most of its serious alerts and a URL to a
+  --   forecast zone with the rest. 91 of 114 live US rows had a position.
+  --
+  --   MeteoAlarm lets each service choose. Eight of the thirty-eight fill in a
+  --   CAP <polygon> — Israel, Latvia, Ukraine, Estonia, Norway, Sweden, Iceland,
+  --   the United Kingdom. The other thirty send region codes only (EMMA_ID,
+  --   NUTS2, NUTS3, WARNCELLID), and Spain, France, Germany, Greece, Ireland and
+  --   Portugal are among them, so those are chip-only until the codes can be
+  --   resolved to points.
+  --
+  -- A row without a position is still a real warning and still reaches the chip
+  -- and the list; it just has nowhere to be drawn.
   lat          double precision check (lat between -90 and 90),
   lng          double precision check (lng between -180 and 180),
   refreshed_at timestamptz not null default now(),
   primary key (warning_id, country_code)
 );
 
--- Existing installs: the table shipped without a position, because MeteoAlarm
--- has none to give. NWS does, for a third of its alerts.
+-- Existing installs: the table shipped without a position at all.
 alter table public.weather_warnings
   add column if not exists lat double precision,
   add column if not exists lng double precision;

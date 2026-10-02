@@ -364,6 +364,7 @@ export default {
   'weather.placeCountry': 'Marked on the country, not on the area: the warning names a region we could not place exactly.',
   'weather.alsoHere.one': '{n} more warning of this kind sits on this point — open the chip for all of them.',
   'weather.alsoHere.other': '{n} more warnings of this kind sit on this point — open the chip for all of them.',
+  'weather.fanned': 'Nudged a little apart from other warnings on the same point, so each can be opened.',
   'weather.source': 'Issued by {who}',
   'weather.source.meteoalarm': 'Issued by {who}, via MeteoAlarm',
   'advisory.chipName': 'Travel advisory',

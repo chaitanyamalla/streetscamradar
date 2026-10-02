@@ -1077,22 +1077,20 @@ create table if not exists public.weather_warnings (
   to_date      timestamptz,
   source       text    not null,          -- e.g. "Deutscher Wetterdienst"
   url          text,
-  -- Where to put a marker. Nullable, and filled from whichever of two things
-  -- the feed gave us:
+  -- Where to put a marker, from whichever of two things we have:
   --
   --   A CAP <polygon>, which eight of the thirty-eight services send — Israel,
   --   Latvia, Ukraine, Estonia, Norway, Sweden, Iceland, the United Kingdom.
   --   Its centre is the marker, and that is the best answer available.
   --
-  --   Otherwise the area's NAME, looked up once and remembered in
-  --   public.weather_areas. The other thirty services send region codes we have
-  --   no geometry for (EMMA_ID, NUTS2, NUTS3, WARNCELLID) but they all name the
-  --   area in words — "Litoral de Barcelona", "Bayern" — and a name resolves to
-  --   a place.
+  --   Otherwise the middle of the country, from public.weather_places. The other
+  --   thirty send a region code we have no geometry for, and their area names
+  --   are weather zones rather than places, so the country is as close as this
+  --   gets. place_kind says which of the two it was and the popup repeats it.
   --
-  -- Null only while an area is waiting to be resolved, or when nothing could
-  -- place it. Such a row is still a real warning: it reaches the chip and the
-  -- list as before, it simply has no marker yet.
+  -- Null only until the country has been looked up. Such a row is still a real
+  -- warning: it reaches the chip and the list as before, it simply has no
+  -- marker yet.
   lat          double precision check (lat between -90 and 90),
   lng          double precision check (lng between -180 and 180),
   refreshed_at timestamptz not null default now(),
@@ -1104,62 +1102,50 @@ alter table public.weather_warnings
   add column if not exists lat double precision,
   add column if not exists lng double precision;
 
--- A warning names ONE area we position it on, kept apart from the human-readable
--- list in `areas` so the lookup has something exact to join to. The first area
--- the service named, not an average of all of them: a warning covering six
--- provinces averages to a point that may be in none of them.
-alter table public.weather_warnings
-  add column if not exists area_key text;
-
--- Whether that position is the area itself or only the country it is in. The
--- popup says which, because "marked at the centre of the area warned" is a lie
--- when the marker is on the middle of Spain.
+-- Whether a warning's position is the service's own shape or only the country
+-- it is in. The popup says which, because "marked at the centre of the area
+-- warned" is a lie when the marker is on the middle of Spain.
 alter table public.weather_warnings
   add column if not exists place_kind text;
 
+-- Dropped. It held the one area name a warning was positioned on, for a lookup
+-- that tried to place "Litoral de Barcelona" and "East Sterea & Evvoia". Those
+-- are weather zones rather than places: 28 of 30 could not be matched and fell
+-- back to the country anyway, so the country is the answer and the column has
+-- nothing to join.
+alter table public.weather_warnings drop column if exists area_key;
+
 -- ---------------------------------------------------------------------------
--- Where a met service's area names are, looked up once and remembered.
+-- Where each country is, so its warnings can be drawn on it.
 --
--- Thirty of MeteoAlarm's thirty-eight services send no geometry at all — only a
--- region code we have no shapes for (EMMA_ID, NUTS2, NUTS3, WARNCELLID). But
--- every one of them names the area in words: "Litoral de Barcelona", "Bayern",
--- "Drenthe". A name can be looked up, and that is what this table holds.
+-- One row per country, thirty-eight in all, looked up once and then never
+-- again — a country does not move. This is deliberately the whole of it: the
+-- earlier version held a row per AREA NAME and three rules to stop a geocoder
+-- answering with Brazil, and it earned 2 matches in 30 because met services name
+-- weather zones rather than places.
 --
--- ONE ROW PER NAME, FOR EVER. A few hundred names cover all of Europe and they
--- change about as often as provinces do, so the geocoder is asked a few hundred
--- times in total rather than on every refresh. A name that resolved badly is a
--- row somebody can correct by hand, and the correction sticks.
+-- We are not a met service. A traveller wants to know that Spain has a red wind
+-- warning out and where to read it; the marker is a pointer to the chip, not a
+-- survey mark.
 --
--- area_name = '' is the country itself, which is the fallback when a name
--- cannot be placed: better a marker on Spain, said to be on Spain, than no
--- marker or a marker on the wrong hill.
---
--- WHY THE CHECKS ON THE RESOLVER MATTER, measured rather than imagined. Asking
--- a geocoder for these names without constraining it put 6 of 30 in the wrong
--- COUNTRY: Guarda (Portugal) in Italy, Portalegre (Portugal) in Brazil, Drenthe
--- (Netherlands) in the United States, Flevoland matched to a "Fleseland" in
--- Norway. Several more landed in the wrong town inside the right country —
--- "Évora" matched "Évora de Alcobaça". See resolve_weather_areas.py for the
--- three rules that followed from that, and its test for those exact cases.
+-- A service that sends a real shape still beats this. Eight of the thirty-eight
+-- put a CAP polygon in their warnings, those are drawn where the service put
+-- them, and the update that uses this table skips them.
 --
 -- Written only by the refresh workflow, which connects as the database owner.
--- Not readable by the page: it joins server-side, and a list of place names is
--- not something a visitor needs.
+-- Not readable by the page: it joins server-side.
 -- ---------------------------------------------------------------------------
-create table if not exists public.weather_areas (
-  country_code char(2) not null,
-  area_name    text    not null,          -- '' is the country itself
+drop table if exists public.weather_areas;
+
+create table if not exists public.weather_places (
+  country_code char(2) primary key,
   lat          double precision check (lat between -90 and 90),
   lng          double precision check (lng between -180 and 180),
-  -- 'area'    the geocoder named this exact place, inside the right country
-  -- 'country' nothing matched, so this is the middle of the country
-  matched      text not null check (matched in ('area', 'country')),
-  resolved_at  timestamptz not null default now(),
-  primary key (country_code, area_name)
+  resolved_at  timestamptz not null default now()
 );
 
-alter table public.weather_areas enable row level security;
-revoke all on table public.weather_areas from anon, authenticated;
+alter table public.weather_places enable row level security;
+revoke all on table public.weather_places from anon, authenticated;
 
 -- NOAA's National Weather Service wrote here for a day and was removed. Its
 -- feed is mostly marine advisories and county flood warnings; on a world travel

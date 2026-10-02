@@ -48,6 +48,22 @@ select count(*) filter (where from_date > now()) as not_yet_started,
   from public.weather_warnings
  where to_date is null or to_date >= now();
 
+-- How many warnings are sharing one point, and where. Every area name a country
+-- could not place lands on that country's middle, so a country with twenty
+-- unplaceable zone names has twenty markers on one pixel. The map fans them out
+-- to be clickable, but a number above about eight here means the lookup is
+-- doing badly for that country rather than the map doing badly.
+select country_code, lat, lng,
+       count(*) as warnings_on_this_point,
+       count(distinct kind) as kinds_on_it,
+       max(place_kind) as placed_by
+  from public.weather_warnings
+ where lat is not null and (to_date is null or to_date >= now())
+ group by country_code, lat, lng
+having count(*) > 1
+ order by 4 desc
+ limit 12;
+
 -- Rows that have expired but are still sitting in the table. The refresh
 -- deletes them, so a number above zero means it has not run since they ended.
 select count(*) as expired_still_stored

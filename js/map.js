@@ -486,6 +486,9 @@ export const toWeatherFeatures = (rows) => ({
         // How many more warnings of this kind share this exact point. Several
         // do whenever the point is a country's middle, which is most of them.
         also: Number(w.also ?? 0),
+        // Moved a little off its point so the others sharing it can be seen and
+        // clicked. The popup says so; nothing should read the exact spot.
+        fanned: Boolean(w.fanned),
         // Worked out here rather than in a style expression, for the same
         // reason `ended` is on the disasters: comparing a date to now needs a
         // clock, and a layer expression has none.

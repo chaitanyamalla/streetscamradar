@@ -212,21 +212,29 @@ const SIGNS = {
   ] },
 
   // Not a warning at all: the met service has nothing out for this country, and
-  // the chip says so with a sun rather than by disappearing. The only glyph here
-  // that means "fine" — which is why it is the one warm colour on the list and
-  // the one with no edge of threat in its shape. Eight rays and a disc, the way
-  // every child draws it, because this one has to be read instantly and without
-  // thought.
-  clear: { color: '#e0a21c', parts: [
-    { d: circle(12, 14.2, 3.0) },
-    { d: 'M12 8.3v2.0', stroke: 1.5 },
-    { d: 'M12 18.1v2.0', stroke: 1.5 },
-    { d: 'M6.1 14.2h2.0', stroke: 1.5 },
-    { d: 'M15.9 14.2h2.0', stroke: 1.5 },
-    { d: 'M7.9 10.1l1.4 1.4', stroke: 1.4 },
-    { d: 'M14.7 16.9l1.4 1.4', stroke: 1.4 },
-    { d: 'M16.1 10.1l-1.4 1.4', stroke: 1.4 },
-    { d: 'M9.3 16.9l-1.4 1.4', stroke: 1.4 },
+  // the chip says so with a sun rather than by disappearing.
+  //
+  // Drawn after the emoji a reader already has in mind for it — a bold warm
+  // disc with a face and eight spiked rays — rather than the thin line-art sun
+  // this started as. It is the only glyph here that means "fine", so it is the
+  // one that should be unmistakable at a glance and from across the chip.
+  //
+  // The face is three marks and no more. At sixteen pixels in the legend
+  // anything finer turns to mush, and two dots and a curve is what reads as a
+  // face at any size.
+  clear: { color: '#f0a81d', parts: [
+    // Eight spikes as one filled star, so they taper like the emoji's rather
+    // than ending flat the way a stroked line does. Worked out with a compass
+    // rather than by hand: sixteen points alternating between two radii, every
+    // 22.5°, because an eight-pointed star drawn by eye is visibly lopsided and
+    // this one is.
+    { d: 'M12.0 7.0 L13.49 10.6 L17.09 9.11 L15.6 12.71 L19.2 14.2 L15.6 15.69 L17.09 19.29 L13.49 17.8 L12.0 21.4 L10.51 17.8 L6.91 19.29 L8.4 15.69 L4.8 14.2 L8.4 12.71 L6.91 9.11 L10.51 10.6Z' },
+    { d: circle(12, 14.2, 4.15) },
+    // The face, cut out of the disc in white the way a window is left out of a
+    // building elsewhere in this file.
+    { d: circle(10.6, 13.4, .62), on: true },
+    { d: circle(13.4, 13.4, .62), on: true },
+    { d: 'M10.3 15.8q1.7 1.5 3.4 0', stroke: .85, on: true },
   ] },
 
   // Anything an agency starts publishing that we have not drawn yet. A sign

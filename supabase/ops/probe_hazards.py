@@ -471,6 +471,90 @@ def probe_area_names():
     print("    mode that matters and the reason to filter by country code.")
 
 
+# Where a reader is sent to read the warning itself. Each national service fills
+# CAP's <web> with whatever it likes, and MeteoAlarm has pages of its own; which
+# of the two is more use to a traveller is the question, and it is answerable.
+METEOALARM_PAGES = (
+    "https://meteoalarm.org/en/live/region/{}",
+    "https://www.meteoalarm.org/en/live/region/{}",
+    "https://meteoalarm.org/en/live/{}",
+    "https://meteoalarm.org/en/live/",
+)
+
+
+def probe_official_links(sample=("spain", "greece", "portugal", "germany",
+                                 "france", "italy", "netherlands", "ireland")):
+    """What "Official details" actually opens, and whether there is a better one.
+
+    The popup links to CAP's <web>, which is the issuing service's own choice. A
+    reader clicking it on a Greek rain warning lands whereever the Hellenic
+    service points, which may be the warning, may be a homepage, and will be in
+    Greek. MeteoAlarm shows the same warning on a European map in English.
+
+    So: collect the distinct <web> per country and look at them, then see
+    whether MeteoAlarm has a per-country page that answers at all. Neither half
+    is a guess once this has run.
+    """
+    print(f"\n{'=' * 72}\nWHERE 'OFFICIAL DETAILS' SENDS A READER\n{'=' * 72}")
+
+    print("  WHAT EACH SERVICE PUTS IN CAP's <web>")
+    for slug in sample:
+        status, _h, body = fetch(METEO_FEED.format(slug))
+        if status != 200:
+            print(f"  {slug:<14} feed said {status}")
+            continue
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            continue
+        links, deep = {}, 0
+        for warning in (payload.get("warnings") or []):
+            alert = (warning or {}).get("alert") or {}
+            for info in alert.get("info") or []:
+                web = str(info.get("web") or "").strip()
+                if not web:
+                    continue
+                links[web] = links.get(web, 0) + 1
+                # A link with a path beyond "/" is at least pointing somewhere
+                # inside the site; a bare domain is a front page.
+                rest = urllib.parse.urlparse(web).path.strip("/")
+                if rest:
+                    deep += 1
+        shown = sorted(links.items(), key=lambda kv: -kv[1])[:3]
+        print(f"  {slug:<14} {len(links)} distinct link(s), {deep} with a path")
+        for link, n in shown:
+            print(f"                 x{n:<4} {link[:88]}")
+
+    # The page is linked in the reader's language, so the language segment has to
+    # be one MeteoAlarm actually serves. Italy's feed proves /en/ and /it/; the
+    # rest is a question, and the site is a single-page app that returns the same
+    # shell for every path, so a 200 alone proves nothing. What distinguishes a
+    # real language is the shell carrying that language's own words.
+    print("\n  WHICH LANGUAGE SEGMENTS METEOALARM SERVES")
+    for lang, word in (("en", "warning"), ("de", "warnung"), ("it", "allerta"),
+                       ("fr", "vigilance"), ("es", "aviso"), ("nl", "waarschuwing"),
+                       ("pt", "aviso"), ("pl", "ostrzeż"), ("cs", "výstrah"),
+                       ("zz", "warning")):
+        status, _h, body = fetch(f"https://meteoalarm.org/{lang}/live/region/ES")
+        lowered = (body or "").lower()
+        has = word in lowered
+        print(f"    /{lang}/  {status}  {len(body or ''):>7} bytes  "
+              f"{'carries ' + word if has else 'NO ' + word}")
+
+    print("\n  DOES METEOALARM HAVE A PAGE PER COUNTRY")
+    for pattern in METEOALARM_PAGES:
+        url = pattern.format("spain") if "{}" in pattern else pattern
+        status, headers, body = fetch(url)
+        kind = headers.get("content-type", "—") if headers else "—"
+        hint = ""
+        if status == 200 and body:
+            lowered = body.lower()
+            for marker in ("spain", "espa", "awareness", "warning"):
+                if marker in lowered:
+                    hint += f" has {marker!r}"
+        print(f"    {status}  {len(body or ''):>7} bytes  {kind[:24]:<24} {url}{hint}")
+
+
 def main():
     print("Probing the hazard sources. Nothing is written.")
     everything = {}
@@ -480,6 +564,7 @@ def main():
     probe_meteoalarm_detail()
     probe_meteoalarm_geometry()
     probe_area_names()
+    probe_official_links()
 
     print(f"\n{'=' * 72}\nHOW CROWDED WOULD THE MAP GET\n{'=' * 72}")
     print(f"  A city view here is +/-{CITY_BOX} degrees, about a city and its suburbs.")

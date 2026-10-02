@@ -844,10 +844,88 @@ function paintWeatherMarkers() {
       byPoint.set(key, kept);
     }
   }
-  const rows = [...byPoint.values()];
-  state.weatherMarkers = rows;
-  setWeather(map, rows);
+  state.weatherMarkers = fanOut([...byPoint.values()]);
+  setWeather(map, state.weatherMarkers);
   countWeatherLegend();
+}
+
+// How far apart two markers sharing a point are drawn, in screen pixels between
+// centres. A weather tile is about 24px across at mid zoom, so this is roughly
+// one tile's width of daylight: enough to see there are several and to hit the
+// one you meant, without throwing them so far they look like separate places.
+const FAN_PIXELS = 30;
+
+// Past this many on one point, a ring stops being readable and becomes a
+// necklace. The rest go on a second ring further out.
+const FAN_RING = 8;
+
+/**
+ * Separate the markers that share a point.
+ *
+ * Greece is the case this was reported for: every area name its service sends is
+ * a weather zone — "East Sterea & Evvoia" — and none of them is a place a
+ * geocoder knows, so every one falls back to the middle of Greece and five kinds
+ * of warning arrive on the same pixel. Collapsing identical kinds was not
+ * enough, because the ones left are all different.
+ *
+ * They are fanned around the point they share rather than hidden behind each
+ * other. Three things make that honest rather than a fudge:
+ *
+ *   The point was never exact. These are the ones the lookup could only place on
+ *   their country; the popup says so, and a marker 30px off the middle of Greece
+ *   is no less true than one exactly on it.
+ *
+ *   The spread is in SCREEN pixels, not degrees. It is worked out from the
+ *   current zoom, so the fan looks the same whether you are looking at Europe or
+ *   at Athens, and the markers stay over the country rather than sliding into
+ *   the sea as you zoom out.
+ *
+ *   Nothing moves that did not have to. A marker alone on its point is left
+ *   exactly where it is, which is every marker a service gave real geometry for.
+ */
+function fanOut(rows) {
+  const shared = new Map();
+  for (const row of rows) {
+    const key = `${row.lat},${row.lng}`;
+    if (!shared.has(key)) shared.set(key, []);
+    shared.get(key).push(row);
+  }
+
+  const zoom = map.getZoom?.() ?? 5;
+  const out = [];
+  for (const group of shared.values()) {
+    if (group.length === 1) { out.push(group[0]); continue; }
+
+    // Web Mercator metres per pixel, then into degrees. Latitude first because
+    // a degree of longitude shrinks towards the poles and Norway would
+    // otherwise fan twice as wide as Cyprus.
+    const lat = group[0].lat;
+    const metresPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / 2 ** zoom;
+    const dLat = (FAN_PIXELS * metresPerPixel) / 111320;
+    const dLng = dLat / Math.max(Math.cos(lat * Math.PI / 180), 0.2);
+
+    // Worst first, so the one that matters takes the top of the ring where the
+    // eye lands, rather than wherever the table happened to order it.
+    const ordered = [...group].sort((a, b) =>
+      (a.severity === b.severity ? 0 : a.severity === 'severe' ? -1 : 1)
+      || (a.upcoming === b.upcoming ? 0 : a.upcoming ? 1 : -1));
+
+    ordered.forEach((row, i) => {
+      const ring = Math.floor(i / FAN_RING);
+      const onRing = Math.min(ordered.length - ring * FAN_RING, FAN_RING);
+      const angle = (2 * Math.PI * (i % FAN_RING)) / onRing - Math.PI / 2;
+      const reach = 1 + ring * 0.9;
+      out.push({
+        ...row,
+        lat: row.lat + dLat * reach * Math.sin(angle) * -1,
+        lng: row.lng + dLng * reach * Math.cos(angle),
+        // Marked so the popup can own up to having been moved, and so a test
+        // can tell a fanned marker from one drawn where its data put it.
+        fanned: true,
+      });
+    });
+  }
+  return out;
 }
 
 /**

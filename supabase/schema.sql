@@ -1077,21 +1077,22 @@ create table if not exists public.weather_warnings (
   to_date      timestamptz,
   source       text    not null,          -- e.g. "Deutscher Wetterdienst"
   url          text,
-  -- Where to put a marker, when the feed said. Nullable on purpose and most
-  -- rows are null, for two different reasons:
+  -- Where to put a marker. Nullable, and filled from whichever of two things
+  -- the feed gave us:
   --
-  --   NOAA sends a polygon with most of its serious alerts and a URL to a
-  --   forecast zone with the rest. 91 of 114 live US rows had a position.
+  --   A CAP <polygon>, which eight of the thirty-eight services send — Israel,
+  --   Latvia, Ukraine, Estonia, Norway, Sweden, Iceland, the United Kingdom.
+  --   Its centre is the marker, and that is the best answer available.
   --
-  --   MeteoAlarm lets each service choose. Eight of the thirty-eight fill in a
-  --   CAP <polygon> — Israel, Latvia, Ukraine, Estonia, Norway, Sweden, Iceland,
-  --   the United Kingdom. The other thirty send region codes only (EMMA_ID,
-  --   NUTS2, NUTS3, WARNCELLID), and Spain, France, Germany, Greece, Ireland and
-  --   Portugal are among them, so those are chip-only until the codes can be
-  --   resolved to points.
+  --   Otherwise the area's NAME, looked up once and remembered in
+  --   public.weather_areas. The other thirty services send region codes we have
+  --   no geometry for (EMMA_ID, NUTS2, NUTS3, WARNCELLID) but they all name the
+  --   area in words — "Litoral de Barcelona", "Bayern" — and a name resolves to
+  --   a place.
   --
-  -- A row without a position is still a real warning and still reaches the chip
-  -- and the list; it just has nowhere to be drawn.
+  -- Null only while an area is waiting to be resolved, or when nothing could
+  -- place it. Such a row is still a real warning: it reaches the chip and the
+  -- list as before, it simply has no marker yet.
   lat          double precision check (lat between -90 and 90),
   lng          double precision check (lng between -180 and 180),
   refreshed_at timestamptz not null default now(),
@@ -1102,6 +1103,16 @@ create table if not exists public.weather_warnings (
 alter table public.weather_warnings
   add column if not exists lat double precision,
   add column if not exists lng double precision;
+
+-- NOAA's National Weather Service wrote here for a day and was removed. Its
+-- feed is mostly marine advisories and county flood warnings; on a world travel
+-- map that came out as a United States covered in flood signs drawn with the
+-- same image as a GDACS flood disaster, linking to a weather.gov home page.
+-- More noise than information, so it went, and its rows go with it. Nothing
+-- writes these country codes any more, and MeteoAlarm's refresh deletes only
+-- its own thirty-eight, so without this they would sit here for ever.
+delete from public.weather_warnings
+ where country_code in ('US', 'PR', 'VI', 'GU', 'MP', 'AS');
 
 create index if not exists weather_warnings_country_idx
   on public.weather_warnings (country_code);

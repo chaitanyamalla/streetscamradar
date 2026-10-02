@@ -58,6 +58,17 @@ const DISASTER_ICONS = {
   unknown: 'hazard-icon-unknown',
 };
 
+// The twelve kinds a met service can warn of, in the order the database's check
+// constraint lists them. Every one has a sign in js/hazard-signs.js; `flood`
+// shares its sign with GDACS's floods, which is right — the same thing is
+// being warned of, by a different kind of authority.
+export const WEATHER_KINDS = [
+  'wind', 'snow-ice', 'thunderstorm', 'fog', 'high-temperature',
+  'low-temperature', 'coastal-event', 'forest-fire', 'avalanche',
+  'rain', 'flood', 'rain-flood',
+];
+const weatherIcon = (kind) => `hazard-icon-${kind}`;
+
 // How much bigger a hazard is drawn for the grade GDACS gave it. Only two
 // grades reach the map, and a Red is the one you want to see first from across
 // a continent. The fallback is the Orange size: an unrecognised grade should
@@ -122,6 +133,7 @@ export function addLayers(map) {
   map.addSource('safety', { type: 'geojson', data: EMPTY });
   map.addSource('hazards', { type: 'geojson', data: EMPTY });
   map.addSource('disasters', { type: 'geojson', data: EMPTY });
+  map.addSource('weather', { type: 'geojson', data: EMPTY });
 
   // --- Signed-out density view: one soft circle per grid cell --------------
   map.addLayer({
@@ -241,6 +253,48 @@ export function addLayers(map) {
       'circle-color': QUAKE_RING,
       'circle-stroke-width': 1.2,
       'circle-stroke-color': '#ffffff',
+    },
+  });
+
+  // --- What the met services are warning of ---------------------------------
+  //
+  // A chip above the map says which country is being warned and of what, and
+  // that is still the main way these are read: a warning covers counties or
+  // provinces at a time, so the honest unit is a region, not a point.
+  //
+  // But where the feed gave a shape, its middle is drawn too. NOAA sends a
+  // polygon with about a third of its alerts, and a thunderstorm sign over
+  // central Texas answers "where" in a way a country chip cannot. MeteoAlarm
+  // sends no shapes at all, so Europe stays chip-only until it does — the rows
+  // are identical either way, and a row with no position simply is not here.
+  //
+  // Drawn UNDER the GDACS signs on purpose. A red cyclone and an orange wind
+  // warning can sit on the same coast, and the cyclone is the one you need to
+  // see first.
+  map.addLayer({
+    id: 'weather-icon', type: 'symbol', source: 'weather',
+    layout: {
+      'icon-image': ['match', ['get', 'kind'],
+        ...WEATHER_KINDS.flatMap(kind => [kind, weatherIcon(kind)]),
+        DISASTER_ICONS.unknown],
+      // Smaller than a GDACS sign at every zoom, and visibly so. A warning is
+      // about the next few hours over a county; a disaster is a disaster.
+      //
+      // The grade multiplies each zoom stop rather than the whole expression:
+      // MapLibre only allows `zoom` as the direct input of a top-level step or
+      // interpolate, so ['*', interpolate(zoom), grade] is rejected outright.
+      'icon-size': ['interpolate', ['linear'], ['zoom'],
+        3, ['*', 0.30, GRADE_SIZE], 8, ['*', 0.42, GRADE_SIZE],
+        14, ['*', 0.52, GRADE_SIZE]],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+    },
+    paint: {
+      // Not yet in force, so not drawn at full strength. Faded rather than
+      // greyed: grey already means "this is over" everywhere else on this map,
+      // and a warning that starts on Friday is the opposite of over. The popup
+      // says which it is in words, because opacity is a hint, not a label.
+      'icon-opacity': ['case', ['get', 'upcoming'], 0.55, 1],
     },
   });
 
@@ -399,6 +453,33 @@ export const toDisasterFeatures = (rows) => ({
 
 export function setDisasters(map, rows) {
   map.getSource('disasters')?.setData(toDisasterFeatures(rows));
+}
+
+export const toWeatherFeatures = (rows) => ({
+  type: 'FeatureCollection',
+  features: rows
+    // A warning with no position is not a broken row and not an error: it is
+    // the normal case. It belongs to the chip, and dropping it here is how it
+    // stays out of the map without being lost.
+    .filter(w => Number.isFinite(w.lat) && Number.isFinite(w.lng))
+    .map(w => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [w.lng, w.lat] },
+      properties: {
+        id: w.warning_id, kind: w.kind, severity: w.severity,
+        areas: w.areas ?? '', country_code: w.country_code,
+        from_date: w.from_date ?? '', to_date: w.to_date ?? '',
+        source: w.source ?? '', url: w.url ?? '',
+        // Worked out here rather than in a style expression, for the same
+        // reason `ended` is on the disasters: comparing a date to now needs a
+        // clock, and a layer expression has none.
+        upcoming: Boolean(w.upcoming),
+      },
+    })),
+});
+
+export function setWeather(map, rows) {
+  map.getSource('weather')?.setData(toWeatherFeatures(rows));
 }
 
 // The hazard layers have no visibility switches of their own: every one of
@@ -600,6 +681,11 @@ export function registerSafetyIcons(map) {
     sign(id, kind);
     sign(id + DULL_SUFFIX, kind, true);
   }
+
+  // And the weather kinds, for the warnings that came with a position. No dull
+  // variant: a weather warning is never shown as over — it is deleted when it
+  // expires — and an upcoming one is faded by the layer, not greyed.
+  for (const kind of WEATHER_KINDS) sign(weatherIcon(kind), kind);
 }
 
 /** A hazard sign at the size MapLibre wants it: 46px drawn at 2×. */

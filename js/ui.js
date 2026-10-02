@@ -2,9 +2,9 @@
 // Rendering helpers. Everything a member typed passes through esc() before it
 // reaches innerHTML — report text is untrusted input from strangers.
 // ---------------------------------------------------------------------------
-import { PIN_COLOR } from './config.js';
+import { PIN_COLOR, METEOALARM_COUNTRIES } from './config.js';
 import { hazardSignSVG } from './hazard-signs.js';
-import { runningDays, stillRunning, eventName } from './hazards.js';
+import { runningDays, stillRunning, eventName, isUpcoming } from './hazards.js';
 import { t, tn, plural, tOr, formatDate } from './i18n.js';
 import { STRINGS as ADVISORY, officialUrl, countryTitle, levelLabel, levelExplain,
          emergencyLine, contextLine } from './advisory.js';
@@ -616,6 +616,77 @@ export function disasterPopupHTML(props) {
 }
 
 /**
+ * When a weather warning applies, in one line.
+ *
+ * Three situations, and they are genuinely different things to tell somebody:
+ *
+ *   in force, with an end     "Until Fri 18:00"
+ *   not yet started           "From Fri 06:00"
+ *   in force, no end given    nothing — "until further notice" is a claim the
+ *                             feed did not make, so we make none either
+ *
+ * The upcoming case is the one worth being careful about: a wind warning shown
+ * without its start date reads as "it is windy now", and if it starts tomorrow
+ * morning that is simply false.
+ */
+export function warningWhen(row) {
+  const clock = { weekday: 'short', hour: 'numeric', minute: '2-digit' };
+  if (isUpcoming(row)) return t('weather.from', { when: formatDate(row.from_date, clock) });
+  return row.to_date ? t('weather.until', { when: formatDate(row.to_date, clock) }) : '';
+}
+
+/**
+ * Who is telling us, named, and through what if anything sits in between.
+ *
+ * The met service is the authority — the Deutscher Wetterdienst, NOAA's local
+ * office — and `source` is its own name for itself. MeteoAlarm is the network
+ * that carries Europe's, and naming it was right while Europe was all there
+ * was; saying "via MeteoAlarm" under a Texas warning would be wrong, so it is
+ * said only where it is true.
+ */
+export function warningCredit(rows) {
+  const who = [...new Set(rows.map(w => w.source).filter(Boolean))].join(', ');
+  const viaMeteoalarm = rows.some(w => METEOALARM_COUNTRIES.has(w.country_code));
+  return t(viaMeteoalarm ? 'weather.source.meteoalarm' : 'weather.source', { who });
+}
+
+/**
+ * A weather warning, opened from its marker.
+ *
+ * Only some warnings have a marker at all — a position has to have come with
+ * the alert — and the line about what that position means matters more here
+ * than anywhere else on this map. It is the middle of a polygon covering
+ * counties: the warning applies to all of it, not to the spot the sign sits on.
+ * Naming the areas underneath is what makes the marker honest.
+ */
+export function weatherPopupHTML(props) {
+  const kind = String(props.kind ?? 'wind');
+  const when = warningWhen(props);
+  const areas = String(props.areas ?? '').split(',').map(a => a.trim()).filter(Boolean);
+  const shown = areas.slice(0, 6).join(', ');
+  const rest = areas.length - 6;
+
+  return `
+    <div class="popup-head">
+      <span class="popup-glyph is-hazard">${hazardSignSVG(kind, { size: 26 })}</span>
+      <div>
+        <p class="popup-kicker">${esc(t(`hazard.kind.${kind}`))}</p>
+        <p class="popup-title">${esc(rest > 0 ? `${shown} +${rest}` : shown)}</p>
+      </div>
+    </div>
+    ${gradeLine(props.severity)}
+    ${isUpcoming(props) ? `<p class="hazard-upcoming">${esc(t('weather.upcoming'))}</p>` : ''}
+    <p class="popup-fine">${esc(t('weather.place'))}</p>
+    ${props.url ? `<div class="popup-actions">
+      <a class="popup-action is-primary" href="${esc(props.url)}"
+         target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>
+    </div>` : ''}
+    <p class="popup-meta">${esc(when)}${when ? ' \u00b7 ' : ''}${esc(
+      warningCredit([props]))}</p>
+    <p class="popup-fine">${esc(t('hazard.notAlert'))}</p>`;
+}
+
+/**
  * The severe weather in the country in view.
  *
  * The one hazard with nowhere to put a marker: a warning covers counties at a
@@ -630,29 +701,40 @@ export function disasterPopupHTML(props) {
 export function weatherDialogHTML(rows) {
   if (!rows?.length) return `<p class="empty-note">${esc(t('weather.none'))}</p>`;
 
-  const until = (iso) =>
-    formatDate(iso, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
-
+  // Grouped by what is warned of, how badly, and WHETHER IT HAS STARTED. That
+  // last part is not a detail: merging a wind warning in force now with one
+  // that begins on Friday into a single "Wind" row would be a sentence that is
+  // half true, and the reader has no way to tell which half.
   const groups = new Map();
   for (const row of rows) {
-    const key = `${row.kind}|${row.severity}`;
-    const group = groups.get(key) ?? { ...row, areas: [] };
+    const ahead = isUpcoming(row);
+    const key = `${row.kind}|${row.severity}|${ahead}`;
+    const group = groups.get(key) ?? { ...row, areas: [], ahead };
     for (const area of String(row.areas ?? '').split(',').map(a => a.trim())) {
       if (area && area !== '…' && !group.areas.includes(area)) group.areas.push(area);
     }
-    // The furthest-out end time, so the row says when the last of them lifts.
+    // The furthest-out end time, so the row says when the last of them lifts —
+    // and for a group that has not started, the SOONEST start, because the
+    // question there is "from when do I have to think about this".
     if (!group.to_date || (row.to_date && row.to_date > group.to_date)) {
       group.to_date = row.to_date;
+    }
+    if (ahead && row.from_date && (!group.from_date || row.from_date < group.from_date)) {
+      group.from_date = row.from_date;
     }
     groups.set(key, group);
   }
 
-  const entries = [...groups.values()].map(row => {
+  // In force first. What is happening now outranks what might happen on Friday,
+  // and within each half the red ones come before the orange ones.
+  const order = (row) => (row.ahead ? 2 : 0) + (row.severity === 'severe' ? 0 : 1);
+
+  const entries = [...groups.values()].sort((a, b) => order(a) - order(b)).map(row => {
     const shown = row.areas.slice(0, 8).join(', ');
     const rest = row.areas.length - 8;
-    const when = row.to_date ? t('weather.until', { when: until(row.to_date) }) : '';
+    const when = warningWhen(row);
     return `
-      <div class="disaster-row is-${esc(row.severity)}">
+      <div class="disaster-row is-${esc(row.severity)}${row.ahead ? ' is-upcoming' : ''}">
         <span class="disaster-sign">${hazardSignSVG(row.kind, { size: 26 })}</span>
         <p class="disaster-kind">${esc(t(`hazard.kind.${row.kind}`))}</p>
         <p class="disaster-name">${esc(rest > 0 ? `${shown} +${rest}` : shown)}</p>
@@ -663,9 +745,7 @@ export function weatherDialogHTML(rows) {
   }).join('');
 
   return `${entries}
-    <p class="popup-meta">${esc(t('weather.source', {
-      who: [...new Set(rows.map(w => w.source))].join(', '),
-    }))}</p>
+    <p class="popup-meta">${esc(warningCredit(rows))}</p>
     <p class="fine-print">${esc(t('hazard.notAlert'))}</p>`;
 }
 

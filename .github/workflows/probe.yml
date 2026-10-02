@@ -25,6 +25,7 @@ on:
           - probe_gdacs.py
           - probe_dropped.py
           - probe_endpoints.py
+          - probe_forecast.py
 
 concurrency:
   group: probe

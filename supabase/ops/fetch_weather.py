@@ -312,6 +312,15 @@ def rows_from(payloads):
             lat, lng = position_of(info)
             rows[(identifier, code)]["lat"] = lat
             rows[(identifier, code)]["lng"] = lng
+            # The ONE area a marker is positioned on, kept exact and apart from
+            # the readable list above. The first the service named, because an
+            # average of six provinces is a point that may be in none of them.
+            # Thirty of the thirty-eight send no shape, and this is what the
+            # lookup in public.weather_areas joins to for those.
+            rows[(identifier, code)]["area_key"] = areas[0][:200]
+            # A position from the service itself needs no lookup and is not a
+            # guess: say so, so the popup does not hedge about a real polygon.
+            rows[(identifier, code)]["place_kind"] = "area" if lat is not None else None
 
     return sorted(rows.values(), key=lambda r: (r["country_code"], r["warning_id"]))
 
@@ -328,17 +337,19 @@ def sql_num(value):
 
 def emit_sql(rows):
     columns = ("warning_id", "country_code", "kind", "severity", "areas",
-               "from_date", "to_date", "source", "url", "lat", "lng")
+               "from_date", "to_date", "source", "url", "lat", "lng",
+               "area_key", "place_kind")
     print(f"-- {len(rows)} orange/red weather warnings from MeteoAlarm")
     print("begin;")
 
     if rows:
         values = [
-            "  ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, now())".format(
+            "  ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, now())".format(
                 sql_str(r["warning_id"]), sql_str(r["country_code"]), sql_str(r["kind"]),
                 sql_str(r["severity"]), sql_str(r["areas"]), sql_str(r["from_date"]),
                 sql_str(r["to_date"]), sql_str(r["source"]), sql_str(r["url"]),
-                sql_num(r.get("lat")), sql_num(r.get("lng")))
+                sql_num(r.get("lat")), sql_num(r.get("lng")),
+                sql_str(r.get("area_key")), sql_str(r.get("place_kind")))
             for r in rows
         ]
         for start in range(0, len(values), INSERT_BATCH):
@@ -349,7 +360,18 @@ def emit_sql(rows):
                   "kind = excluded.kind, severity = excluded.severity, "
                   "areas = excluded.areas, from_date = excluded.from_date, "
                   "to_date = excluded.to_date, source = excluded.source, "
-                  "url = excluded.url, lat = excluded.lat, lng = excluded.lng, "
+                  "url = excluded.url, area_key = excluded.area_key, "
+                  # coalesce, not a plain assignment: a warning whose position
+                  # came from the lookup rather than from a polygon would be
+                  # wiped here on every refresh and only restored if the resolve
+                  # step that follows happened to succeed. Keeping what is
+                  # already there means a marker survives a bad afternoon at the
+                  # geocoder, and a real polygon still wins because it is not
+                  # null and arrives on the left.
+                  "lat = coalesce(excluded.lat, public.weather_warnings.lat), "
+                  "lng = coalesce(excluded.lng, public.weather_warnings.lng), "
+                  "place_kind = coalesce(excluded.place_kind, "
+                  "public.weather_warnings.place_kind), "
                   "refreshed_at = now();")
 
     # Zero orange or red warnings across Europe is a real and welcome state of

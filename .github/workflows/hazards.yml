@@ -120,6 +120,7 @@ jobs:
         run: |
           python3 supabase/ops/fetch_disasters_test.py
           python3 supabase/ops/fetch_weather_test.py
+          python3 supabase/ops/resolve_weather_areas_test.py
 
       - name: Fetch from GDACS
         if: ${{ !inputs.probe }}
@@ -152,3 +153,41 @@ jobs:
           PGURL: ${{ env.PGURL_FINAL }}
         run: |
           psql "$PGURL" -v ON_ERROR_STOP=1 -f weather.sql
+
+      # Thirty of MeteoAlarm's thirty-eight services send no geometry, only the
+      # area's NAME. A name is looked up ONCE, ever, and remembered — a few
+      # hundred names cover Europe and they change about as often as provinces
+      # do — so this asks the geocoder nothing at all on an ordinary run.
+      - name: Find weather areas we have not placed yet
+        if: ${{ !inputs.probe }}
+        env:
+          PGURL: ${{ env.PGURL_FINAL }}
+        run: |
+          psql "$PGURL" -v ON_ERROR_STOP=1 -tA -F $'\t' -c "
+            select distinct w.country_code, w.area_key
+              from public.weather_warnings w
+              left join public.weather_areas a
+                on a.country_code = w.country_code and a.area_name = w.area_key
+             where w.area_key is not null and w.lat is null and a.area_name is null
+             order by 1, 2" > todo.tsv
+          echo "names to look up: $(wc -l < todo.tsv)"
+
+      # Nominatim, one request a second as its terms ask, capped per run. A
+      # geocoder having a bad afternoon must not fail the refresh: the warnings
+      # are already loaded and already in the chip by this point, and a missing
+      # marker is a smaller thing than a red workflow.
+      - name: Look up the new areas
+        if: ${{ !inputs.probe }}
+        continue-on-error: true
+        timeout-minutes: 6
+        run: |
+          python3 supabase/ops/resolve_weather_areas.py todo.tsv > areas.sql
+          head -1 areas.sql
+
+      - name: Place the warnings on their areas
+        if: ${{ !inputs.probe }}
+        continue-on-error: true
+        env:
+          PGURL: ${{ env.PGURL_FINAL }}
+        run: |
+          test -s areas.sql && psql "$PGURL" -v ON_ERROR_STOP=1 -f areas.sql

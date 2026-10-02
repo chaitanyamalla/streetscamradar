@@ -479,6 +479,10 @@ export const toWeatherFeatures = (rows) => ({
         areas: w.areas ?? '', country_code: w.country_code,
         from_date: w.from_date ?? '', to_date: w.to_date ?? '',
         source: w.source ?? '', url: w.url ?? '',
+        // Whether the point is the area or only the country it is in. The popup
+        // says which, and without this it cannot: a style expression has no use
+        // for it, but the popup is the whole reason it exists.
+        place_kind: w.place_kind ?? '',
         // Worked out here rather than in a style expression, for the same
         // reason `ended` is on the disasters: comparing a date to now needs a
         // clock, and a layer expression has none.

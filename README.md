@@ -72,14 +72,34 @@ into one row per kind.
 It is drawn as well, from whichever of two things the service gave us. Eight of
 the thirty-eight send a CAP polygon and its centre is the marker. The other
 thirty send only a region code we have no geometry for — but every one of them
-names the area in words, and a name resolves to a place: "Litoral de Barcelona"
-to a stretch of coast, "Bayern" to a state. Each name is looked up once and
-remembered, so the lookup happens a few hundred times in total rather than on
-every refresh, and a name that resolves badly can be corrected by hand.
+names the area in words, and a name can be looked up once and remembered in
+`public.weather_areas`. A few hundred names cover Europe and they change about
+as often as provinces do, so the geocoder is asked nothing at all on an ordinary
+refresh, and a name that resolved badly is a row somebody can correct by hand.
 
-The popup on a marker says the point is the centre of the area warned, for the
-same reason the flood popup does: the warning applies to a district, not to the
-spot the sign sits on.
+**Looking a name up is where this goes wrong, so it is worth saying how.** Thirty
+real area names were put to a geocoder with no constraints, and six came back in
+the wrong *country*: Portugal's Guarda in Italy, Portalegre in Brazil, Drenthe in
+Michigan, Flevoland matched to a "Fleseland" in Norway. Several more landed in
+the wrong town inside the right country — "Évora" matched "Évora de Alcobaça".
+A marker in the wrong valley is worse than no marker, so three rules, each
+catching a different one of those:
+
+1. **Ask within the country.** The geocoder is told which one, so Portugal's
+   Guarda cannot be Italy's.
+2. **The name must match exactly**, accents and case aside. This is what rejects
+   "Fleseland" and "Évora de Alcobaça". A near miss is not a weaker answer, it
+   is a different place.
+3. **The point must be inside the country, and inside Europe.** The country's own
+   bounding box comes from the same geocoder, so no coordinates are written down
+   and guessed at. The Europe rectangle is the backstop — MeteoAlarm is a
+   European system, so anything outside it is wrong whatever else agreed, which
+   is the cheapest possible check against Spain landing in Brazil.
+
+Whatever fails all three gets the middle of its own country, **and the popup says
+so**: "marked on the country, not on the area". The alternative — a marker on the
+middle of Spain under a sentence claiming the centre of the area warned — is a
+lie with a precision attached.
 
 **Warnings reach about two days ahead, and no further.** A met service issues
 before the weather arrives, and that lead time is the useful part, so a warning

@@ -398,6 +398,12 @@ em { font-style:italic; }
 .disaster-when { margin-top:3px; color:var(--muted); font:11px/1.5 'DM Mono',monospace; }
 .disaster-link { display:inline-block; margin-top:6px; color:var(--brand);
   font-size:12px; font-weight:700; }
+/* A weather warning that has not started yet. Held back rather than greyed:
+   grey means "this is over" everywhere else here, and a red wind warning for
+   Friday morning is the opposite of over — it is the one you can still act on.
+   The row says "From Fri 06:00" in words, so this only has to be quieter. */
+.disaster-row.is-upcoming { opacity:.72; }
+.disaster-row.is-upcoming .disaster-when { color:var(--brand); font-weight:700; }
 
 /* Hazards. The ring on the map is drawn by MapLibre; these are the popup. */
 /* A warning sign is already a badge; a tinted disc around it was a badge on a
@@ -412,6 +418,12 @@ em { font-style:italic; }
 
 .hazard-tsunami { margin-top:7px; padding:6px 9px; border-radius:4px;
   background:rgba(197,56,44,.1); color:var(--danger); font-size:12px; font-weight:700; }
+/* "Not yet in force." The same shape as the tsunami line because it does the
+   same job — correcting what the marker would otherwise imply — but in the
+   brand colour rather than the danger one: this is lead time, which is good
+   news, not a second warning on top of the first. */
+.hazard-upcoming { margin-top:7px; padding:6px 9px; border-radius:4px;
+  background:var(--tint-brand); color:var(--brand); font-size:12px; font-weight:700; }
 /* Said on every hazard, not buried in a page nobody opens: this is a signal
    for planning, and somebody in trouble needs the official source. */
 .popup-fine { margin-top:7px; color:var(--muted); font-size:10.5px; line-height:1.45; }

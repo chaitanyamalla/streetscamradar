@@ -366,10 +366,22 @@ export function fetchDisasters() {
 /**
  * Severe weather warnings, by country, read once and kept for the session.
  *
- * Europe only — that is MeteoAlarm's remit — and orange or red only, which is
- * a few dozen rows at a time. Warnings that have already expired are left
- * behind here as well as deleted by the refresh, because a warning whose own
- * end time has passed is over whatever any table says.
+ * Europe through MeteoAlarm and the United States through NOAA's National
+ * Weather Service, orange or red only, which is a few hundred rows at a time.
+ *
+ * Warnings that have already expired are left behind here as well as deleted by
+ * the refresh, because a warning whose own end time has passed is over whatever
+ * any table says. Nothing is kept for a week the way reports and disasters are:
+ * last Tuesday's wind warning is not history, it is noise.
+ *
+ * Warnings that have not STARTED yet are kept, deliberately. A met service
+ * issues up to about two days ahead, and "a red wind warning from Friday
+ * morning" is exactly what somebody planning a trip wants to know. The page
+ * labels them as upcoming rather than implying they are in force now.
+ *
+ * lat and lng come back too, and are null for most rows: MeteoAlarm names
+ * regions and gives no shape, and only about a third of NWS alerts carry a
+ * polygon. A row without a position still belongs in the chip and the list.
  */
 let weatherCache = null;
 
@@ -380,7 +392,7 @@ export function fetchWeatherWarnings() {
   const now = new Date().toISOString();
   weatherCache = supabase
     .from('weather_warnings')
-    .select('warning_id,country_code,kind,severity,areas,from_date,to_date,source,url')
+    .select('warning_id,country_code,kind,severity,areas,from_date,to_date,source,url,lat,lng')
     .or(`to_date.is.null,to_date.gte.${now}`)
     .then(({ data, error }) => {
       if (error) throw error;

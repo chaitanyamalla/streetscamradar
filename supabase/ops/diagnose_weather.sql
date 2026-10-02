@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- What MeteoAlarm is giving us right now, and for whom.
+-- What MeteoAlarm and NOAA/NWS are giving us right now, and for whom.
 --
 -- Read-only. Public met-service data only — no reporter, no email, no report
 -- text — so it is safe to run from the Actions log of a public repository.
@@ -19,12 +19,34 @@ select country_code, source, count(*) as warnings,
  group by country_code, source
  order by warnings desc, country_code;
 
--- What is being warned of, across the whole of Europe.
+-- What is being warned of, everywhere we are told anything.
 select kind, severity, count(*) as warnings
   from public.weather_warnings
  where to_date is null or to_date >= now()
  group by kind, severity
  order by warnings desc;
+
+-- How many have somewhere to be drawn. MeteoAlarm sends no geometry, so Europe
+-- should be zero here and the United States about a third; a US figure of zero
+-- means NOAA's polygons stopped arriving, which would empty the map layer
+-- without emptying the chip, and nothing else would look wrong.
+select country_code,
+       count(*) as warnings,
+       count(lat) as with_a_position,
+       round(100.0 * count(lat) / greatest(count(*), 1)) as pct_placed
+  from public.weather_warnings
+ where to_date is null or to_date >= now()
+ group by country_code
+ order by warnings desc;
+
+-- How far ahead anybody is warning. Two days is the ceiling a met service
+-- works to, so a figure much above 50 hours means something is wrong with the
+-- dates rather than that somebody has learned to forecast a week out.
+select count(*) filter (where from_date > now()) as not_yet_started,
+       round(max(extract(epoch from (from_date - now())) / 3600)::numeric, 1)
+         as furthest_ahead_hours
+  from public.weather_warnings
+ where to_date is null or to_date >= now();
 
 -- Rows that have expired but are still sitting in the table. The refresh
 -- deletes them, so a number above zero means it has not run since they ended.

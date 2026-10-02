@@ -7,8 +7,10 @@
 # looking, and keeps showing a disaster when GDACS is having a bad day.
 #
 # Severe weather comes from MeteoAlarm, the European met services' shared
-# warning system, in the same way and for the same reason — one request per
-# country, no CORS, and nothing of ours added to what they issued.
+# warning system, and from NOAA's National Weather Service for the United
+# States, in the same way and for the same reason — no CORS, and nothing of
+# ours added to what they issued. Both write to public.weather_warnings, each
+# clearing only the countries it owns.
 #
 # Earthquakes are NOT here. USGS serves its feeds with permissive CORS and a
 # 60-second cache, built to be read from a page, and an earthquake's position
@@ -113,6 +115,7 @@ jobs:
         run: |
           python3 supabase/ops/fetch_disasters_test.py
           python3 supabase/ops/fetch_weather_test.py
+          python3 supabase/ops/fetch_nws_test.py
 
       - name: Fetch from GDACS
         if: ${{ !inputs.probe }}
@@ -145,3 +148,21 @@ jobs:
           PGURL: ${{ env.PGURL_FINAL }}
         run: |
           psql "$PGURL" -v ON_ERROR_STOP=1 -f weather.sql
+
+      # The United States and its territories, from NOAA's National Weather
+      # Service. One national feed rather than a request per country, so this
+      # is the quick step; it writes to the same table as MeteoAlarm and
+      # deletes only the rows for the countries it owns.
+      - name: Fetch from NOAA/NWS
+        if: ${{ !inputs.probe }}
+        timeout-minutes: 3
+        run: |
+          python3 supabase/ops/fetch_nws.py > nws.sql
+          head -1 nws.sql
+
+      - name: Load the US warnings into Supabase
+        if: ${{ !inputs.probe }}
+        env:
+          PGURL: ${{ env.PGURL_FINAL }}
+        run: |
+          psql "$PGURL" -v ON_ERROR_STOP=1 -f nws.sql

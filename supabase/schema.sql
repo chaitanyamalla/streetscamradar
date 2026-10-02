@@ -1025,15 +1025,32 @@ grant select on table public.disaster_alerts to anon, authenticated;
 revoke insert, update, delete on table public.disaster_alerts from anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- Severe weather warnings, from MeteoAlarm.
+-- Severe weather warnings, from MeteoAlarm and the US National Weather Service.
 --
 -- MeteoAlarm is the European met services' shared warning system: every row
--- here was issued by a national weather service — the Deutscher Wetterdienst,
--- Météo-France, AEMET — and `source` names which one. We publish none of our
--- own judgement about weather and never will.
+-- from it was issued by a national weather service — the Deutscher
+-- Wetterdienst, Météo-France, AEMET — and `source` names which one. NOAA's
+-- National Weather Service is the same thing for the United States, one
+-- national CAP feed instead of thirty-eight country ones. Both write to this
+-- table, because a warning is a warning. We publish none of our own judgement
+-- about weather and never will.
 --
--- Europe only. That is MeteoAlarm's remit, and the page says so rather than
--- letting a traveller to Peru read an empty panel as "no warnings".
+-- Europe and the United States, and the page says which rather than letting a
+-- traveller to Peru read an empty panel as "no warnings".
+--
+-- NOT KEPT FOR A WEEK, unlike the reports and the disasters. A warning is
+-- about the next few hours: once it has expired it is not history a traveller
+-- needs, it is noise. Each generator deletes the rows it did not just refresh
+-- for the countries it owns, and the page additionally drops anything whose
+-- own to_date has passed, so an expired warning is gone whatever the table
+-- still holds.
+--
+-- A warning may not have STARTED yet. Met services issue around two days
+-- ahead — 130 of 361 live NWS alerts had an onset in the future when we
+-- probed, the furthest 46 hours out — so from_date can be ahead of now() and
+-- the page labels those rows as upcoming instead of implying they are in
+-- force. Nobody issues a formal warning a week ahead; two days is the real
+-- lead time on offer, from any met service in the world.
 --
 -- ORANGE AND RED ONLY. MeteoAlarm grades green, yellow, orange and red; green
 -- and yellow together are the great majority of what it publishes — roughly
@@ -1060,9 +1077,22 @@ create table if not exists public.weather_warnings (
   to_date      timestamptz,
   source       text    not null,          -- e.g. "Deutscher Wetterdienst"
   url          text,
+  -- Where to put a marker, when the feed said. Nullable on purpose and most
+  -- rows are null: MeteoAlarm names regions and never gives a shape, and only
+  -- 103 of 361 live NWS alerts carried a polygon inline — the rest point at
+  -- forecast zones by URL. A row without a position is still a real warning
+  -- and still reaches the chip and the list; it just has nowhere to be drawn.
+  lat          double precision check (lat between -90 and 90),
+  lng          double precision check (lng between -180 and 180),
   refreshed_at timestamptz not null default now(),
   primary key (warning_id, country_code)
 );
+
+-- Existing installs: the table shipped without a position, because MeteoAlarm
+-- has none to give. NWS does, for a third of its alerts.
+alter table public.weather_warnings
+  add column if not exists lat double precision,
+  add column if not exists lng double precision;
 
 create index if not exists weather_warnings_country_idx
   on public.weather_warnings (country_code);

@@ -24,13 +24,14 @@ import { preferredTheme, currentTheme, applyTheme, toggleTheme, chooseTheme,
          themeChoice, onThemeChange, followSystem } from './js/theme.js';
 import { createMap, addLayers, setMapTheme, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
-         setHazards, setDisasters, maplibregl } from './js/map.js';
-import { quakesIn, inBounds, quakeTone, hazardLabel, isLive, hasEnded } from './js/hazards.js';
+         setHazards, setDisasters, setWeather, maplibregl } from './js/map.js';
+import { quakesIn, inBounds, quakeTone, hazardLabel, isLive, hasEnded,
+         isUpcoming } from './js/hazards.js';
 import { hazardSignSVG } from './js/hazard-signs.js';
 import { esc, toast, liftToast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
          categoryLabel, advisoryDialogHTML, quakePopupHTML, disasterPopupHTML,
-         weatherDialogHTML } from './js/ui.js';
+         weatherDialogHTML, weatherPopupHTML } from './js/ui.js';
 import { countryName } from './js/i18n.js';
 import { STRINGS as ADVISORY, advisoryLevel, advisoryTone, levelLabel, countryTitle,
          changedOn, chipAria, advisoryStats, copyAgeDays } from './js/advisory.js';
@@ -52,7 +53,8 @@ const state = {
   advisories: null,   // country_code -> row, read once per session
   blockedCountries: null,  // where reporting is closed, read once per session
   disasters: null,    // country_code -> rows, mirrored from GDACS every few hours
-  weather: null,      // country_code -> rows, mirrored from MeteoAlarm
+  weather: null,      // country_code -> rows, from MeteoAlarm and NOAA/NWS
+  weatherMarkers: [], // the subset of those that came with a position
   disasterMarkers: [],     // the GDACS events currently drawn
   // Which hazard layers are switched on. One per kind GDACS publishes, keyed
   // by the kind itself so a row and a marker cannot disagree about what it
@@ -108,7 +110,7 @@ map.on('load', () => {
 
   // A pin that opens something should look like it.
   for (const layer of ['report-point', 'report-icon', 'clusters', 'safety-icon',
-                       'hazard-ring', 'volcano-icon', 'disaster-icon']) {
+                       'hazard-ring', 'volcano-icon', 'disaster-icon', 'weather-icon']) {
     map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', layer, () => {
       map.getCanvas().style.cursor = state.picking ? 'crosshair' : '';
@@ -658,6 +660,8 @@ async function refreshCountryHazards(ticket) {
     if (ticket !== hazardTicket) return;
   }
 
+  paintWeatherMarkers();
+
   const code = viewIsOneCountry() ? await currentCountry() : null;
   if (ticket !== hazardTicket) return;
 
@@ -694,6 +698,34 @@ async function refreshCountryHazards(ticket) {
   $('#weather-kinds').textContent = kinds;
   chip.setAttribute('aria-label',
     `${t('hazards.weather')}: ${countryName(code, code)} — ${all.join(', ')}`);
+}
+
+/**
+ * The weather warnings that came with a position, drawn.
+ *
+ * Every country at once, not just the one in view: these are map markers, and a
+ * marker has to be there before you pan onto it. The chip is the thing that is
+ * about one country.
+ *
+ * Most warnings have no position and simply are not here — MeteoAlarm gives
+ * none at all, NOAA gives one with about a third of its alerts. That is not a
+ * gap to apologise for: the chip and its list carry every warning, and this
+ * layer adds a place to the ones that have one.
+ *
+ * Whether a warning has STARTED is worked out here, with a clock, and travels
+ * with the row — a style expression cannot ask what time it is. The layer fades
+ * the ones that have not, and the popup says so in words.
+ */
+function paintWeatherMarkers() {
+  const rows = [];
+  for (const list of state.weather?.values() ?? []) {
+    for (const row of list) {
+      if (!Number.isFinite(row.lat) || !Number.isFinite(row.lng)) continue;
+      rows.push({ ...row, upcoming: isUpcoming(row) });
+    }
+  }
+  state.weatherMarkers = rows;
+  setWeather(map, rows);
 }
 
 /**
@@ -1052,7 +1084,7 @@ function onMapClick(e) {
   const pad = 8;
   const box = [[e.point.x - pad, e.point.y - pad], [e.point.x + pad, e.point.y + pad]];
   const layers = ['report-icon', 'report-point', 'clusters', 'safety-icon',
-                  'volcano-icon', 'disaster-icon', 'hazard-ring']
+                  'volcano-icon', 'disaster-icon', 'weather-icon', 'hazard-ring']
     .filter(id => map.getLayer(id));
   const hits = layersReady ? map.queryRenderedFeatures(box, { layers }) : [];
   if (!hits.length) return;
@@ -1065,6 +1097,7 @@ function onMapClick(e) {
 
   const html = hit.layer?.id === 'safety-icon' ? safetyPopupHTML(hit.properties)
     : hit.layer?.id === 'hazard-ring' ? quakePopupHTML(hit.properties)
+    : hit.layer?.id === 'weather-icon' ? weatherPopupHTML(hit.properties)
     : hit.layer?.id === 'volcano-icon' || hit.layer?.id === 'disaster-icon'
       ? disasterPopupHTML(hit.properties)
     : popupHTML(hit.properties, state.categories);

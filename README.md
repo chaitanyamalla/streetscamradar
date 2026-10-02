@@ -50,7 +50,7 @@ our own to any of it.**
 | Earthquakes | USGS | rings at the epicentre | **off** |
 | Floods, storms, fires | GDACS | markers, counted for the view | on |
 | Volcanoes | GDACS | markers, counted for the view | on |
-| Weather warnings | national met services, via MeteoAlarm | a chip for the country | on |
+| Weather warnings | national met services, via MeteoAlarm and NOAA/NWS | a chip for the country, plus a marker where a position came with it | on |
 
 The panel splits what is drawn from what is reported for the country, and the
 split is about whether the thing has a place at all.
@@ -64,10 +64,34 @@ so costs one line and is the difference between a marker that informs and one
 that misleads. GDACS earthquakes are left out entirely: USGS covers those
 better, and drawing both would put two marks on one event.
 
-A **weather warning has nowhere honest to put a marker** — it covers counties
-at a time — so it stays a chip for the country in view, the same shape of
-answer as the travel advisory above it, and the dialog folds forty provincial
-warnings into one row per kind.
+A **weather warning is about a region, not a point** — it covers counties at a
+time — so the chip for the country in view is the main answer, the same shape as
+the travel advisory above it, and the dialog folds forty provincial warnings
+into one row per kind.
+
+Where the feed gave a shape, its middle is drawn as well. MeteoAlarm names
+regions and sends no geometry at all; NOAA sends a polygon with about a third of
+its alerts, and a thunderstorm sign over central Texas answers "where" in a way
+a country chip cannot. A warning without a position is **not lost** — it is in
+the chip and the list like every other one; it simply is not on the map. The
+popup on a drawn one says the point is the centre of the area warned, for the
+same reason the flood popup does.
+
+**Warnings reach about two days ahead, and no further.** A met service issues
+before the weather arrives — 130 of 361 live NOAA alerts had a start time in the
+future when we probed, the furthest 46 hours out — and that lead time is the
+useful part, so those rows are kept and labelled "From Fri 06:00" rather than
+shown as something happening now. The marker is faded and the popup says "not
+yet in force" in words. What is *not* on offer is a week: nobody issues a formal
+weather warning that far out, and nothing forecasts an earthquake, a volcano or
+a flood ahead at all — GDACS carries no forecast whatsoever, which we checked
+rather than assumed. The panel says so, because a traveller planning a trip will
+otherwise reasonably assume the silence means "nothing coming".
+
+**Weather is not kept for a week** the way reports and disasters are. Each
+generator deletes the rows it did not just refresh for the countries it owns,
+and the page separately drops anything whose own end time has passed. Last
+Tuesday's wind warning is not history, it is noise.
 
 **Only earthquakes that matter.** Two feeds: `significant_month`, which is
 USGS's own judgement of what mattered — magnitude weighted by how many people
@@ -82,14 +106,22 @@ street scam map first.
 **Only orange and red weather.** MeteoAlarm grades green, yellow, orange and
 red; the first two are about 5,000 of the 5,600 warnings live across Europe on
 an ordinary afternoon, and describe weather that is unpleasant rather than
-dangerous. Europe only — the panel says "Europe only" elsewhere rather than
-letting a traveller to Peru read silence as "no warnings".
+dangerous. NOAA grades Extreme, Severe, Moderate, Minor and Unknown, and the
+same line is drawn through it: Extreme is our red, Severe our orange, and
+Moderate is the yellow-equivalent most of what a met service issues falls into.
+NOAA's feed is also mostly about boats — 192 of 361 alerts were small craft
+advisories and gale warnings — and the marine-only types are dropped by name,
+because this is a map for somebody walking around a city.
+
+Europe and the United States, and nowhere else yet. The panel says "Europe and
+the United States only" rather than letting a traveller to Peru read silence as
+"no warnings".
 
 USGS is fetched in the browser: permissive CORS, a 60-second cache, built to
-be read from a page, so nothing of ours can go stale. GDACS and MeteoAlarm
-send no cache headers and MeteoAlarm has no worldwide feed at all, so both are
-mirrored into `public.disaster_alerts` and `public.weather_warnings` by the
-`Refresh hazards` workflow every three hours. An event leaves when its source
+be read from a page, so nothing of ours can go stale. GDACS, MeteoAlarm and
+NOAA send no cache headers and MeteoAlarm has no worldwide feed at all, so all
+three are mirrored into `public.disaster_alerts` and `public.weather_warnings`
+by the `Refresh hazards` workflow every three hours. An event leaves when its source
 stops publishing it — the refresh deletes whatever it did not see — and the
 page separately ignores anything whose own end date has passed.
 

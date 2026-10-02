@@ -111,19 +111,35 @@ export const SUGGEST_MIN_CHARS = 3;
 export const SUGGEST_DEBOUNCE_MS = 280;
 
 // --- Where the weather warnings come from --------------------------------
-// MeteoAlarm is a European system, and the page has to be able to say so.
-// Without this list, a traveller looking at Mexico would read "no warnings"
-// where the honest answer is "nobody is telling us" — a silence that means
-// something very different.
+// Two networks, and the page has to be able to say where it is being told
+// nothing. Without these lists a traveller looking at Mexico would read "no
+// warnings" where the honest answer is "nobody is telling us" — a silence that
+// means something very different.
 //
-// Kept in step with COUNTRIES in supabase/ops/fetch_weather.py by
-// parity-test.mjs, which fails if the two ever drift apart.
-export const WEATHER_COUNTRIES = new Set([
+// Kept in step with the generators by parity-test.mjs, which fails if any of
+// them ever drift apart: MeteoAlarm against COUNTRIES in
+// supabase/ops/fetch_weather.py, the NWS list against fetch_nws.py.
+
+// MeteoAlarm: the European met services' shared system. One request per
+// country, which is why there is a list at all.
+export const METEOALARM_COUNTRIES = new Set([
   'AT', 'BA', 'BE', 'BG', 'CH', 'CY', 'CZ', 'DE',
   'DK', 'EE', 'ES', 'FI', 'FR', 'GB', 'GR', 'HR',
   'HU', 'IE', 'IL', 'IS', 'IT', 'LT', 'LU', 'LV',
   'MD', 'ME', 'MK', 'MT', 'NL', 'NO', 'PL', 'PT',
   'RO', 'RS', 'SE', 'SI', 'SK', 'UA'
+]);
+
+// NOAA's National Weather Service: one national feed for the United States.
+// Its territories (Puerto Rico, Guam, the US Virgin Islands) are in the same
+// feed and are their own countries on the map, so they are named here too —
+// a warning for San Juan is no use filed under "US".
+export const NWS_COUNTRIES = new Set(['US', 'PR', 'VI', 'GU', 'MP', 'AS']);
+
+// What the page as a whole has weather for. Everything else gets "nobody is
+// telling us" rather than "nothing is happening".
+export const WEATHER_COUNTRIES = new Set([
+  ...METEOALARM_COUNTRIES, ...NWS_COUNTRIES,
 ]);
 
 // --- Where a report can be -----------------------------------------------

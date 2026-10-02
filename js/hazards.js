@@ -105,6 +105,28 @@ export const stillRunning = (row, now = Date.now()) => {
 /** The other way round, which is what the map asks. */
 export const hasEnded = (row, now = Date.now()) => !stillRunning(row, now);
 
+/**
+ * Has this not STARTED yet?
+ *
+ * Only ever about weather. Met services issue warnings up to about two days
+ * ahead — of 361 live NOAA alerts we probed, 130 had an onset in the future,
+ * the furthest 46 hours out — and that lead time is the useful part: it is what
+ * lets somebody move a plan rather than get caught by it.
+ *
+ * Two days is also the ceiling. Nobody issues a formal weather warning a week
+ * out, and no agency anywhere forecasts an earthquake, a volcano or a flood
+ * ahead at all — GDACS carries no forecast whatsoever, which we checked rather
+ * than assumed. So this is the only "ahead of time" the map has, and it says
+ * two days when it means two days.
+ *
+ * No from_date is not upcoming. A warning whose start we do not know is in
+ * force, because it is in the feed.
+ */
+export const isUpcoming = (row, now = Date.now()) => {
+  const from = Date.parse(row?.from_date ?? '');
+  return Number.isFinite(from) && from > now;
+};
+
 /** Whatever sits inside a map view. Used for both the earthquakes and the
  *  GDACS events, which is why it takes anything with a lat and a lng. */
 export const inBounds = (rows, bounds) => rows.filter(r =>

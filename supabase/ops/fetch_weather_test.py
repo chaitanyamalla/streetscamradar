@@ -250,8 +250,15 @@ with redirect_stdout(buffer):
 placed_sql = buffer.getvalue()
 check("59.2" in placed_sql and "23.0" in placed_sql,
       "a position reaches the insert")
-check("lat = excluded.lat" in placed_sql,
-      "and a position that moved is updated with the rest")
+# coalesce rather than a plain assignment, and this is the case it is for: a
+# warning positioned by the area lookup has no polygon of its own, so an
+# `excluded.lat` of null would wipe its marker on every single refresh and only
+# put it back if the resolve step that follows happened to succeed.
+check("lat = coalesce(excluded.lat" in placed_sql,
+      "a position already stored survives a refresh that brings none")
+check("area_key = excluded.area_key" in placed_sql,
+      "while the area it is positioned ON is always taken from the feed, since "
+      "that is what the lookup joins to")
 
 buffer = io.StringIO()
 with redirect_stdout(buffer):

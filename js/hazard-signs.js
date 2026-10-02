@@ -211,6 +211,24 @@ const SIGNS = {
     { d: circle(9.0, 18.0, .8), on: true },
   ] },
 
+  // Not a warning at all: the met service has nothing out for this country, and
+  // the chip says so with a sun rather than by disappearing. The only glyph here
+  // that means "fine" — which is why it is the one warm colour on the list and
+  // the one with no edge of threat in its shape. Eight rays and a disc, the way
+  // every child draws it, because this one has to be read instantly and without
+  // thought.
+  clear: { color: '#e0a21c', parts: [
+    { d: circle(12, 14.2, 3.0) },
+    { d: 'M12 8.3v2.0', stroke: 1.5 },
+    { d: 'M12 18.1v2.0', stroke: 1.5 },
+    { d: 'M6.1 14.2h2.0', stroke: 1.5 },
+    { d: 'M15.9 14.2h2.0', stroke: 1.5 },
+    { d: 'M7.9 10.1l1.4 1.4', stroke: 1.4 },
+    { d: 'M14.7 16.9l1.4 1.4', stroke: 1.4 },
+    { d: 'M16.1 10.1l-1.4 1.4', stroke: 1.4 },
+    { d: 'M9.3 16.9l-1.4 1.4', stroke: 1.4 },
+  ] },
+
   // Anything an agency starts publishing that we have not drawn yet. A sign
   // with no glyph looks broken; a sign saying "something" is the truth.
   // The one that keeps a triangle, because a triangle IS the drawing here:
@@ -233,8 +251,12 @@ SIGNS['forest-fire'] = SIGNS.wildfire;
 // and the drawing is kept only so that putting them back is a one-word change.
 export const HAZARD_SIGN_KINDS = ['flood', 'cyclone', 'wildfire', 'volcano'];
 
-/** Every kind that has a sign at all, map or list. */
-export const ALL_SIGN_KINDS = Object.keys(SIGNS).filter(k => k !== 'unknown');
+/** Every kind that has a sign at all, map or list.
+ *
+ *  'clear' is left out: it is not a hazard, it is the absence of one, and a
+ *  sun in a list of things to watch out for would be a category error. */
+export const ALL_SIGN_KINDS = Object.keys(SIGNS)
+  .filter(k => k !== 'unknown' && k !== 'clear');
 
 export const hazardSign = (kind) => SIGNS[kind] ?? SIGNS.unknown;
 

@@ -275,6 +275,18 @@ em { font-style:italic; }
   letter-spacing:.08em; text-transform:uppercase; text-overflow:ellipsis; white-space:nowrap; }
 .ac-level { overflow:hidden; color:var(--ink); font-size:12.5px; font-weight:700;
   line-height:1.25; text-overflow:ellipsis; white-space:nowrap; }
+/* What this chip IS, above what it currently says. Same type as .ac-kicker it
+   replaces — the difference is that it never changes, so a reader learns the
+   two chips once and then only reads the line underneath. */
+.ac-name { overflow:hidden; color:var(--muted); font:500 9.5px/1.2 'DM Mono',monospace;
+  letter-spacing:.08em; text-transform:uppercase; text-overflow:ellipsis; white-space:nowrap; }
+/* The weather chip carries a drawing where the advisory chip carries a dot: the
+   advisory has four levels and a dot can hold that, while the weather has
+   twelve kinds and a sun, which a dot cannot. Bigger than the dot because it
+   has to be legible as a picture rather than noticeable as a colour. */
+.ac-sign { flex:none; width:22px; height:22px; display:flex; align-items:center;
+  justify-content:center; }
+.ac-sign svg { width:100%; height:100%; display:block; }
 .advisory-chip.is-severe .ac-dot { background:var(--danger); }
 .advisory-chip.is-severe { border-color:rgba(197,56,44,.45); }
 .advisory-chip.is-notice .ac-dot { background:var(--pin); }
@@ -316,6 +328,14 @@ em { font-style:italic; }
    margin closes the stack's gap, so it reads as hanging off the chip above
    rather than floating under it. */
 .hazard-menu { position:relative; max-width:100%; margin-top:-8px; }
+/* The weather chip and its legend move as one, so the legend opens against the
+   chip rather than against the stack. Unlike .hazard-menu this one is NOT
+   pulled up into what is above it: the chip is the thing, the caret hangs off
+   the chip, and there is nothing above either of them to join. */
+.weather-menu { position:relative; display:flex; flex-direction:column;
+  align-items:flex-end; max-width:100%; }
+.weather-tab { width:38px; height:19px; margin-top:-1px; }
+.weather-legend { width:258px; }
 .hazard-tab { display:flex; align-items:center; justify-content:center;
   width:46px; height:21px; padding:0;
   border:1px solid var(--line-strong); border-top:0;
@@ -372,6 +392,33 @@ em { font-style:italic; }
   text-overflow:ellipsis; white-space:nowrap; }
 .hazard-row:has(input:not(:checked)) .hz-name,
 .hazard-row:has(input:not(:checked)) .hz-mark { opacity:.45; }
+
+/* The GDACS switches, in the filter column under Hospitals.
+   A disclosure, closed by default: five switches most readers set once should
+   not cost five rows of the page on every visit. The summary carries a count so
+   it is worth glancing at while shut. */
+.disaster-section { padding:0; }
+.disaster-summary { display:flex; align-items:center; gap:8px; padding:9px 0;
+  cursor:pointer; list-style:none; }
+.disaster-summary::-webkit-details-marker { display:none; }
+/* The caret is drawn rather than borrowed from the browser, so it turns with
+   the disclosure and matches the one on the map chips. */
+.disaster-summary::after { content:'\25BE'; margin-left:auto; color:var(--muted);
+  font-size:10px; line-height:1; transition:transform .15s ease; }
+.disaster-section[open] > .disaster-summary::after { transform:rotate(180deg); }
+@media (prefers-reduced-motion: reduce) {
+  .disaster-summary::after { transition:none; }
+}
+.disaster-summary:hover .ds-name { color:var(--brand); }
+.disaster-summary:focus-visible { outline:2px solid var(--brand-lift); outline-offset:2px; }
+.ds-name { color:var(--ink); font-size:13px; font-weight:700; }
+.ds-note { overflow:hidden; color:var(--muted); font:11px/1.4 'DM Mono',monospace;
+  text-overflow:ellipsis; white-space:nowrap; }
+/* No panel chrome in here: it is already inside the filter column, so the
+   border, background and shadow .hazard-panel carried over the map would be a
+   box inside a box. */
+.hazard-rows { padding:0 0 4px; }
+.hazard-rows .hazard-row:first-of-type { border-top:1px solid var(--line); }
 
 .hp-foot { margin:7px 0 0; padding-top:7px; border-top:1px solid var(--line);
   color:var(--muted); font-size:10px; line-height:1.45; }

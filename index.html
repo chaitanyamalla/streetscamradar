@@ -130,136 +130,77 @@
                  placed chips, so whichever of them is hidden today leaves no
                  gap behind it. -->
             <div class="map-chips">
-              <button class="advisory-chip" id="advisory-chip" type="button" lang="de" hidden>
+              <!-- Named, not just coloured. The top line used to be the country
+                   the advisory is for, which left a reader to work out from a
+                   coloured dot what kind of thing they were looking at. The name
+                   goes on top and the country moves to the dialog and the
+                   aria-label, where it is read out in full. -->
+              <button class="advisory-chip" id="advisory-chip" type="button" hidden>
                 <span class="ac-dot" aria-hidden="true"></span>
                 <span class="ac-text">
-                  <span class="ac-kicker" id="advisory-kicker">Reisehinweise</span>
-                  <span class="ac-level" id="advisory-level"></span>
+                  <span class="ac-name" data-i18n="advisory.chipName">Travel advisory</span>
+                  <!-- lang="de" on this line and not on the chip. The level is
+                       the ministry's own word for it — "Sicherheitshinweis",
+                       "Teilreisewarnung" — and those are the terms it publishes,
+                       not something to translate. The name above it IS ours and
+                       is in the reader's language, so the chip holds two
+                       languages and each says which it is. -->
+                  <span class="ac-level" id="advisory-level" lang="de"></span>
                 </span>
               </button>
 
-              <!-- Severe weather for the country in view: the one hazard with
-                   nowhere to put a marker, since a warning covers counties at
-                   a time. Only when something is actually being warned of — a
-                   chip that appears every day is a chip nobody reads. -->
-              <button class="advisory-chip weather-chip" id="weather-chip" type="button" hidden>
-                <span class="ac-dot" aria-hidden="true"></span>
-                <span class="ac-text">
-                  <span class="ac-kicker" id="weather-country"></span>
-                  <span class="ac-level" id="weather-kinds"></span>
-                </span>
-              </button>
-
-              <!-- The hazard layers open from here: a tab hanging off the
-                   bottom of the chips, not a chip of its own. A second labelled
-                   chip put a heading over a stack that already had two, for a
-                   panel most readers open once; a drawer handle asks for the
-                   width of a caret and says the same thing. The name lives in
-                   the label and the tooltip, since there is no text in it. -->
-              <div class="hazard-menu">
-                <button class="hazard-tab" id="hazard-layers" type="button"
-                        aria-expanded="false" aria-controls="hazard-panel"
-                        data-i18n-aria="hazards.layers" data-i18n-title="hazards.layers"
-                        aria-label="Natural hazard layers" title="Natural hazard layers">
+              <!-- Severe weather for the country in view, from the national met
+                   services through MeteoAlarm.
+                   
+                   Always there once the view is inside a country MeteoAlarm
+                   covers, including when there is nothing out — a sun, and the
+                   words for it. A chip that only appeared when something was
+                   wrong meant its absence had two meanings a reader could not
+                   tell apart: "all clear" and "we are not looking here".
+                   
+                   The glyph is the answer at a glance: rain, a thunderhead, or
+                   the sun. The caret beside it opens the legend, which is both
+                   the key to the markers and the switches for them. -->
+              <div class="weather-menu">
+                <button class="advisory-chip weather-chip" id="weather-chip" type="button" hidden>
+                  <span class="ac-sign" id="weather-sign" aria-hidden="true"></span>
+                  <span class="ac-text">
+                    <span class="ac-name" data-i18n="weather.chipName">Weather advisory</span>
+                    <span class="ac-level" id="weather-kinds"></span>
+                  </span>
+                </button>
+                <button class="hazard-tab weather-tab" id="weather-legend-toggle" type="button"
+                        hidden aria-expanded="false" aria-controls="weather-legend"
+                        data-i18n-aria="weather.legend" data-i18n-title="weather.legend"
+                        aria-label="Weather warning legend" title="Weather warning legend">
                   <span class="hazard-caret" aria-hidden="true">▾</span>
                 </button>
-                <!-- The hazard layers, with what draws them and who publishes them.
-                     A legend and a set of switches in one: every row shows its own
-                     mark, so the map can be read without a separate key, and names
-                     the agency, because that — not us — is the authority for any
-                     of this. -->
-                <section class="hazard-panel" id="hazard-panel" hidden aria-labelledby="hazard-panel-title">
+
+                <!-- One row per kind being warned of here, right now — not all
+                     twelve MeteoAlarm can issue. A key of twelve rows with two
+                     live ones is a key nobody reads to the bottom of, and the
+                     rows that matter are the ones with something in them. -->
+                <section class="hazard-panel weather-legend" id="weather-legend" hidden
+                         aria-labelledby="weather-legend-title">
                   <div class="hp-head">
-                    <h2 id="hazard-panel-title" data-i18n="hazards.layers">Natural hazard layers</h2>
-                    <button class="close-button" id="hazard-panel-close" type="button"
+                    <h2 id="weather-legend-title" data-i18n="weather.legend">Weather warning legend</h2>
+                    <button class="close-button" id="weather-legend-close" type="button"
                             data-i18n-aria="auth.close" aria-label="Close">×</button>
                   </div>
-
-                  <!-- One row per kind GDACS publishes. It used to be three rows
-                       with the floods, storms and fires bundled into one, plus a
-                       switch for the weather warnings — but those are a chip above
-                       the map that appears when you zoom into a country, not a
-                       layer, so a switch for them here was a switch for something
-                       that is not on this list.
-
-                       Every row is GDACS now, so the per-row source label went as
-                       well; the footer says whose data this is. -->
-                  <label class="hazard-row">
-                    <input type="checkbox" id="earthquake-toggle" />
-                    <span class="hz-mark hz-quake" aria-hidden="true"></span>
-                    <span class="hz-text">
-                      <span class="hz-name" data-i18n="filters.quakes">Earthquakes</span>
-                      <span class="hz-note" id="earthquake-status" data-i18n="safety.off">Turned off</span>
-                    </span>
-                  </label>
-
-                  <label class="hazard-row">
-                    <input type="checkbox" id="flood-toggle" checked />
-                    <span class="hz-mark" data-hazard-sign="flood" aria-hidden="true"></span>
-                    <span class="hz-text">
-                      <span class="hz-name" data-i18n="hazards.floods">Floods</span>
-                      <span class="hz-note" id="flood-status" data-i18n="hazards.checking">Checking…</span>
-                    </span>
-                  </label>
-
-                  <label class="hazard-row">
-                    <input type="checkbox" id="cyclone-toggle" checked />
-                    <span class="hz-mark" data-hazard-sign="cyclone" aria-hidden="true"></span>
-                    <span class="hz-text">
-                      <span class="hz-name" data-i18n="hazards.storms">Storms</span>
-                      <span class="hz-note" id="cyclone-status" data-i18n="hazards.checking">Checking…</span>
-                    </span>
-                  </label>
-
-                  <label class="hazard-row">
-                    <input type="checkbox" id="wildfire-toggle" checked />
-                    <span class="hz-mark" data-hazard-sign="wildfire" aria-hidden="true"></span>
-                    <span class="hz-text">
-                      <span class="hz-name" data-i18n="hazards.fires">Wildfires</span>
-                      <span class="hz-note" id="wildfire-status" data-i18n="hazards.checking">Checking…</span>
-                    </span>
-                  </label>
-
-                  <label class="hazard-row">
-                    <input type="checkbox" id="volcano-toggle" checked />
-                    <span class="hz-mark" data-hazard-sign="volcano" aria-hidden="true"></span>
-                    <span class="hz-text">
-                      <span class="hz-name" data-i18n="hazards.volcanoes">Volcanoes</span>
-                      <span class="hz-note" id="volcano-status" data-i18n="hazards.checking">Checking…</span>
-                    </span>
-                  </label>
-
-                  <!-- Drought had a row here. GDACS's droughts are agricultural,
-                       measured from soil moisture by the Copernicus Global
-                       Drought Observatory — real data, and not something a
-                       traveller can act on. One drought is also one event
-                       across every country it touches, so five of them filled
-                       48 of the table's 51 rows. -->
-
-                  <!-- The weather warnings have no switch: they are the chip above
-                       the map, not a layer here. This line is what the switch's
-                       status text used to say, which was the useful half of it —
-                       "Europe only" is a very different claim from "none here". -->
+                  <div id="weather-legend-rows"></div>
                   <p class="hp-foot" id="weather-note"></p>
-                  <!-- And how far ahead that reaches. People plan trips on this page,
-                       so "is there a warning for next week" is a fair question with
-                       an unwelcome answer: no met service issues one that far out,
-                       and nothing forecasts an earthquake or a flood at all. Better
-                       said plainly here than left to be assumed. -->
+                  <!-- How far ahead this reaches. People plan trips on this page,
+                       so "is there a warning for next week" is a fair question
+                       with an unwelcome answer: no met service issues one that
+                       far out. Better said plainly than left to be assumed. -->
                   <p class="hp-foot" data-i18n="weather.lead">Weather warnings reach about two days ahead. Nothing further is forecast.</p>
-                  <!-- Naming them is the whole of it. A paragraph explaining that we
-                       add nothing of our own said in many words what one line says
-                       by simply crediting somebody else. -->
-                  <p class="hp-foot" data-i18n="hazards.source">Source: GDACS · MeteoAlarm · NOAA/NWS</p>
-                  <!-- Its English lives here and onLanguageChanged rewrites it, the
-                       same as #when-hint: the sentence carries a number, so a
-                       plain data-i18n cannot fill it. -->
-                  <p class="hp-foot" id="hazard-window">Ongoing events and the last 7 days.</p>
+                  <p class="hp-foot" data-i18n="weather.credit">Issued by the national met services, via MeteoAlarm</p>
                   <p class="hp-foot" data-i18n="hazard.notAlert">
                     Not an alert service — check official sources before you travel.
                   </p>
                 </section>
               </div>
+
             </div>
 
             <div id="city-map" class="city-map" data-i18n-aria="map.label" aria-label="Interactive world map of reported scams"></div>
@@ -319,6 +260,100 @@
               <span class="fr-note" id="safety-status" data-i18n="safety.zoomIn">Zoom in</span>
             </label>
           </div>
+
+          <!-- What GDACS is tracking: earthquakes, floods, storms, wildfires and
+               volcanoes, with a switch each.
+
+               It used to live on the map, on a caret beside the chips, so that
+               what a switch draws could be seen while switching it. It sits here
+               instead because these belong with the other things laid over the
+               map rather than floating on top of it, and because the map corner
+               was carrying three controls stacked on each other.
+
+               Closed by default, and a disclosure rather than a panel: five
+               switches most readers set once should not cost five rows of the
+               page on every visit. GDACS only — weather is the chip above the
+               map and has its own legend, because a disaster service and a
+               weather service are not the same thing and must not share a key. -->
+          <details class="filter-section disaster-section">
+            <summary class="disaster-summary">
+              <span class="ds-name" data-i18n="hazards.disasterUpdate">Disaster update</span>
+              <span class="ds-note" id="disaster-summary-note"></span>
+            </summary>
+            <div class="hazard-rows" id="hazard-panel">
+              <!-- One row per kind GDACS publishes. It used to be three rows with
+                   the floods, storms and fires bundled into one, plus a switch for
+                   the weather warnings — but those are the chip above the map and
+                   have a legend of their own, so a switch for them here was a
+                   switch for something that is not on this list.
+
+                   Every row is GDACS, which is why there is no per-row source
+                   label: the footer says whose data this is, once. -->
+              <label class="hazard-row">
+                <input type="checkbox" id="earthquake-toggle" />
+                <span class="hz-mark hz-quake" aria-hidden="true"></span>
+                <span class="hz-text">
+                  <span class="hz-name" data-i18n="filters.quakes">Earthquakes</span>
+                  <span class="hz-note" id="earthquake-status" data-i18n="safety.off">Turned off</span>
+                </span>
+              </label>
+
+              <label class="hazard-row">
+                <input type="checkbox" id="flood-toggle" checked />
+                <span class="hz-mark" data-hazard-sign="flood" aria-hidden="true"></span>
+                <span class="hz-text">
+                  <span class="hz-name" data-i18n="hazards.floods">Floods</span>
+                  <span class="hz-note" id="flood-status" data-i18n="hazards.checking">Checking…</span>
+                </span>
+              </label>
+
+              <label class="hazard-row">
+                <input type="checkbox" id="cyclone-toggle" checked />
+                <span class="hz-mark" data-hazard-sign="cyclone" aria-hidden="true"></span>
+                <span class="hz-text">
+                  <span class="hz-name" data-i18n="hazards.storms">Storms</span>
+                  <span class="hz-note" id="cyclone-status" data-i18n="hazards.checking">Checking…</span>
+                </span>
+              </label>
+
+              <label class="hazard-row">
+                <input type="checkbox" id="wildfire-toggle" checked />
+                <span class="hz-mark" data-hazard-sign="wildfire" aria-hidden="true"></span>
+                <span class="hz-text">
+                  <span class="hz-name" data-i18n="hazards.fires">Wildfires</span>
+                  <span class="hz-note" id="wildfire-status" data-i18n="hazards.checking">Checking…</span>
+                </span>
+              </label>
+
+              <label class="hazard-row">
+                <input type="checkbox" id="volcano-toggle" checked />
+                <span class="hz-mark" data-hazard-sign="volcano" aria-hidden="true"></span>
+                <span class="hz-text">
+                  <span class="hz-name" data-i18n="hazards.volcanoes">Volcanoes</span>
+                  <span class="hz-note" id="volcano-status" data-i18n="hazards.checking">Checking…</span>
+                </span>
+              </label>
+
+              <!-- Drought had a row here. GDACS's droughts are agricultural,
+                   measured from soil moisture by the Copernicus Global
+                   Drought Observatory — real data, and not something a
+                   traveller can act on. One drought is also one event
+                   across every country it touches, so five of them filled
+                   48 of the table's 51 rows. -->
+
+              <!-- Naming them is the whole of it. A paragraph explaining that we
+                   add nothing of our own said in many words what one line says
+                   by simply crediting somebody else. -->
+              <p class="hp-foot" data-i18n="hazards.source">Source: GDACS · NOAA/NWS</p>
+              <!-- Its English lives here and onLanguageChanged rewrites it, the
+                   same as #when-hint: the sentence carries a number, so a
+                   plain data-i18n cannot fill it. -->
+              <p class="hp-foot" id="hazard-window">Ongoing events and the last 7 days.</p>
+              <p class="hp-foot" data-i18n="hazard.notAlert">
+                Not an alert service — check official sources before you travel.
+              </p>
+            </div>
+          </details>
         </details>
 
         <aside class="reports-card" data-i18n-aria="reports.label" aria-label="Reports in view">

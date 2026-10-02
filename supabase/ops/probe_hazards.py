@@ -19,6 +19,7 @@
 # Writes nothing. Run it from the hazards workflow with `probe`.
 # ---------------------------------------------------------------------------
 import json
+import urllib.parse
 import sys
 import urllib.error
 import urllib.request
@@ -380,58 +381,94 @@ def probe_meteoalarm_geometry():
     print(f"      {busy[:20]}")
 
 
-# Where MeteoAlarm's own region shapes might be published. Thirty of its
-# thirty-eight countries send a region CODE and no shape, Spain among them, so
-# drawing Spain means resolving EMMA_ID (e.g. ES418) to a point. MeteoAlarm
-# defines those regions, so it may publish them; NUTS2 and NUTS3 are Eurostat's
-# and are certainly published.
-#
-# Guesses, every one of them, which is exactly why they are probed rather than
-# coded against. Whichever answers with geodata is the one to build on; if none
-# does, Europe outside the eight polygon countries cannot be drawn from what we
-# can reach, and the chip stays the honest answer there.
-REGION_SOURCES = {
-    "MeteoAlarm regions (api v1)": "https://feeds.meteoalarm.org/api/v1/regions",
-    "MeteoAlarm regions (feeds)": "https://feeds.meteoalarm.org/regions",
-    "MeteoAlarm areas (api v1)": "https://feeds.meteoalarm.org/api/v1/areas",
-    "MeteoAlarm emma regions": "https://feeds.meteoalarm.org/api/v1/emma-regions",
-    "MeteoAlarm site regions": "https://www.meteoalarm.org/api/v1/regions",
-    "Eurostat NUTS 2021 (level 3)":
-        "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/"
-        "NUTS_LB_2021_4326_LEVL_3.geojson",
-    "Eurostat NUTS 2021 (level 2)":
-        "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/"
-        "NUTS_LB_2021_4326_LEVL_2.geojson",
-}
+# Where a region NAME gets turned into a point. Thirty of MeteoAlarm's
+# thirty-eight services send no shape — only a region code we have no geometry
+# for — but every one of them names the area in words, and a name can be looked
+# up. Both of these are already used by the page, so neither is a new dependency.
+PHOTON = "https://photon.komoot.io/api/"
+NOMINATIM = "https://nominatim.openstreetmap.org/search"
 
 
-def probe_region_shapes():
-    """Could Spain ever get a marker, and from where?
+def probe_area_names():
+    """Can a met service's own area names be turned into points?
 
-    Spain sends 200 orange-and-red warnings and not one shape — only EMMA_ID
-    codes. A marker for Spain therefore needs a code-to-point table built once,
-    offline, from somebody's published region geometry. This asks who publishes
-    any, and says what came back.
+    This is the question the whole European marker plan rests on, and it is not
+    obvious: "Bayern" is a state and will resolve cleanly, but AEMET writes
+    "Litoral de Barcelona" and "Ibérica aragonesa", which are weather zones
+    rather than places. A name that resolves to the wrong valley is worse than
+    no marker at all, so the thing to find out is WHICH kind of answer comes
+    back — a city, a region, or nothing — and whether the geocoder admits it.
 
-    NUTS_LB_* are Eurostat's "label points" — one point per region rather than a
-    whole boundary, which is exactly what a marker needs and a fraction of the
-    size. They would cover France, Bulgaria, Romania and Hungary, which send
-    NUTS3 or NUTS2. They would NOT cover Spain, which uses EMMA_ID.
+    Real names, pulled from the live feeds rather than invented, for the
+    countries that send no shape and have warnings worth drawing.
     """
-    print(f"\n{'=' * 72}\nCOULD THE REST OF EUROPE BE DRAWN — who publishes region shapes\n{'=' * 72}")
-    for name, url in REGION_SOURCES.items():
-        status, headers, body = fetch(url)
-        kind = headers.get("content-type", "—") if headers else "—"
-        size = len(body or "")
-        print(f"  {name}")
-        print(f"    {status}  {kind}  {size} bytes")
-        if status == 200 and size:
-            head = (body or "")[:200].replace("\n", " ")
-            print(f"    starts: {head}")
-            # Does it mention the identifiers we would need to join on?
-            for marker in ("EMMA_ID", "emma_id", "NUTS_ID", "nuts_id", "FeatureCollection"):
-                if marker in (body or ""):
-                    print(f"    contains {marker!r}")
+    print(f"\n{'=' * 72}\nCAN AREA NAMES BE PLACED — the European marker plan\n{'=' * 72}")
+
+    # Collect real area names per country, from services that send no polygon.
+    wanted = ["spain", "germany", "france", "greece", "portugal", "netherlands"]
+    codes = {"spain": "ES", "germany": "DE", "france": "FR",
+             "greece": "GR", "portugal": "PT", "netherlands": "NL"}
+    names = {}
+    for slug in wanted:
+        status, _h, body = fetch(METEO_FEED.format(slug))
+        if status != 200:
+            continue
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            continue
+        found = []
+        for warning in (payload.get("warnings") or [])[:400]:
+            alert = (warning or {}).get("alert") or {}
+            for info in alert.get("info") or []:
+                for area in info.get("area") or []:
+                    if isinstance(area, dict) and not area.get("polygon"):
+                        name = str(area.get("areaDesc") or "").strip()
+                        if name and name not in found:
+                            found.append(name)
+        names[slug] = found
+        print(f"  {slug:<14} {len(found)} distinct area names, e.g. {found[:4]}")
+
+    print("\n  WHAT THE GEOCODER MAKES OF THEM")
+    print(f"  {'name':<34}{'country':<9}{'photon says':<34}{'type':<12}position")
+    placed = unplaced = 0
+    for slug, found in names.items():
+        for name in found[:5]:
+            params = urllib.parse.urlencode({
+                "q": name, "limit": "1", "lang": "en", "layer": "district",
+            })
+            # The country filter is the important part: "Bayern" without it can
+            # match a street in Brazil.
+            params += f"&osm_tag=:!boundary"
+            status, _h, body = fetch(f"{PHOTON}?{params}")
+            label = kindOf = "—"
+            position = "none"
+            try:
+                data = json.loads(body or "{}")
+                feats = data.get("features") or []
+                if feats:
+                    props = feats[0].get("properties") or {}
+                    label = str(props.get("name") or "?")[:30]
+                    kindOf = str(props.get("type") or props.get("osm_value") or "?")[:10]
+                    coords = (feats[0].get("geometry") or {}).get("coordinates") or []
+                    if len(coords) >= 2:
+                        position = f"{round(coords[1], 2)},{round(coords[0], 2)}"
+                        placed += 1
+                    sameCountry = str(props.get("countrycode") or "") == codes[slug]
+                    if not sameCountry:
+                        kindOf += f" !{props.get('countrycode')}"
+                else:
+                    unplaced += 1
+            except (json.JSONDecodeError, TypeError, IndexError):
+                unplaced += 1
+            print(f"  {name[:33]:<34}{codes[slug]:<9}{label:<34}{kindOf:<12}{position}")
+
+    print(f"\n  SUMMARY")
+    print(f"    placed   : {placed}")
+    print(f"    unplaced : {unplaced}")
+    print("    Read the 'type' and the country flag: a '!XX' means the geocoder")
+    print("    answered with somewhere in the WRONG COUNTRY, which is the failure")
+    print("    mode that matters and the reason to filter by country code.")
 
 
 def main():
@@ -442,7 +479,7 @@ def main():
     probe_meteoalarm()
     probe_meteoalarm_detail()
     probe_meteoalarm_geometry()
-    probe_region_shapes()
+    probe_area_names()
 
     print(f"\n{'=' * 72}\nHOW CROWDED WOULD THE MAP GET\n{'=' * 72}")
     print(f"  A city view here is +/-{CITY_BOX} degrees, about a city and its suburbs.")

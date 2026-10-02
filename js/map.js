@@ -7,7 +7,7 @@
 // popup, never on the pin — map label fonts have no emoji coverage.
 // ---------------------------------------------------------------------------
 import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
-import { paintHazardSign } from './hazard-signs.js';
+import { paintHazardSign, hazardColor } from './hazard-signs.js';
 import { mapStyleFor, WORLD_VIEW, PIN_COLOR, CLUSTER_COLOR,
          SAFETY_MIN_ZOOM } from './config.js';
 
@@ -67,7 +67,13 @@ export const WEATHER_KINDS = [
   'low-temperature', 'coastal-event', 'forest-fire', 'avalanche',
   'rain', 'flood', 'rain-flood',
 ];
-const weatherIcon = (kind) => `hazard-icon-${kind}`;
+// A SEPARATE image id from the GDACS signs, not the same one reused. They
+// collided — weatherIcon('flood') and DISASTER_ICONS.flood both resolved to
+// 'hazard-icon-flood' — so a county flood warning and a continental flood
+// disaster were drawn pixel-identical, and a reader clicking one reasonably
+// expected the other. A warning and a disaster are different claims from
+// different kinds of agency and must not share a mark.
+const weatherIcon = (kind) => `weather-icon-${kind}`;
 
 // How much bigger a hazard is drawn for the grade GDACS gave it. Only two
 // grades reach the map, and a Red is the one you want to see first from across
@@ -274,9 +280,12 @@ export function addLayers(map) {
   map.addLayer({
     id: 'weather-icon', type: 'symbol', source: 'weather',
     layout: {
+      // The fallback is a weather tile as well. Reaching for the GDACS
+      // "unknown" sign here would reintroduce exactly the mix-up this
+      // separation exists to prevent.
       'icon-image': ['match', ['get', 'kind'],
         ...WEATHER_KINDS.flatMap(kind => [kind, weatherIcon(kind)]),
-        DISASTER_ICONS.unknown],
+        weatherIcon('wind')],
       // Smaller than a GDACS sign at every zoom, and visibly so. A warning is
       // about the next few hours over a county; a disaster is a disaster.
       //
@@ -284,8 +293,8 @@ export function addLayers(map) {
       // MapLibre only allows `zoom` as the direct input of a top-level step or
       // interpolate, so ['*', interpolate(zoom), grade] is rejected outright.
       'icon-size': ['interpolate', ['linear'], ['zoom'],
-        3, ['*', 0.30, GRADE_SIZE], 8, ['*', 0.42, GRADE_SIZE],
-        14, ['*', 0.52, GRADE_SIZE]],
+        3, ['*', 0.34, GRADE_SIZE], 8, ['*', 0.48, GRADE_SIZE],
+        14, ['*', 0.60, GRADE_SIZE]],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
@@ -470,6 +479,13 @@ export const toWeatherFeatures = (rows) => ({
         areas: w.areas ?? '', country_code: w.country_code,
         from_date: w.from_date ?? '', to_date: w.to_date ?? '',
         source: w.source ?? '', url: w.url ?? '',
+        // Whether the point is the area or only the country it is in. The popup
+        // says which, and without this it cannot: a style expression has no use
+        // for it, but the popup is the whole reason it exists.
+        place_kind: w.place_kind ?? '',
+        // How many more warnings of this kind share this exact point. Several
+        // do whenever the point is a country's middle, which is most of them.
+        also: Number(w.also ?? 0),
         // Worked out here rather than in a style expression, for the same
         // reason `ended` is on the disasters: comparing a date to now needs a
         // clock, and a layer expression has none.
@@ -682,10 +698,80 @@ export function registerSafetyIcons(map) {
     sign(id + DULL_SUFFIX, kind, true);
   }
 
-  // And the weather kinds, for the warnings that came with a position. No dull
-  // variant: a weather warning is never shown as over — it is deleted when it
-  // expires — and an upcoming one is faded by the layer, not greyed.
-  for (const kind of WEATHER_KINDS) sign(weatherIcon(kind), kind);
+  // And the weather kinds, for the warnings that came with a position. Drawn as
+  // tiles rather than bare signs, under their own image ids, so a weather
+  // warning can never again be mistaken for a GDACS disaster.
+  //
+  // No dull variant: a weather warning is never shown as over — it is deleted
+  // when it expires — and one that has not started yet is faded by the layer
+  // rather than greyed, because grey means "over" everywhere else here.
+  for (const kind of WEATHER_KINDS) {
+    const id = weatherIcon(kind);
+    if (map.hasImage?.(id)) continue;
+    const image = drawWeatherSign(kind);
+    if (image) map.addImage(id, image, { pixelRatio: 2 });
+  }
+}
+
+/**
+ * A weather warning's marker: the glyph on a small rounded tile.
+ *
+ * Deliberately a different FAMILY of mark from the GDACS signs, which stand on
+ * the map bare. The two were identical and that was the bug: a flood warning for
+ * one county and a flood disaster across a country looked the same and said
+ * different things. A tile is also what a forecast looks like everywhere else a
+ * reader has seen one, so it carries "this is the weather" without a word.
+ *
+ * The plate takes its colours from the page's own tokens, so it is light on the
+ * light basemap and dark on the dark one without this file knowing which is up —
+ * the images are re-registered on every style rebuild anyway.
+ */
+function drawWeatherSign(kind) {
+  const size = 40, ratio = 2, pad = 2, r = 9;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size * ratio;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.scale(ratio, ratio);
+
+  const box = size - pad * 2;
+  ctx.beginPath();
+  ctx.moveTo(pad + r, pad);
+  ctx.arcTo(pad + box, pad, pad + box, pad + box, r);
+  ctx.arcTo(pad + box, pad + box, pad, pad + box, r);
+  ctx.arcTo(pad, pad + box, pad, pad, r);
+  ctx.arcTo(pad, pad, pad + box, pad, r);
+  ctx.closePath();
+  ctx.fillStyle = cssToken('--surface', '#ffffff');
+  ctx.fill();
+  // The border is the kind's own colour, which is how the tile still says WHICH
+  // weather at a glance once it is too small to read the glyph.
+  ctx.lineWidth = 2.2;
+  ctx.strokeStyle = hazardColor(kind);
+  ctx.stroke();
+
+  // The glyph, inset. Same paths as the key in the legend and the popup, so a
+  // reader who learns one has learned all three.
+  const inner = box - 7;
+  ctx.save();
+  ctx.translate(pad + 3.5, pad + 3.5);
+  ctx.scale(inner / 24, inner / 24);
+  paintHazardSign(ctx, kind, 24, false);
+  ctx.restore();
+
+  return ctx.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+/** A colour from the page's own tokens, so a marker matches the theme it is
+ *  drawn into. Falls back rather than throwing where there is no document. */
+function cssToken(name, fallback) {
+  try {
+    const value = getComputedStyle(document.documentElement)
+      .getPropertyValue(name).trim();
+    return value || fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 /** A hazard sign at the size MapLibre wants it: 46px drawn at 2×. */

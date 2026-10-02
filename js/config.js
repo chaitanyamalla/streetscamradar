@@ -116,12 +116,15 @@ export const SUGGEST_DEBOUNCE_MS = 280;
 // warnings" where the honest answer is "nobody is telling us" — a silence that
 // means something very different.
 //
-// Kept in step with the generators by parity-test.mjs, which fails if any of
-// them ever drift apart: MeteoAlarm against COUNTRIES in
-// supabase/ops/fetch_weather.py, the NWS list against fetch_nws.py.
-
-// MeteoAlarm: the European met services' shared system. One request per
-// country, which is why there is a list at all.
+// Kept in step with COUNTRIES in supabase/ops/fetch_weather.py by
+// parity-test.mjs, which fails if the two ever drift apart.
+//
+// MeteoAlarm, and only MeteoAlarm. NOAA's National Weather Service was added
+// for the United States and then removed: its feed is mostly marine advisories
+// and county-by-county flood warnings, which on a world travel map came out as
+// a United States buried under flood signs linking to a weather.gov home page.
+// MeteoAlarm's own orange-and-red grading is already the filter a traveller
+// needs, and one source we understand beats two we half-show.
 export const METEOALARM_COUNTRIES = new Set([
   'AT', 'BA', 'BE', 'BG', 'CH', 'CY', 'CZ', 'DE',
   'DK', 'EE', 'ES', 'FI', 'FR', 'GB', 'GR', 'HR',
@@ -130,17 +133,10 @@ export const METEOALARM_COUNTRIES = new Set([
   'RO', 'RS', 'SE', 'SI', 'SK', 'UA'
 ]);
 
-// NOAA's National Weather Service: one national feed for the United States.
-// Its territories (Puerto Rico, Guam, the US Virgin Islands) are in the same
-// feed and are their own countries on the map, so they are named here too —
-// a warning for San Juan is no use filed under "US".
-export const NWS_COUNTRIES = new Set(['US', 'PR', 'VI', 'GU', 'MP', 'AS']);
-
-// What the page as a whole has weather for. Everything else gets "nobody is
-// telling us" rather than "nothing is happening".
-export const WEATHER_COUNTRIES = new Set([
-  ...METEOALARM_COUNTRIES, ...NWS_COUNTRIES,
-]);
+// What the page has weather for. Everything else gets "nobody is telling us"
+// rather than "nothing is happening" — a silence that means something very
+// different, and the panel says which.
+export const WEATHER_COUNTRIES = METEOALARM_COUNTRIES;
 
 // --- Where a report can be -----------------------------------------------
 // Two rules, and they do different jobs.

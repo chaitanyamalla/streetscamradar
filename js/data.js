@@ -379,9 +379,11 @@ export function fetchDisasters() {
  * morning" is exactly what somebody planning a trip wants to know. The page
  * labels them as upcoming rather than implying they are in force now.
  *
- * lat and lng come back too, and are null for most rows: MeteoAlarm names
- * regions and gives no shape, and only about a third of NWS alerts carry a
- * polygon. A row without a position still belongs in the chip and the list.
+ * lat and lng come back too, from one of two places, and place_kind says which.
+ * Eight of MeteoAlarm's services send a CAP polygon and its centre is used;
+ * for the rest the area's NAME is looked up once and remembered, and where even
+ * that fails the marker sits on the middle of the country and says so. A row
+ * with no position at all still belongs in the chip and the list.
  */
 let weatherCache = null;
 
@@ -392,7 +394,8 @@ export function fetchWeatherWarnings() {
   const now = new Date().toISOString();
   weatherCache = supabase
     .from('weather_warnings')
-    .select('warning_id,country_code,kind,severity,areas,from_date,to_date,source,url,lat,lng')
+    .select('warning_id,country_code,kind,severity,areas,from_date,to_date,source,url,'
+            + 'lat,lng,place_kind')
     .or(`to_date.is.null,to_date.gte.${now}`)
     .then(({ data, error }) => {
       if (error) throw error;

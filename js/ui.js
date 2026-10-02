@@ -519,9 +519,18 @@ export function advisoryDialogHTML(row, { level, tone, changed, stats, ageDays }
  * sentence that stops that being a lie, so it is on every hazard rather than
  * only the serious ones.
  */
-const gradeLine = (severity) => {
-  const key = `hazard.grade.${severity}`;
-  const text = tOr(key, '');
+/**
+ * The grading, with the agency that gave it.
+ *
+ * `from` matters and used to be assumed. The line said "Orange alert from GDACS"
+ * on every popup that carried it, including a MeteoAlarm weather warning issued
+ * by a national met service — crediting a disaster agency for a met office's
+ * work, on the very popup the reader opened to find out who was telling them.
+ * The grade word is the same because both agencies use the same two colours;
+ * whose grading it is, is not.
+ */
+const gradeLine = (severity, from = 'gdacs') => {
+  const text = tOr(`hazard.grade.${from}.${severity}`, '');
   return text ? `<p class="popup-grade is-${esc(severity)}">${esc(text)}</p>` : '';
 };
 
@@ -653,11 +662,13 @@ export function warningCredit(rows) {
 /**
  * A weather warning, opened from its marker.
  *
- * Only some warnings have a marker at all — a position has to have come with
- * the alert — and the line about what that position means matters more here
- * than anywhere else on this map. It is the middle of a polygon covering
- * counties: the warning applies to all of it, not to the spot the sign sits on.
- * Naming the areas underneath is what makes the marker honest.
+ * The line about what the position MEANS matters more here than anywhere else
+ * on this map, because it is not the same thing twice. Where the service sent a
+ * polygon, the marker is the middle of an area covering whole districts. Where
+ * it sent only a name that nothing could place, the marker is the middle of the
+ * COUNTRY — and saying "the centre of the area warned" about that would be a
+ * lie with a precision attached. The popup says which, in words, and the areas
+ * are named underneath either way.
  */
 export function weatherPopupHTML(props) {
   const kind = String(props.kind ?? 'wind');
@@ -674,9 +685,14 @@ export function weatherPopupHTML(props) {
         <p class="popup-title">${esc(rest > 0 ? `${shown} +${rest}` : shown)}</p>
       </div>
     </div>
-    ${gradeLine(props.severity)}
+    ${gradeLine(props.severity, 'meteoalarm')}
     ${isUpcoming(props) ? `<p class="hazard-upcoming">${esc(t('weather.upcoming'))}</p>` : ''}
-    <p class="popup-fine">${esc(t('weather.place'))}</p>
+    <p class="popup-fine">${esc(t(props.place_kind === 'country'
+      ? 'weather.placeCountry' : 'weather.place'))}</p>
+    ${Number(props.also) > 0
+      ? `<p class="popup-fine">${esc(tn('weather.alsoHere', Number(props.also),
+          { n: Number(props.also) }))}</p>`
+      : ''}
     ${props.url ? `<div class="popup-actions">
       <a class="popup-action is-primary" href="${esc(props.url)}"
          target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>

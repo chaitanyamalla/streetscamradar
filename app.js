@@ -859,6 +859,19 @@ const FAN_PIXELS = 30;
 // necklace. The rest go on a second ring further out.
 const FAN_RING = 8;
 
+// How far a marker may ever be moved from the point it belongs to, whatever the
+// zoom says. Without this the ring keeps growing in degrees as you zoom out —
+// it is held at a constant size on SCREEN, and a pixel is worth more ground
+// every time you zoom out — so Greece's markers ended up in the Aegean and on
+// the way to Albania.
+//
+// 0.35° is about 39km, which keeps a ring inside every country MeteoAlarm
+// covers from the point the geocoder calls its middle. It binds only below
+// roughly zoom 6, where 0.35° is a handful of pixels: zoomed out that far the
+// markers sit on top of each other again, which is right, because at a
+// continent's width you are not picking one of them out anyway.
+const FAN_MAX_DEGREES = 0.35;
+
 /**
  * Separate the markers that share a point.
  *
@@ -901,7 +914,13 @@ function fanOut(rows) {
     // otherwise fan twice as wide as Cyprus.
     const lat = group[0].lat;
     const metresPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / 2 ** zoom;
-    const dLat = (FAN_PIXELS * metresPerPixel) / 111320;
+
+    // The cap is applied to the OUTERMOST ring, not to the first one, so a
+    // second ring cannot step over it. Everything inside scales down with it.
+    const rings = Math.ceil(group.length / FAN_RING);
+    const furthest = 1 + (rings - 1) * 0.9;
+    const dLat = Math.min((FAN_PIXELS * metresPerPixel) / 111320,
+                          FAN_MAX_DEGREES / furthest);
     const dLng = dLat / Math.max(Math.cos(lat * Math.PI / 180), 0.2);
 
     // Worst first, so the one that matters takes the top of the ring where the

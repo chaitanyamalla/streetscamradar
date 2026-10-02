@@ -344,6 +344,8 @@ export default {
   'weather.upcoming': 'Noch nicht in Kraft — im Voraus herausgegeben.',
   'weather.place': 'In der Mitte des gewarnten Gebiets markiert, das ganze Kreise umfasst.',
   'weather.placeCountry': 'Auf dem Land markiert, nicht auf dem Gebiet: Die Warnung nennt eine Region, die wir nicht genau verorten konnten.',
+  'weather.alsoHere.one': '{n} weitere Warnung dieser Art liegt auf diesem Punkt — alle im Chip oben.',
+  'weather.alsoHere.other': '{n} weitere Warnungen dieser Art liegen auf diesem Punkt — alle im Chip oben.',
   'weather.source': 'Herausgegeben von {who}',
   'weather.source.meteoalarm': 'Herausgegeben von {who}, über MeteoAlarm',
   'advisory.chipName': 'Reisehinweise',

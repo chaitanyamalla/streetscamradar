@@ -362,6 +362,8 @@ export default {
   'weather.upcoming': 'Not yet in force — issued ahead of time.',
   'weather.place': 'Marked at the centre of the area warned, which covers whole districts.',
   'weather.placeCountry': 'Marked on the country, not on the area: the warning names a region we could not place exactly.',
+  'weather.alsoHere.one': '{n} more warning of this kind sits on this point — open the chip for all of them.',
+  'weather.alsoHere.other': '{n} more warnings of this kind sit on this point — open the chip for all of them.',
   'weather.source': 'Issued by {who}',
   'weather.source.meteoalarm': 'Issued by {who}, via MeteoAlarm',
   'advisory.chipName': 'Travel advisory',

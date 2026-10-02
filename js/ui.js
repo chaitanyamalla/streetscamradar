@@ -689,6 +689,10 @@ export function weatherPopupHTML(props) {
     ${isUpcoming(props) ? `<p class="hazard-upcoming">${esc(t('weather.upcoming'))}</p>` : ''}
     <p class="popup-fine">${esc(t(props.place_kind === 'country'
       ? 'weather.placeCountry' : 'weather.place'))}</p>
+    ${Number(props.also) > 0
+      ? `<p class="popup-fine">${esc(tn('weather.alsoHere', Number(props.also),
+          { n: Number(props.also) }))}</p>`
+      : ''}
     ${props.url ? `<div class="popup-actions">
       <a class="popup-action is-primary" href="${esc(props.url)}"
          target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>

@@ -349,6 +349,8 @@ export default {
   'weather.upcoming': 'Jeszcze nie obowiązuje — wydane z wyprzedzeniem.',
   'weather.place': 'Oznaczone w środku obszaru ostrzeżenia, który obejmuje całe powiaty.',
   'weather.placeCountry': 'Oznaczone na kraju, nie na obszarze: ostrzeżenie wskazuje region, którego nie udało się dokładnie umiejscowić.',
+  'weather.alsoHere.one': 'W tym punkcie jest {n} kolejne ostrzeżenie tego rodzaju — wszystkie w plakietce.',
+  'weather.alsoHere.other': 'W tym punkcie jest {n} kolejnych ostrzeżeń tego rodzaju — wszystkie w plakietce.',
   'weather.source': 'Wydane przez {who}',
   'weather.source.meteoalarm': 'Wydane przez {who}, przez MeteoAlarm',
   'advisory.chipName': 'Porady dla podróżnych',

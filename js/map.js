@@ -483,6 +483,9 @@ export const toWeatherFeatures = (rows) => ({
         // says which, and without this it cannot: a style expression has no use
         // for it, but the popup is the whole reason it exists.
         place_kind: w.place_kind ?? '',
+        // How many more warnings of this kind share this exact point. Several
+        // do whenever the point is a country's middle, which is most of them.
+        also: Number(w.also ?? 0),
         // Worked out here rather than in a style expression, for the same
         // reason `ended` is on the disasters: comparing a date to now needs a
         // clock, and a layer expression has none.

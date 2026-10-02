@@ -365,6 +365,8 @@ export default {
   'weather.upcoming': 'Ainda não está em vigor — emitido com antecedência.',
   'weather.place': 'Marcado no centro da área avisada, que abrange distritos inteiros.',
   'weather.placeCountry': 'Marcado no país, não na zona: o aviso nomeia uma região que não conseguimos localizar com exatidão.',
+  'weather.alsoHere.one': '{n} outro aviso deste tipo está neste ponto — abra o selo para os ver todos.',
+  'weather.alsoHere.other': '{n} outros avisos deste tipo estão neste ponto — abra o selo para os ver todos.',
   'weather.source': 'Emitido por {who}',
   'weather.source.meteoalarm': 'Emitido por {who}, via MeteoAlarm',
   'advisory.chipName': 'Conselhos de viagem',

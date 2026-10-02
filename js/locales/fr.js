@@ -344,6 +344,8 @@ export default {
   'weather.upcoming': 'Pas encore en vigueur — émis à l’avance.',
   'weather.place': 'Marqué au centre de la zone concernée, qui couvre des départements entiers.',
   'weather.placeCountry': 'Marqué sur le pays, pas sur la zone : l\'alerte nomme une région que nous n\'avons pas pu situer précisément.',
+  'weather.alsoHere.one': '{n} autre alerte de ce type se trouve sur ce point — ouvrez la pastille pour toutes les voir.',
+  'weather.alsoHere.other': '{n} autres alertes de ce type se trouvent sur ce point — ouvrez la pastille pour toutes les voir.',
   'weather.source': 'Émis par {who}',
   'weather.source.meteoalarm': 'Émis par {who}, via MeteoAlarm',
   'advisory.chipName': 'Conseils aux voyageurs',

@@ -811,7 +811,16 @@ function countWeatherLegend() {
  * the ones that have not, and the popup says so in words.
  */
 function paintWeatherMarkers() {
-  const rows = [];
+  // One marker per point and kind, not one per warning. Most of Europe's area
+  // names are weather zones rather than places — "Ibérica aragonesa" is not
+  // somewhere a geocoder has heard of — so those warnings sit on the middle of
+  // their country, and Spain on a wet afternoon would be forty identical tiles
+  // stacked on Madrid. Stacked markers are not more information, they are one
+  // marker drawn forty times with thirty-nine popups you cannot reach.
+  //
+  // The worst severity wins, and the one still in force beats one that has not
+  // started, because that is the order somebody reads them in.
+  const byPoint = new Map();
   for (const list of state.weather?.values() ?? []) {
     for (const row of list) {
       if (!Number.isFinite(row.lat) || !Number.isFinite(row.lng)) continue;
@@ -819,9 +828,23 @@ function paintWeatherMarkers() {
       // rather than being drawn and hidden: one way to hide a marker is enough,
       // and the count beside its row has to agree with what is on the map.
       if (!weatherKindOn(row.kind)) continue;
-      rows.push({ ...row, upcoming: isUpcoming(row) });
+
+      const marker = { ...row, upcoming: isUpcoming(row) };
+      const key = `${row.lat},${row.lng}|${row.kind}`;
+      const standing = byPoint.get(key);
+      if (!standing) { byPoint.set(key, marker); continue; }
+      // Keep the louder of the two, and remember that more than one is here so
+      // the popup can say so rather than pretending it is the only one.
+      const better = (a, b) =>
+        a.severity !== b.severity ? (a.severity === 'severe' ? a : b)
+        : a.upcoming !== b.upcoming ? (a.upcoming ? b : a)
+        : a;
+      const kept = better(standing, marker);
+      kept.also = (standing.also ?? 0) + 1;
+      byPoint.set(key, kept);
     }
   }
+  const rows = [...byPoint.values()];
   state.weatherMarkers = rows;
   setWeather(map, rows);
   countWeatherLegend();

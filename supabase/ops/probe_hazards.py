@@ -296,24 +296,23 @@ def probe_meteoalarm_detail():
 
 
 def probe_meteoalarm_geometry():
-    """Can a MeteoAlarm warning be put on the map at all?
+    """Can a MeteoAlarm warning be put on the map, and for which countries?
 
-    The question came from a reader: Spain has 44 live warnings and not one
-    marker, while the United States has 91. NOAA sends a polygon with most of
-    its serious alerts; the fetcher only ever reads `areaDesc` out of
-    MeteoAlarm, and nobody has checked whether there is more in there.
+    The question came from a reader: Spain has 44 live orange-and-red warnings
+    and not one marker, while the United States has 91. The fetcher only ever
+    read `areaDesc`, and the first pass of this probe showed that was a mistake
+    — 4,790 of 32,313 area blocks DO carry a <polygon>, and every single block
+    carries at least one geocode (EMMA_ID mostly, with NUTS2 and NUTS3).
 
-    CAP allows three ways to say where an area is — <polygon>, <circle> and
-    <geocode> — so this counts all three across every country, and prints the
-    geocode naming schemes it finds. A scheme like EMMA_ID is a published region
-    code we could resolve to a point once, offline; a polygon we could use
-    directly. If all three come back empty everywhere, then Europe genuinely
-    cannot be drawn from this feed and the chip is the honest answer.
+    So the question is no longer "is there anything" but "what, where, and in
+    what format". This prints, per country: how many area blocks it sends, how
+    many have a polygon, and which geocode schemes it uses — plus a real polygon
+    string, because CAP writes them "lat,lon lat,lon ..." which is the opposite
+    order from GeoJSON and getting it backwards puts Madrid in the Indian Ocean.
     """
-    print(f"\n{'=' * 72}\nMETEOALARM — is there anything to put on a map\n{'=' * 72}")
+    print(f"\n{'=' * 72}\nMETEOALARM — what can be put on a map, by country\n{'=' * 72}")
 
-    polygons = circles = areas_total = with_any = 0
-    schemes, samples, per_country = {}, [], {}
+    rows, polygon_samples, schemes_seen = [], [], {}
     for slug in METEO_COUNTRIES:
         status, _headers, body = fetch(METEO_FEED.format(slug))
         if status != 200:
@@ -326,56 +325,59 @@ def probe_meteoalarm_geometry():
         if not isinstance(warnings, list):
             continue
 
-        placed = 0
+        blocks = polys = 0
+        schemes = {}
+        serious = 0
         for warning in warnings:
             alert = (warning or {}).get("alert") or {}
             for info in alert.get("info") or []:
+                params = cap_parameters(info)
+                level = params.get("awareness_level", "").lower()
+                # Only the two grades we actually store. A country whose
+                # polygons are all on green warnings would be no use to us.
+                if "orange" in level or "red" in level:
+                    serious += 1
                 for area in info.get("area") or []:
                     if not isinstance(area, dict):
                         continue
-                    areas_total += 1
-                    has = False
+                    blocks += 1
                     if area.get("polygon"):
-                        polygons += 1
-                        has = True
-                        if len(samples) < 2:
-                            samples.append((slug, "polygon",
-                                            str(area["polygon"])[:160]))
-                    if area.get("circle"):
-                        circles += 1
-                        has = True
-                        if len(samples) < 4:
-                            samples.append((slug, "circle", str(area["circle"])[:160]))
+                        polys += 1
+                        if len(polygon_samples) < 3:
+                            polygon_samples.append(
+                                (slug, str(area.get("areaDesc"))[:30],
+                                 str(area["polygon"])[:150]))
                     for code in area.get("geocode") or []:
-                        if not isinstance(code, dict):
-                            continue
-                        name = str(code.get("valueName") or "?")
-                        schemes[name] = schemes.get(name, 0) + 1
-                        has = True
-                        if len(samples) < 8:
-                            samples.append((slug, f"geocode {name}",
-                                            str(code.get("value"))[:80]))
-                    if has:
-                        with_any += 1
-                        placed += 1
-        if placed:
-            per_country[slug] = placed
+                        if isinstance(code, dict):
+                            name = str(code.get("valueName") or "?")
+                            schemes[name] = schemes.get(name, 0) + 1
+                            schemes_seen.setdefault(name, str(code.get("value"))[:24])
+        rows.append((slug, blocks, polys, serious, schemes))
 
-    for slug, what, value in samples:
-        print(f"  {slug:<18} {what:<18} {value}")
+    print("  A REAL POLYGON, so the format is not guessed at:")
+    for slug, where, poly in polygon_samples:
+        print(f"    {slug} / {where}")
+        print(f"      {poly}")
+    if not polygon_samples:
+        print("    none sent one")
 
-    print("\n  SUMMARY")
-    print(f"    area blocks seen        : {areas_total}")
-    print(f"    with <polygon>          : {polygons}")
-    print(f"    with <circle>           : {circles}")
-    print(f"    with any geometry/code  : {with_any}")
-    print(f"    geocode schemes         : {schemes}")
-    print(f"    countries with any      : {dict(list(per_country.items())[:12])}")
-    if not polygons and not circles and not schemes:
-        print("    -> nothing to place a marker with. The chip is the honest answer.")
-    elif schemes and not polygons:
-        print("    -> no shapes, but there ARE region codes: resolvable to points")
-        print("       ONCE, offline, into a lookup table the fetcher reads.")
+    print("\n  WHAT EACH GEOCODE SCHEME LOOKS LIKE:")
+    for name, example in sorted(schemes_seen.items()):
+        print(f"    {name:<12} e.g. {example}")
+
+    print(f"\n  {'country':<20}{'areas':>7}{'polygons':>10}{'orange+red':>12}  schemes")
+    for slug, blocks, polys, serious, schemes in sorted(rows, key=lambda r: -r[2]):
+        names = ",".join(sorted(schemes)) or "—"
+        print(f"  {slug:<20}{blocks:>7}{polys:>10}{serious:>12}  {names}")
+
+    # The line that decides what to build. Counted over the countries that have
+    # warnings we would actually store.
+    drawable = sum(1 for _s, _b, p, serious, _c in rows if p and serious)
+    busy = [s for s, _b, p, serious, _c in rows if serious and not p]
+    print(f"\n  SUMMARY")
+    print(f"    countries sending polygons AND serious warnings : {drawable}")
+    print(f"    countries with serious warnings but NO polygon  : {len(busy)}")
+    print(f"      {busy[:20]}")
 
 
 def main():

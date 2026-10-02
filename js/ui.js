@@ -644,7 +644,18 @@ export function disasterPopupHTML(props) {
  * using MeteoAlarm's URL, with the ISO code and a language segment in it. That
  * is as authoritative as a URL shape gets.
  */
-const METEOALARM_LANGS = new Set(['en', 'de']);
+// Every language this page is served in, each confirmed by asking MeteoAlarm for
+// it and finding that language's own word for a warning in what came back:
+//
+//   /en/ warning   /de/ warnung    /it/ allerta       /fr/ vigilance
+//   /es/ aviso     /nl/ waarschuwing   /pt/ aviso     /pl/ ostrzeż   /cs/ výstrah
+//
+// Checked that way rather than by status code, because the site is a
+// single-page app that answers 200 to any path at all — a made-up /zz/ returns
+// a page too, in English and visibly smaller than the real ones. Which also
+// means a language we get wrong degrades to English rather than breaking.
+const METEOALARM_LANGS = new Set(
+  ['en', 'de', 'fr', 'es', 'it', 'pt', 'nl', 'pl', 'cs']);
 
 export function meteoalarmUrl(code) {
   const country = String(code ?? '').trim().toUpperCase();

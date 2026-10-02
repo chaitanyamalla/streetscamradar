@@ -77,6 +77,14 @@ rows = fw.rows_from(europe({
 by_id = {(r["warning_id"], r["country_code"]): r for r in rows}
 
 check(len(rows) == 2, f"only orange and red are stored ({len(rows)})")
+# Named rather than left to a count, because this is the rule the whole weather
+# layer rests on: green and yellow are about 5,000 of the 5,600 warnings live
+# across Europe on an ordinary afternoon, and carrying them would flag half the
+# continent permanently and teach a reader to ignore the rest.
+check(("fr-1", "FR") not in by_id, "a yellow warning is not stored")
+check(("es-1", "ES") not in by_id, "and neither is a green one")
+check(all(r["severity"] in ("notice", "severe") for r in rows),
+      "nothing but the two grades the table allows ever reaches it")
 check(by_id[("be-1", "BE")]["severity"] == "notice", "orange is a notice")
 check(by_id[("de-1", "DE")]["severity"] == "severe", "red is severe")
 check(by_id[("be-1", "BE")]["kind"] == "wind", "the awareness type becomes a kind")

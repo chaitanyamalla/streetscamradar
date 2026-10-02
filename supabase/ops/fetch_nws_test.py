@@ -135,6 +135,24 @@ for ugc, country in (("TXZ192", "US"), ("CAZ006", "US"), ("PRZ001", "PR"),
                      ("ASZ001", "AS")):
     got = nws.country_of({"geocode": {"UGC": [ugc]}})
     check(got == country, f"{ugc} belongs to {country} (got {got})")
+# A zone we cannot place is still stored, under US, and SAID so. The first live
+# run filed one Guam-office alert that way — the Tiyan office also forecasts for
+# Palau and Micronesia, which are not the United States — and a silent misfiling
+# is the kind of thing nobody finds.
+nws.UNKNOWN_PREFIXES.clear()
+check(nws.country_of({"geocode": {"UGC": ["PWZ001"]}}) == "US",
+      "a zone prefix we have never seen falls back to the United States")
+check(nws.UNKNOWN_PREFIXES.get("PW") == 1,
+      f"and is counted so the run can name it ({dict(nws.UNKNOWN_PREFIXES)})")
+nws.UNKNOWN_PREFIXES.clear()
+check(nws.country_of({"geocode": {"UGC": ["TXZ192"]}}) == "US"
+      and not nws.UNKNOWN_PREFIXES,
+      "while an ordinary state is not reported as a mystery")
+check(nws.country_of({"geocode": {"UGC": ["GMZ350"]}}) == "US"
+      and not nws.UNKNOWN_PREFIXES,
+      "and nor is a marine zone, which is not a country getting lost")
+nws.UNKNOWN_PREFIXES.clear()
+
 check(nws.country_of({}) == "US",
       "an alert with no zone codes is the United States rather than nothing")
 check(nws.country_of({"geocode": {"UGC": None}}) == "US",

@@ -102,6 +102,26 @@ TERRITORIES = {
 # exactly what it wrote and nothing MeteoAlarm wrote.
 OURS = ("US", *sorted(TERRITORIES.values()))
 
+# The fifty states, DC, and the marine/offshore prefixes, so that anything
+# ELSE showing up as a zone prefix gets named in the log rather than filed
+# under "US" in silence.
+#
+# This exists because the first live run put one Guam-office alert under US: the
+# Tiyan office also forecasts for Palau, Micronesia and the Marshall Islands,
+# which are not the United States and have UGC prefixes we have not seen. Rather
+# than guess at them, the run says what it saw, and the next person has a fact
+# instead of a hunch.
+US_STATES = frozenset("""
+AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO
+MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY
+DC
+""".split()) | frozenset({
+    # Marine and offshore zone prefixes. They reach here only on an alert we
+    # kept for other reasons, and they are not a country getting lost.
+    "AM", "AN", "GM", "LC", "LE", "LH", "LM", "LO", "LS", "PH", "PK", "PM",
+    "PZ", "SL", "ANZ", "PZZ",
+})
+
 # NWS publishes around eighty event names and adds to them. Matching on words
 # rather than on a fixed list means a new name lands in the right place instead
 # of being dropped silently — the order matters, first match wins.
@@ -139,6 +159,11 @@ KIND_WORDS = (
     ("dust",            "wind"),
     ("rain",            "rain"),
 )
+
+
+# Zone prefixes we could not place, counted so the run can say so. Not an
+# error: the row is still stored, under "US".
+UNKNOWN_PREFIXES = Counter()
 
 
 class SourceProblem(RuntimeError):
@@ -181,6 +206,10 @@ def country_of(props):
         prefix = str(code)[:2].upper()
         if prefix in TERRITORIES:
             return TERRITORIES[prefix]
+    for code in codes:
+        prefix = str(code)[:2].upper()
+        if prefix and prefix not in US_STATES:
+            UNKNOWN_PREFIXES[prefix] += 1
     return "US"
 
 
@@ -284,6 +313,15 @@ def rows_from(payload):
           file=sys.stderr)
     for why, n in dropped.most_common(12):
         print(f"--   dropped {n:>4}  {why}", file=sys.stderr)
+    by_country = Counter(r["country_code"] for r in rows)
+    print("-- by country: " + ", ".join(f"{c} {n}" for c, n in by_country.most_common()),
+          file=sys.stderr)
+    if UNKNOWN_PREFIXES:
+        # Filed under US because we had nothing better, and said out loud so it
+        # can be fixed with a fact rather than a guess.
+        print("-- zone prefixes we could not place (stored as US): "
+              + ", ".join(f"{p} {n}" for p, n in UNKNOWN_PREFIXES.most_common(10)),
+              file=sys.stderr)
     # No rows is a legitimate answer here, where no FEATURES is not: a healthy
     # feed full of small craft advisories and frost advisories means nothing
     # dangerous is in force on land, and the right thing to write is the delete

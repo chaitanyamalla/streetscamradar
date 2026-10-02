@@ -55,6 +55,7 @@ const state = {
   disasters: null,    // country_code -> rows, mirrored from GDACS every few hours
   weather: null,      // country_code -> rows, from MeteoAlarm and NOAA/NWS
   weatherMarkers: [], // the subset of those that came with a position
+  weatherLayers: {},  // kind -> on/off, from the legend behind the chip
   disasterMarkers: [],     // the GDACS events currently drawn
   // Which hazard layers are switched on. One per kind GDACS publishes, keyed
   // by the kind itself so a row and a marker cannot disagree about what it
@@ -665,39 +666,132 @@ async function refreshCountryHazards(ticket) {
   const code = viewIsOneCountry() ? await currentCountry() : null;
   if (ticket !== hazardTicket) return;
 
-  // No switch for these: they are the chip above the map, which appears when
-  // the view is inside one country. What the switch's status text said is
-  // still worth saying, so it is a line in the panel instead — "Europe only"
-  // and "none here" are very different claims, and a reader looking at Mexico
-  // deserves the first rather than silence.
+  const covered = Boolean(code) && WEATHER_COUNTRIES.has(code);
   const weather = code ? state.weather?.get(code) ?? [] : [];
+
+  // The line inside the legend. It says which of three things is true, and they
+  // are genuinely different claims: we are not looking here, we are looking and
+  // there is nothing, we are looking and here is how much.
   $('#weather-note').textContent = `${t('hazards.weather')} — ` + (
     !code ? t('weather.zoomIn')
-    : !WEATHER_COUNTRIES.has(code) ? t('weather.notCovered')
+    : !covered ? t('weather.notCovered')
     : weather.length ? plural('weather.count', weather.length)
     : t('weather.none'));
 
   state.countryWeather = { code, weather };
   if ($('#weather-dialog').open) paintWeatherDialog();
 
-  if (!weather.length) { chip.hidden = true; return; }
+  // The chip is there whenever MeteoAlarm covers the country in view, including
+  // when there is nothing out. A chip that only appeared on a bad day gave its
+  // absence two meanings a reader cannot tell apart — "all clear" and "nobody is
+  // watching here" — and the whole point of the panel line above is that those
+  // are not the same. Outside the covered countries it does go, because then
+  // there is nothing to say and the panel line says that too.
+  if (!covered) {
+    chip.hidden = true;
+    $('#weather-legend-toggle').hidden = true;
+    toggleWeatherLegend(false);
+    paintWeatherLegend([]);
+    return;
+  }
 
-  // What is being warned of, named — "Wind, Rain" answers the question
-  // somebody is actually asking, where "3 warnings" only makes them go and
-  // look. Worst first, three at most, then a count: a busy country can have
-  // six kinds at once and the chip would be cut off mid-word on a phone.
+  // What is being warned of, named — "Wind, Rain" answers the question somebody
+  // is actually asking, where "3 warnings" only makes them go and look. Worst
+  // first, three at most, then a count: a busy country can have six kinds at
+  // once and the chip would be cut off mid-word on a phone.
   const severeFirst = [...weather].sort(
     (a, b) => (a.severity === b.severity ? 0 : a.severity === 'severe' ? -1 : 1));
-  const all = [...new Set(severeFirst.map(r => r.kind))].map(hazardLabel);
-  const kinds = all.slice(0, 3).join(', ') + (all.length > 3 ? ` +${all.length - 3}` : '');
+  const all = [...new Set(severeFirst.map(r => r.kind))];
+  const named = all.map(hazardLabel);
+  const kinds = named.slice(0, 3).join(', ')
+    + (named.length > 3 ? ` +${named.length - 3}` : '');
   const severe = severeFirst.some(r => r.severity === 'severe');
 
   chip.hidden = false;
-  chip.className = `advisory-chip weather-chip ${severe ? 'is-severe' : 'is-notice'}`;
-  $('#weather-country').textContent = countryName(code, code);
-  $('#weather-kinds').textContent = kinds;
-  chip.setAttribute('aria-label',
-    `${t('hazards.weather')}: ${countryName(code, code)} — ${all.join(', ')}`);
+  $('#weather-legend-toggle').hidden = false;
+  chip.className = 'advisory-chip weather-chip '
+    + (!all.length ? 'is-clear' : severe ? 'is-severe' : 'is-notice');
+
+  // The glyph is the answer before the words are read: the worst kind out, or
+  // the sun when there is nothing. Drawn from the same paths as the markers, so
+  // the chip and the map cannot drift apart.
+  $('#weather-sign').innerHTML = hazardSignSVG(all[0] ?? 'clear', { size: 22 });
+  $('#weather-kinds').textContent = all.length ? kinds : t('weather.allClear');
+  chip.setAttribute('aria-label', `${t('hazards.weather')}: ${countryName(code, code)} — `
+    + (all.length ? named.join(', ') : t('weather.allClear')));
+
+  paintWeatherLegend(all);
+}
+
+/**
+ * The legend behind the weather chip's caret: a key and a set of switches.
+ *
+ * One row per kind being warned of in this country RIGHT NOW, not one per kind
+ * MeteoAlarm can issue. Twelve rows of which two have anything in them is a key
+ * nobody reads to the bottom of, and the rows worth reading are the live ones.
+ *
+ * Each row carries the same drawing as the marker it describes, so the map can
+ * be read from the key, and a switch, because a reader watching for wind does
+ * not want eleven rain signs over the same coast. The switches are remembered
+ * the way the GDACS ones are.
+ */
+function paintWeatherLegend(kinds) {
+  const host = $('#weather-legend-rows');
+  if (!host) return;
+
+  // Rebuilt only when the set of kinds changes, so a pan inside one country does
+  // not throw away a switch somebody is in the middle of using.
+  const signature = kinds.join('|');
+  if (host.dataset.kinds === signature) return;
+  host.dataset.kinds = signature;
+
+  if (!kinds.length) { host.innerHTML = ''; return; }
+
+  host.innerHTML = kinds.map(kind => `
+    <label class="hazard-row">
+      <input type="checkbox" data-weather-kind="${esc(kind)}" />
+      <span class="hz-mark" aria-hidden="true">${hazardSignSVG(kind, { size: 16 })}</span>
+      <span class="hz-text">
+        <span class="hz-name">${esc(hazardLabel(kind))}</span>
+        <span class="hz-note" data-weather-count="${esc(kind)}"></span>
+      </span>
+    </label>`).join('');
+
+  for (const box of host.querySelectorAll('[data-weather-kind]')) {
+    const kind = box.dataset.weatherKind;
+    box.checked = weatherKindOn(kind);
+    box.addEventListener('change', (e) => {
+      state.weatherLayers[kind] = e.target.checked;
+      writeSetting(`ssr.weather.${kind}`, String(e.target.checked));
+      paintWeatherMarkers();
+    });
+  }
+  countWeatherLegend();
+}
+
+/**
+ * Is a weather kind switched on?
+ *
+ * On unless somebody turned it off. A kind nobody has an opinion about is a kind
+ * they want to see — the opposite default would hide a red wind warning from a
+ * reader who never opened the legend.
+ */
+function weatherKindOn(kind) {
+  if (!(kind in state.weatherLayers)) {
+    const stored = readSetting(`ssr.weather.${kind}`);
+    state.weatherLayers[kind] = stored === null ? true : stored === 'true';
+  }
+  return state.weatherLayers[kind];
+}
+
+/** How many of each kind are out, beside its row. */
+function countWeatherLegend() {
+  const rows = state.countryWeather?.weather ?? [];
+  for (const note of $('#weather-legend-rows')?.querySelectorAll('[data-weather-count]') ?? []) {
+    const kind = note.dataset.weatherCount;
+    const n = rows.filter(r => r.kind === kind).length;
+    note.textContent = !weatherKindOn(kind) ? t('safety.off') : plural('weather.count', n);
+  }
 }
 
 /**
@@ -721,11 +815,16 @@ function paintWeatherMarkers() {
   for (const list of state.weather?.values() ?? []) {
     for (const row of list) {
       if (!Number.isFinite(row.lat) || !Number.isFinite(row.lng)) continue;
+      // A kind switched off in the legend does not reach the source at all,
+      // rather than being drawn and hidden: one way to hide a marker is enough,
+      // and the count beside its row has to agree with what is on the map.
+      if (!weatherKindOn(row.kind)) continue;
       rows.push({ ...row, upcoming: isUpcoming(row) });
     }
   }
   state.weatherMarkers = rows;
   setWeather(map, rows);
+  countWeatherLegend();
 }
 
 /**
@@ -779,10 +878,10 @@ async function regionClosedHere() {
 }
 
 
-/** Show or hide the hazard layer panel. */
-function toggleHazardPanel(open) {
-  const panel = $('#hazard-panel');
-  const button = $('#hazard-layers');
+/** Show or hide the weather legend, which floats over the map under its chip. */
+function toggleWeatherLegend(open) {
+  const panel = $('#weather-legend');
+  const button = $('#weather-legend-toggle');
   const show = open ?? panel.hidden;
   panel.hidden = !show;
   button.setAttribute('aria-expanded', String(show));
@@ -939,9 +1038,9 @@ function paintAdvisoryPrompt(chip) {
   state.advisoryCountry = null;
   chip.hidden = false;
   chip.className = 'advisory-chip is-empty';
-  $('#advisory-kicker').textContent = ADVISORY.kicker;
+  // The name line is fixed markup now, so only the value below it is set here.
   $('#advisory-level').textContent = ADVISORY.prompt;
-  chip.setAttribute('aria-label', ADVISORY.kicker);
+  chip.setAttribute('aria-label', `${t('advisory.chipName')}: ${ADVISORY.prompt}`);
   if ($('#advisory-dialog').open) paintAdvisoryDialog();
 }
 
@@ -979,7 +1078,10 @@ async function refreshAdvisory() {
   const level = advisoryLevel(row);
   chip.hidden = false;
   chip.className = `advisory-chip ${advisoryTone(level)}`;
-  $('#advisory-kicker').textContent = countryTitle(row);
+  // The country used to be this chip's top line. The name took that place, so
+  // the country moves to the label a screen reader announces and to the dialog
+  // behind the chip — the map is already showing you which country you are in,
+  // and what the chip has to say that the map cannot is the level.
   $('#advisory-level').textContent = levelLabel(level);
   chip.setAttribute('aria-label', chipAria(row, level));
 
@@ -1470,14 +1572,17 @@ function wireUI() {
   themeButton.setAttribute('aria-pressed', String(currentTheme() === 'dark'));
   themePicker.value = themeChoice();
 
-  $('#hazard-layers').addEventListener('click', () => toggleHazardPanel());
-  $('#hazard-panel-close').addEventListener('click', () => toggleHazardPanel(false));
+  $('#weather-legend-toggle').addEventListener('click', () => toggleWeatherLegend());
+  $('#weather-legend-close').addEventListener('click', () => toggleWeatherLegend(false));
 
   // Clicking the map is how you dismiss it — it floats over the thing it is
   // about, and reaching for the × to see what you just switched on is silly.
-  $('#city-map').addEventListener('click', () => toggleHazardPanel(false));
+  // The legend is NOT closed by a click on a marker's popup, which is inside
+  // the map: closing the key the moment somebody uses what it describes would
+  // be the one time it is most wanted.
+  $('#city-map').addEventListener('click', () => toggleWeatherLegend(false));
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && !$('#hazard-panel').hidden) toggleHazardPanel(false);
+    if (e.key === 'Escape' && !$('#weather-legend').hidden) toggleWeatherLegend(false);
   });
 
   $('#weather-chip').addEventListener('click', () => {

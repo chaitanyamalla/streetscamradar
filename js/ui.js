@@ -520,17 +520,18 @@ export function advisoryDialogHTML(row, { level, tone, changed, stats, ageDays }
  * only the serious ones.
  */
 /**
- * The grading, with the agency that gave it.
+ * The grading, in two words.
  *
- * `from` matters and used to be assumed. The line said "Orange alert from GDACS"
- * on every popup that carried it, including a MeteoAlarm weather warning issued
- * by a national met service — crediting a disaster agency for a met office's
- * work, on the very popup the reader opened to find out who was telling them.
- * The grade word is the same because both agencies use the same two colours;
- * whose grading it is, is not.
+ * It used to name the agency — and named the wrong one for a while, saying
+ * "Orange alert from GDACS" on weather warnings a national met office had
+ * issued. That was fixed by keeping a string per agency, and then by noticing
+ * that the popup already names the agency twice underneath: on the button you
+ * press to go and read it, and in the legend that says whose data this is. So
+ * the attribution goes where attribution belongs, the line says what it is for,
+ * and there is no longer an agency here to get wrong.
  */
-const gradeLine = (severity, from = 'gdacs') => {
-  const text = tOr(`hazard.grade.${from}.${severity}`, '');
+const gradeLine = (severity) => {
+  const text = tOr(`hazard.grade.${severity}`, '');
   return text ? `<p class="popup-grade is-${esc(severity)}">${esc(text)}</p>` : '';
 };
 
@@ -561,8 +562,7 @@ export function quakePopupHTML(props) {
       <a class="popup-action is-primary" href="${esc(props.url)}"
          target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>
     </div>` : ''}
-    <p class="popup-meta">${esc(when)}${when ? ' \u00b7 ' : ''}${esc(t('hazard.source.quake'))}</p>
-    <p class="popup-fine">${esc(t('hazard.notAlert'))}</p>`;
+    <p class="popup-meta">${esc(when)}${when ? ' \u00b7 ' : ''}${esc(t('hazard.source.quake'))}</p>`;
 }
 
 /**
@@ -620,8 +620,7 @@ export function disasterPopupHTML(props) {
       <a class="popup-action is-primary" href="${esc(props.url)}"
          target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>
     </div>` : ''}
-    <p class="popup-meta">${esc(when)}${when ? ' \u00b7 ' : ''}${esc(t('disaster.source'))}</p>
-    <p class="popup-fine">${esc(t('hazard.notAlert'))}</p>`;
+    <p class="popup-meta">${esc(when)}${when ? ' \u00b7 ' : ''}${esc(t('disaster.source'))}</p>`;
 }
 
 /**
@@ -743,6 +742,7 @@ export function weatherPopupHTML(props) {
   const areas = String(props.areas ?? '').split(',').map(a => a.trim()).filter(Boolean);
   const shown = areas.slice(0, 6).join(', ');
   const rest = areas.length - 6;
+  const also = Number(props.also) || 0;
 
   return `
     <div class="popup-head">
@@ -752,20 +752,11 @@ export function weatherPopupHTML(props) {
         <p class="popup-title">${esc(rest > 0 ? `${shown} +${rest}` : shown)}</p>
       </div>
     </div>
-    ${gradeLine(props.severity, 'meteoalarm')}
+    ${gradeLine(props.severity)}
     ${isUpcoming(props) ? `<p class="hazard-upcoming">${esc(t('weather.upcoming'))}</p>` : ''}
-    <p class="popup-fine">${esc(t(props.place_kind === 'country'
-      ? 'weather.placeCountry' : 'weather.place'))}</p>
-    ${Number(props.also) > 0
-      ? `<p class="popup-fine">${esc(tn('weather.alsoHere', Number(props.also),
-          { n: Number(props.also) }))}</p>`
-      : ''}
-    ${props.fanned === true || props.fanned === 'true'
-      ? `<p class="popup-fine">${esc(t('weather.fanned'))}</p>` : ''}
     ${weatherLinks(props)}
-    <p class="popup-meta">${esc(when)}${when ? ' \u00b7 ' : ''}${esc(
-      warningCredit([props]))}</p>
-    <p class="popup-fine">${esc(t('hazard.notAlert'))}</p>`;
+    <p class="popup-meta">${esc(when)}${when && also ? ' \u00b7 ' : ''}${
+      also ? esc(t('weather.alsoHere', { n: also })) : ''}</p>`;
 }
 
 /**

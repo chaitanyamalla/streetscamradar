@@ -24,10 +24,10 @@
 #
 # A position, for the eight countries that send one. CAP allows a <polygon> in
 # each area block and eight of the thirty-eight fill it: Israel, Latvia, Ukraine,
-# Estonia, Norway, Sweden, Iceland and the United Kingdom. Those get a marker on
-# the map. The other thirty send region codes only — EMMA_ID, NUTS2, NUTS3,
-# WARNCELLID — and Spain, France, Germany, Greece, Ireland and Portugal are among
-# them, so they stay chip-only until those codes can be resolved to points.
+# Estonia, Norway, Sweden, Iceland and the United Kingdom. Those are drawn where
+# the service put them. The other thirty send region codes we have no geometry
+# for, and their area names are weather zones rather than places, so their
+# warnings are drawn on the middle of their country by resolve_weather_places.py.
 # Measured from the live feeds, not assumed; see probe_hazards.py.
 #
 # What leaves, and when
@@ -312,14 +312,9 @@ def rows_from(payloads):
             lat, lng = position_of(info)
             rows[(identifier, code)]["lat"] = lat
             rows[(identifier, code)]["lng"] = lng
-            # The ONE area a marker is positioned on, kept exact and apart from
-            # the readable list above. The first the service named, because an
-            # average of six provinces is a point that may be in none of them.
-            # Thirty of the thirty-eight send no shape, and this is what the
-            # lookup in public.weather_areas joins to for those.
-            rows[(identifier, code)]["area_key"] = areas[0][:200]
-            # A position from the service itself needs no lookup and is not a
-            # guess: say so, so the popup does not hedge about a real polygon.
+            # A position from the service itself is not a guess, so say so: the
+            # popup must not hedge about a real polygon. Everything else is left
+            # null here and put on its country by the step after this one.
             rows[(identifier, code)]["place_kind"] = "area" if lat is not None else None
 
     return sorted(rows.values(), key=lambda r: (r["country_code"], r["warning_id"]))
@@ -338,18 +333,18 @@ def sql_num(value):
 def emit_sql(rows):
     columns = ("warning_id", "country_code", "kind", "severity", "areas",
                "from_date", "to_date", "source", "url", "lat", "lng",
-               "area_key", "place_kind")
+               "place_kind")
     print(f"-- {len(rows)} orange/red weather warnings from MeteoAlarm")
     print("begin;")
 
     if rows:
         values = [
-            "  ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, now())".format(
+            "  ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, now())".format(
                 sql_str(r["warning_id"]), sql_str(r["country_code"]), sql_str(r["kind"]),
                 sql_str(r["severity"]), sql_str(r["areas"]), sql_str(r["from_date"]),
                 sql_str(r["to_date"]), sql_str(r["source"]), sql_str(r["url"]),
                 sql_num(r.get("lat")), sql_num(r.get("lng")),
-                sql_str(r.get("area_key")), sql_str(r.get("place_kind")))
+                sql_str(r.get("place_kind")))
             for r in rows
         ]
         for start in range(0, len(values), INSERT_BATCH):
@@ -360,7 +355,7 @@ def emit_sql(rows):
                   "kind = excluded.kind, severity = excluded.severity, "
                   "areas = excluded.areas, from_date = excluded.from_date, "
                   "to_date = excluded.to_date, source = excluded.source, "
-                  "url = excluded.url, area_key = excluded.area_key, "
+                  "url = excluded.url, "
                   # coalesce, not a plain assignment: a warning whose position
                   # came from the lookup rather than from a polygon would be
                   # wiped here on every refresh and only restored if the resolve

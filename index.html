@@ -183,7 +183,7 @@
                 <section class="hazard-panel weather-legend" id="weather-legend" hidden
                          aria-labelledby="weather-legend-title">
                   <div class="hp-head">
-                    <h2 id="weather-legend-title" data-i18n="weather.legend">Weather warning legend</h2>
+                    <h2 id="weather-legend-title" data-i18n="weather.legend">Weather warnings</h2>
                     <button class="close-button" id="weather-legend-close" type="button"
                             data-i18n-aria="auth.close" aria-label="Close">×</button>
                   </div>
@@ -194,7 +194,15 @@
                        with an unwelcome answer: no met service issues one that
                        far out. Better said plainly than left to be assumed. -->
                   <p class="hp-foot" data-i18n="weather.lead">Weather warnings reach about two days ahead. Nothing further is forecast.</p>
-                  <p class="hp-foot" data-i18n="weather.credit">Issued by the national met services, via MeteoAlarm</p>
+                  <!-- What the markers mean, since this is where somebody looks
+                       to find out. Two states only: in force, or issued for
+                       later. A warning that is over is deleted, so there is no
+                       third one to explain. -->
+                  <p class="hp-foot" data-i18n="weather.marks">Bright marker: in force now. Pale marker: issued for later.</p>
+                  <!-- Where this stops. Said here rather than only when you have
+                       wandered outside it, so a reader knows the shape of what
+                       they are being told before they rely on it. -->
+                  <p class="hp-foot" data-i18n="weather.serves">Europe only, from the national met services via MeteoAlarm.</p>
                   <p class="hp-foot" data-i18n="hazard.notAlert">
                     Not an alert service — check official sources before you travel.
                   </p>

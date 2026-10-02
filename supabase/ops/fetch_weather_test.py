@@ -264,9 +264,9 @@ check("59.2" in placed_sql and "23.0" in placed_sql,
 # put it back if the resolve step that follows happened to succeed.
 check("lat = coalesce(excluded.lat" in placed_sql,
       "a position already stored survives a refresh that brings none")
-check("area_key = excluded.area_key" in placed_sql,
-      "while the area it is positioned ON is always taken from the feed, since "
-      "that is what the lookup joins to")
+check("area_key" not in placed_sql,
+      "and the area name it used to be positioned on is gone: those are weather "
+      "zones rather than places, and the country is the answer now")
 
 buffer = io.StringIO()
 with redirect_stdout(buffer):

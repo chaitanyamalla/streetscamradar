@@ -69,37 +69,29 @@ time — so the chip for the country in view is the main answer, the same shape 
 the travel advisory above it, and the dialog folds forty provincial warnings
 into one row per kind.
 
-It is drawn as well, from whichever of two things the service gave us. Eight of
-the thirty-eight send a CAP polygon and its centre is the marker. The other
-thirty send only a region code we have no geometry for — but every one of them
-names the area in words, and a name can be looked up once and remembered in
-`public.weather_areas`. A few hundred names cover Europe and they change about
-as often as provinces do, so the geocoder is asked nothing at all on an ordinary
-refresh, and a name that resolved badly is a row somebody can correct by hand.
+It is drawn as well. Eight of the thirty-eight services send a CAP polygon and
+its centre is the marker; the other thirty are drawn on the middle of their
+country, and the popup says which of the two it is.
 
-**Looking a name up is where this goes wrong, so it is worth saying how.** Thirty
-real area names were put to a geocoder with no constraints, and six came back in
-the wrong *country*: Portugal's Guarda in Italy, Portalegre in Brazil, Drenthe in
-Michigan, Flevoland matched to a "Fleseland" in Norway. Several more landed in
-the wrong town inside the right country — "Évora" matched "Évora de Alcobaça".
-A marker in the wrong valley is worse than no marker, so three rules, each
-catching a different one of those:
+**The country, and not the area, on purpose.** The obvious thing is to place each
+warning on the region it names, and it was built that way first: each area name
+looked up once and remembered, under three rules needed to stop a geocoder
+answering with Brazil. It worked and it was not worth it. Met services name
+weather *zones* rather than places — "Litoral de Barcelona", "East Sterea &
+Evvoia", "Ibérica aragonesa" — so 28 of 30 names could not be matched to anywhere
+at all and fell back to the country regardless. We are not a met service. A
+traveller wants to know Spain has a red wind warning out and where to go and read
+it; the marker is a pointer to the chip, not a survey mark.
 
-1. **Ask within the country.** The geocoder is told which one, so Portugal's
-   Guarda cannot be Italy's.
-2. **The name must match exactly**, accents and case aside. This is what rejects
-   "Fleseland" and "Évora de Alcobaça". A near miss is not a weaker answer, it
-   is a different place.
-3. **The point must be inside the country, and inside Europe.** The country's own
-   bounding box comes from the same geocoder, so no coordinates are written down
-   and guessed at. The Europe rectangle is the backstop — MeteoAlarm is a
-   European system, so anything outside it is wrong whatever else agreed, which
-   is the cheapest possible check against Spain landing in Brazil.
+What survives of those rules is the one that still earns its keep: MeteoAlarm is
+a European system, so a point outside Europe is wrong whatever the geocoder says.
+That is what stopped Portugal being placed in Brazil, and a country lookup can go
+wrong the same way a zone lookup could.
 
-Whatever fails all three gets the middle of its own country, **and the popup says
-so**: "marked on the country, not on the area". The alternative — a marker on the
-middle of Spain under a sentence claiming the centre of the area warned — is a
-lie with a precision attached.
+Warnings that share a point — every country-level marker in one country does —
+are fanned into a ring around it, spaced in screen pixels so it looks the same at
+any zoom, with the worst at the top. The popup says a marker was nudged, and how
+many more sit underneath it.
 
 **Warnings reach about two days ahead, and no further.** A met service issues
 before the weather arrives, and that lead time is the useful part, so a warning

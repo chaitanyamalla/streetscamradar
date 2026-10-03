@@ -373,11 +373,26 @@ create policy "insert own profile" on public.profiles for insert to authenticate
 -- revoking the grant turns a silent empty result into a hard refusal.
 revoke all on table public.profiles from anon;
 
+-- The name somebody is given on sign-up.
+--
+-- The local part of an email address is a poor nickname and for a Google
+-- account it is a needless one: Google sends the name on the account, and a
+-- member called "Ana Beltran" is far easier to find than one called "ab1992"
+-- when you are trying to give her a badge. Whichever provider is used, this
+-- takes the best name offered and falls back to the address only when there
+-- is nothing else.
+--
+-- The name is a default, not a decision: it is editable in account settings,
+-- and it is not published anywhere unless the member switches on `listed`.
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   insert into public.profiles (id, display_name)
-  values (new.id, split_part(coalesce(new.email, 'member'), '@', 1))
+  values (new.id, coalesce(
+            nullif(btrim(new.raw_user_meta_data ->> 'full_name'), ''),
+            nullif(btrim(new.raw_user_meta_data ->> 'name'), ''),
+            nullif(btrim(new.raw_user_meta_data ->> 'preferred_username'), ''),
+            split_part(coalesce(new.email, 'member'), '@', 1)))
   on conflict (id) do nothing;
   return new;
 end;
@@ -431,6 +446,21 @@ create table if not exists public.reports (
   flag_count    int not null default 0,
 
   constraint happened_not_future check (happened_at <= now() + interval '1 hour')
+);
+
+create table if not exists public.report_supports (
+  report_id  uuid not null references public.reports on delete cascade,
+  user_id    uuid not null references auth.users on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (report_id, user_id)
+);
+
+create table if not exists public.report_flags (
+  report_id  uuid not null references public.reports on delete cascade,
+  user_id    uuid not null references auth.users on delete cascade,
+  reason     text not null default 'other' check (reason in ('wrong','abusive','personal_data','duplicate','other')),
+  created_at timestamptz not null default now(),
+  primary key (report_id, user_id)
 );
 
 create index if not exists reports_happened_idx on public.reports (happened_at desc);
@@ -687,21 +717,14 @@ grant execute on function public.delete_my_account() to authenticated;
 -- Support ("I saw this too") and flags. One of each per member per report.
 -- Support is what earns a report visibility; flags are what take it away.
 -- ---------------------------------------------------------------------------
-create table if not exists public.report_supports (
-  report_id  uuid not null references public.reports on delete cascade,
-  user_id    uuid not null references auth.users on delete cascade,
-  created_at timestamptz not null default now(),
-  primary key (report_id, user_id)
-);
-
-create table if not exists public.report_flags (
-  report_id  uuid not null references public.reports on delete cascade,
-  user_id    uuid not null references auth.users on delete cascade,
-  reason     text not null default 'other' check (reason in ('wrong','abusive','personal_data','duplicate','other')),
-  created_at timestamptz not null default now(),
-  primary key (report_id, user_id)
-);
-
+-- Both tables are created back where they are described, further down. Only
+-- their definitions moved up here, because this file has to be runnable
+-- top-to-bottom on an EMPTY database and my_confirmed_reports() — a few
+-- hundred lines below — selects from report_supports. Postgres resolves the
+-- tables a SQL function names when the function is created, so on a brand new
+-- database that function failed and took the rest of the file with it. It has
+-- never been noticed because the live database was built up a change at a
+-- time, and the tables were already there every time since.
 alter table public.report_supports enable row level security;
 alter table public.report_flags    enable row level security;
 
@@ -779,6 +802,368 @@ drop trigger if exists flags_recount on public.report_flags;
 create trigger flags_recount
   after insert or delete on public.report_flags
   for each row execute function public.recount_flags();
+
+-- ---------------------------------------------------------------------------
+-- What a member has put in: a level, and sometimes a badge.
+--
+-- TEN LEVELS, NOT A HUNDRED. A hundred was the other option and it is the
+-- wrong shape for this site. A level ladder only works while the next rung is
+-- in sight, and here the realistic distribution is steep: most members file
+-- one or two reports ever, a handful file dozens. Spread over a hundred rungs
+-- that puts almost everybody on level 1 or 2 forever, with a progress bar that
+-- never visibly moves and ninety rungs nobody will ever stand on — a ladder
+-- whose top is unreachable demotivates rather than the reverse. Ten rungs,
+-- with the top one a real achievement and the first few reachable in an
+-- afternoon, is the version where the bar moves.
+--
+-- The numbers live in a table rather than in code so they can be retuned
+-- against what people actually do, without a deploy. The NAMES do not live
+-- here: they are in js/locales, because this site is read in nine languages
+-- and a rank written in English in a database row is a rank eight of them
+-- cannot read.
+-- ---------------------------------------------------------------------------
+create table if not exists public.contributor_levels (
+  level      int primary key check (level between 1 and 100),
+  min_points int not null check (min_points >= 0)
+);
+
+insert into public.contributor_levels (level, min_points) values
+  (1, 0), (2, 10), (3, 25), (4, 50), (5, 90),
+  (6, 150), (7, 230), (8, 330), (9, 450), (10, 600)
+on conflict (level) do nothing;
+
+alter table public.contributor_levels enable row level security;
+drop policy if exists "the ladder is public" on public.contributor_levels;
+create policy "the ladder is public" on public.contributor_levels
+  for select to anon, authenticated using (true);
+
+-- The weights. Tunable for the same reason the thresholds are.
+insert into public.app_settings (key, value, note) values
+  ('points_per_report',       '5', 'Points for filing a report that is still published.'),
+  ('points_per_confirmation', '4', 'Points for each confirmation one of your reports receives.'),
+  ('points_per_given',        '1', 'Points for confirming somebody else''s report.')
+on conflict (key) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- Points.
+--
+-- NOT A COUNT OF REPORTS, and that is the whole design. Level by volume alone
+-- rewards filing, and the cheapest way to file more is to file worse — which
+-- on a map people use to decide where to walk is the one failure that matters.
+-- So the heaviest single thing a member can earn is somebody else recognising
+-- what they reported: a report nobody confirms is worth 5, the same report
+-- with three confirmations is worth 17. Confirming other people's reports is
+-- worth a little, because reading the map carefully and saying "this happened
+-- to me too" is a real contribution and the one that makes the rest useful.
+--
+-- Lifetime, not windowed. A report that has aged off the map was still filed,
+-- and taking somebody's level away a week later because the world moved on
+-- would be a strange thing to do. Withdrawing a report DOES take its points
+-- back, because withdrawing deletes it — which is the right way round.
+--
+-- Counted on demand rather than kept in a column. It is two indexed counts
+-- against reports and report_supports, it is read when somebody opens their
+-- own profile, and a stored counter is a thing that goes wrong quietly.
+-- ---------------------------------------------------------------------------
+create or replace function public.contribution_points(p_user uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce((
+           select count(*)::int * public.setting_int('points_per_report', 5)
+             from public.reports r
+            where r.reporter_id = p_user
+              and r.status = 'published'
+         ), 0)
+       -- Counted from report_supports rather than from reports.support_count,
+       -- so that a confirmation by the report's own author is worth nothing on
+       -- EITHER side of the exchange. The insert policy on report_supports
+       -- already refuses a self-confirmation, so through the site this is the
+       -- same number; it is written this way so that the two legs below agree
+       -- about what does not count, whatever is seeded past RLS or changed in
+       -- that policy later.
+       + coalesce((
+           select count(*)::int * public.setting_int('points_per_confirmation', 4)
+             from public.report_supports s
+             join public.reports r on r.id = s.report_id
+            where r.reporter_id = p_user
+              and r.status = 'published'
+              and s.user_id is distinct from p_user
+         ), 0)
+       + coalesce((
+           select count(*)::int * public.setting_int('points_per_given', 1)
+             from public.report_supports s
+             join public.reports r on r.id = s.report_id
+            where s.user_id = p_user
+              and r.status = 'published'
+              and r.reporter_id is distinct from p_user
+         ), 0);
+$$;
+
+create or replace function public.level_for(p_points int)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce(max(level), 1)
+    from public.contributor_levels
+   where min_points <= greatest(coalesce(p_points, 0), 0);
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Badges, for the people this does not measure.
+--
+-- Points describe one kind of contribution — reports filed and recognised.
+-- They say nothing about somebody who makes videos about street scams and
+-- sends their audience here, and that person may be the most useful
+-- contributor on the site while never filing a single report. A badge is the
+-- answer to that: granted by hand, by the people who run this, for a reason
+-- written down beside it.
+--
+-- A table rather than a column on profiles, because these are not exclusive:
+-- the creator who films scams in Barcelona is often also a top contributor,
+-- and a column would make us choose which of the two to hide.
+-- ---------------------------------------------------------------------------
+create table if not exists public.contributor_badges (
+  profile_id uuid not null references public.profiles(id) on delete cascade,
+  badge      text not null check (badge in ('creator', 'top', 'founder', 'partner')),
+  -- Why this person has it, in your words. Never shown on the page; it is
+  -- there so that in a year you can still tell what you were recognising.
+  note       text,
+  granted_at timestamptz not null default now(),
+  primary key (profile_id, badge)
+);
+
+alter table public.contributor_badges enable row level security;
+-- No policy at all: nothing reads this table directly. The page sees badges
+-- through my_standing() and contributors_board(), both of which decide what a
+-- reader is allowed to know, and granting goes through grant_badge().
+revoke all on table public.contributor_badges from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Being listed is opt-in.
+--
+-- display_name is set for you on sign-up from the local part of your email,
+-- so for most members it is something they never chose and often their real
+-- name. Publishing that on a contributors board because they filed a report
+-- would be taking a decision that is theirs. The board shows members who
+-- switched this on, and nobody else.
+-- ---------------------------------------------------------------------------
+alter table public.profiles add column if not exists listed boolean not null default false;
+
+-- Finding somebody by the name they go by, which is what granting a badge
+-- starts with. Case-insensitive, because nobody remembers the capitals.
+create index if not exists profiles_display_name_idx
+  on public.profiles (lower(display_name));
+
+-- ---------------------------------------------------------------------------
+-- Your own standing: points, level, and how far to the next one.
+--
+-- One call rather than four, and SECURITY DEFINER because it reads other
+-- people's support rows to count what yours received.
+-- ---------------------------------------------------------------------------
+create or replace function public.my_standing()
+returns table (
+  points int, level int, level_floor int,
+  next_level int, next_points int,
+  reports int, received int, given int,
+  badges text[], listed boolean
+)
+language sql stable security definer set search_path = public as $$
+  with me as (select auth.uid() as id),
+  p as (select public.contribution_points((select id from me)) as points),
+  lv as (select public.level_for((select points from p)) as level)
+  select (select points from p)::int,
+         (select level from lv)::int,
+         (select min_points from public.contributor_levels
+           where level = (select level from lv))::int,
+         (select min(level) from public.contributor_levels
+           where min_points > (select points from p))::int,
+         (select min(min_points) from public.contributor_levels
+           where min_points > (select points from p))::int,
+         (select count(*)::int from public.reports r
+           where r.reporter_id = (select id from me) and r.status = 'published'),
+         (select count(*)::int from public.report_supports s
+             join public.reports r on r.id = s.report_id
+            where r.reporter_id = (select id from me)
+              and r.status = 'published'
+              and s.user_id is distinct from (select id from me)),
+         (select count(*)::int from public.report_supports s
+             join public.reports r on r.id = s.report_id
+            where s.user_id = (select id from me)
+              and r.status = 'published'
+              and r.reporter_id is distinct from (select id from me)),
+         (select coalesce(array_agg(b.badge order by b.granted_at), '{}')
+            from public.contributor_badges b where b.profile_id = (select id from me)),
+         coalesce((select pr.listed from public.profiles pr
+                    where pr.id = (select id from me)), false)
+   where (select id from me) is not null;
+$$;
+
+revoke all on function public.my_standing() from public, anon;
+grant execute on function public.my_standing() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- The contributors board.
+--
+-- Members only, and only members who asked to be on it. No geography and no
+-- report of anybody's is named here, which matters: reports_feed drops
+-- reporter_id so that whoever reported a scam stays anonymous, and a board
+-- that said "Ana — 4 reports in Seville" would hand back exactly what that
+-- view exists to withhold. A name, a level, a badge and a number. Nothing
+-- that points at a pin.
+-- ---------------------------------------------------------------------------
+create or replace function public.contributors_board(p_limit int default 20)
+returns table (display_name text, level int, points int, badges text[])
+language sql stable security definer set search_path = public as $$
+  select coalesce(nullif(btrim(p.display_name), ''), 'Member'),
+         public.level_for(public.contribution_points(p.id)),
+         public.contribution_points(p.id),
+         coalesce((select array_agg(b.badge order by b.granted_at)
+                     from public.contributor_badges b where b.profile_id = p.id), '{}')
+    from public.profiles p
+   where p.listed
+   order by 3 desc, p.created_at
+   limit least(greatest(coalesce(p_limit, 20), 1), 50);
+$$;
+
+revoke all on function public.contributors_board(int) from public, anon;
+grant execute on function public.contributors_board(int) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- The dashboard: everyone, with their level and their badges.
+--
+-- For the Supabase table editor and SQL editor, which connect as the service
+-- role — so this is the one place emails appear beside levels, and it is
+-- revoked from both browser roles. Do NOT select from this in a script that
+-- runs in GitHub Actions: those logs are public, and this view's whole point
+-- is that it joins names to addresses. supabase/ops/contributors.sql is the
+-- version that is safe to run there.
+-- ---------------------------------------------------------------------------
+create or replace view public.admin_contributors as
+  select p.id,
+         p.display_name,
+         u.email,
+         public.level_for(public.contribution_points(p.id)) as level,
+         public.contribution_points(p.id)                   as points,
+         coalesce((select array_agg(b.badge order by b.granted_at)
+                     from public.contributor_badges b where b.profile_id = p.id), '{}') as badges,
+         (select count(*) from public.reports r
+           where r.reporter_id = p.id and r.status = 'published')          as reports,
+         (select count(*) from public.report_supports s
+             join public.reports r on r.id = s.report_id
+            where r.reporter_id = p.id and r.status = 'published'
+              and s.user_id is distinct from p.id)                         as confirmations_received,
+         p.listed,
+         p.created_at
+    from public.profiles p
+    left join auth.users u on u.id = p.id;
+
+revoke all on public.admin_contributors from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Granting a badge, by whatever you happen to know about the person.
+--
+-- A nickname, an email address, or the id itself — because which of the three
+-- you have depends on where you met them. Someone who emailed you is an
+-- email; someone whose videos you watched is a nickname.
+--
+-- It REFUSES an ambiguous name rather than guessing, and says who it found.
+-- display_name is not unique and cannot safely be made unique — two people
+-- signing up as john@gmail.com and john@yahoo.com are both "john" through no
+-- fault of their own — so the one thing this must never do is quietly badge
+-- the wrong John.
+--
+-- GOOGLE SIGN-IN CHANGES NOTHING HERE. A Google account arrives in auth.users
+-- with an email like any other, and handle_new_user below now takes the name
+-- Google supplies in preference to the local part of the address — so the
+-- nickname you search for is the one they are called rather than a fragment
+-- of their address.
+-- ---------------------------------------------------------------------------
+create or replace function public.find_member(p_who text)
+returns uuid language plpgsql stable security definer set search_path = public as $$
+declare
+  needle text := btrim(coalesce(p_who, ''));
+  hits   uuid[];
+  names  text[];
+begin
+  if needle = '' then
+    raise exception 'give a nickname, an email address or a user id';
+  end if;
+
+  -- An id, if it looks like one. Tried first because it is the only form that
+  -- cannot be ambiguous.
+  begin
+    return (select p.id from public.profiles p where p.id = needle::uuid);
+  exception when invalid_text_representation then
+    null;
+  end;
+
+  select array_agg(p.id), array_agg(coalesce(p.display_name, u.email))
+    into hits, names
+    from public.profiles p
+    left join auth.users u on u.id = p.id
+   where lower(u.email) = lower(needle)
+      or lower(btrim(p.display_name)) = lower(needle);
+
+  if hits is null or cardinality(hits) = 0 then
+    raise exception 'nobody here is called %  — try the email address, or the id from admin_contributors', needle;
+  end if;
+  if cardinality(hits) > 1 then
+    raise exception '% people answer to that (%) — use the email address or the id instead',
+      cardinality(hits), array_to_string(names, ', ');
+  end if;
+  return hits[1];
+end;
+$$;
+
+create or replace function public.grant_badge(
+  p_who   text,
+  p_badge text,
+  p_note  text default null,
+  -- Granted to somebody who asked to be recognised, so by default it also puts
+  -- them on the board. Pass false for a badge that is only for your own
+  -- records.
+  p_list  boolean default true
+)
+-- The output columns are NOT called `badge`, `id` or `display_name`, which is
+-- not a style choice: a plpgsql OUT parameter shadows a column of the same name
+-- everywhere in the body, so `on conflict (profile_id, badge)` below resolved
+-- `badge` to the OUT parameter and the whole function failed with "column
+-- reference badge is ambiguous" the first time it was ever run.
+returns table (member_id uuid, goes_by text, granted text, level int, points int)
+language plpgsql security definer set search_path = public as $$
+declare who uuid := public.find_member(p_who);
+begin
+  insert into public.contributor_badges (profile_id, badge, note)
+  values (who, p_badge, p_note)
+  on conflict (profile_id, badge) do update set note = coalesce(excluded.note, public.contributor_badges.note);
+
+  if p_list then
+    update public.profiles set listed = true where profiles.id = who;
+  end if;
+
+  return query
+    select p.id, p.display_name, p_badge,
+           public.level_for(public.contribution_points(p.id)),
+           public.contribution_points(p.id)
+      from public.profiles p where p.id = who;
+end;
+$$;
+
+create or replace function public.revoke_badge(p_who text, p_badge text)
+returns int language plpgsql security definer set search_path = public as $$
+declare
+  who  uuid := public.find_member(p_who);
+  gone int;
+begin
+  delete from public.contributor_badges b
+   where b.profile_id = who and b.badge = p_badge;
+  get diagnostics gone = row_count;
+  return gone;
+end;
+$$;
+
+-- Nobody in a browser runs these. They are for the SQL editor, which connects
+-- as the service role and is not bound by a grant at all.
+revoke all on function public.find_member(text) from public, anon, authenticated;
+revoke all on function public.grant_badge(text, text, text, boolean) from public, anon, authenticated;
+revoke all on function public.revoke_badge(text, text) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- How far back a reader asked to look.

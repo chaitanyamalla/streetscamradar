@@ -278,6 +278,39 @@ export async function myConfirmationCount() {
   return Number(data) || 0;
 }
 
+// --- Standing: level, points, badges ---------------------------------------
+/**
+ * Your own level and what it is made of, in one call.
+ *
+ * Quiet on failure, deliberately. This is an ornament on a dialog whose job is
+ * showing you your reports; a database that has not had the levels part of
+ * schema.sql applied yet should cost the ornament, not the dialog.
+ */
+export async function myStanding() {
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc('my_standing');
+  if (error) return null;
+  return (Array.isArray(data) ? data[0] : data) ?? null;
+}
+
+/** The members who asked to be named, best first. */
+export async function contributorsBoard(limit = 20) {
+  if (!supabase) return [];
+  const { data, error } = await supabase.rpc('contributors_board', { p_limit: limit });
+  if (error) return [];
+  return data ?? [];
+}
+
+/** Put yourself on the board, or take yourself off it again. */
+export async function saveListed(listed) {
+  need();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { error } = await supabase.from('profiles')
+    .update({ listed: Boolean(listed) }).eq('id', user.id);
+  if (error) throw error;
+}
+
 export async function saveHomeArea({ label, lat, lng }) {
   need();
   const { data: { user } } = await supabase.auth.getUser();

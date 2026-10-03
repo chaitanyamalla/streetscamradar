@@ -898,3 +898,87 @@ export function setGateNote(host, { mode, shown = 0, hiddenCount = 0, signedIn }
     host.innerHTML = t('gate.invite');
   }
 }
+
+// ---------------------------------------------------------------------------
+// Standing: a level, a bar, and any badges.
+// ---------------------------------------------------------------------------
+
+/** Every badge the database can hold, in the order they are shown. */
+export const BADGES = ['creator', 'top', 'founder', 'partner'];
+
+const BADGE_GLYPH = { creator: '🎥', top: '🏅', founder: '🌱', partner: '🤝' };
+
+/**
+ * One badge, as a chip with its meaning on hover.
+ *
+ * A badge the page has no string for is drawn as nothing rather than as its
+ * slug. Somebody adding a fifth kind in SQL before adding it to js/locales
+ * should see it missing, not see `partner_2` on a stranger's profile in nine
+ * languages.
+ */
+export function badgeChip(slug) {
+  const name = tOr(`badge.${slug}`, '');
+  if (!name) return '';
+  return `<span class="badge-chip" title="${esc(tOr(`badge.${slug}.note`, name))}"
+    ><span aria-hidden="true">${BADGE_GLYPH[slug] ?? '★'}</span>${esc(name)}</span>`;
+}
+
+/**
+ * Where you are on the ladder.
+ *
+ * The bar measures the CURRENT rung rather than the whole climb — the distance
+ * from the points that got you to this level to the points that reach the
+ * next. A bar against the top of the ladder would sit at four percent for
+ * almost everybody and tell them nothing except that they are nowhere, which
+ * is the failure that makes hundred-level systems feel pointless.
+ */
+export function renderStanding(host, standing) {
+  if (!standing) { host.hidden = true; return; }
+  host.hidden = false;
+
+  const level = Number(standing.level) || 1;
+  const points = Number(standing.points) || 0;
+  const floor = Number(standing.level_floor) || 0;
+  const next = standing.next_points == null ? null : Number(standing.next_points);
+
+  const span = next == null ? 0 : Math.max(next - floor, 1);
+  const done = next == null ? 1 : Math.min(Math.max((points - floor) / span, 0), 1);
+
+  const name = tOr(`level.${level}`, '');
+  const badges = (standing.badges ?? []).map(badgeChip).join('');
+
+  host.innerHTML = `
+    <div class="standing-head">
+      <p class="standing-level">
+        <span class="standing-number">${t('profile.level.n', { n: level })}</span>
+        ${name ? `<span class="standing-name">${esc(name)}</span>` : ''}
+      </p>
+      <p class="standing-points">${esc(plural('profile.level.points', points))}</p>
+    </div>
+    ${badges ? `<div class="badge-row">${badges}</div>` : ''}
+    <div class="standing-bar" role="img"
+         aria-label="${esc(next == null
+            ? t('profile.level.max')
+            : tn('profile.level.toNext', next - points, { level: level + 1 }))}">
+      <i style="width:${(done * 100).toFixed(1)}%"></i>
+    </div>
+    <p class="standing-next">${esc(next == null
+      ? t('profile.level.max')
+      : tn('profile.level.toNext', next - points, { level: level + 1 }))}</p>
+    <p class="standing-how">${esc(t('profile.level.how'))}</p>`;
+}
+
+/** The members who asked to be named. */
+export function renderBoard(host, rows) {
+  if (!rows.length) {
+    host.innerHTML = `<p class="empty-note">${esc(t('profile.board.empty'))}</p>`;
+    return;
+  }
+  host.innerHTML = rows.map((r, i) => `
+    <div class="board-row">
+      <span class="board-rank">${i + 1}</span>
+      <span class="board-name">${esc(r.display_name ?? '')}</span>
+      <span class="board-badges">${(r.badges ?? []).map(badgeChip).join('')}</span>
+      <span class="board-level">${esc(t('profile.level.n', { n: Number(r.level) || 1 }))}</span>
+    </div>`).join('');
+}

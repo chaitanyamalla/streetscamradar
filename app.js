@@ -15,6 +15,7 @@ import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, myConfirmedReports, editMyReport,
          deleteMyAccount, getProfile, saveDisplayName, saveLocale, fetchAdvisories,
+         myStanding, contributorsBoard, saveListed,
          fetchDisasters, fetchWeatherWarnings, fetchBlockedCountries,
          supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
@@ -31,7 +32,7 @@ import { quakesIn, inBounds, quakeTone, hazardLabel, isLive, hasEnded,
 import { hazardSignSVG } from './js/hazard-signs.js';
 import { esc, toast, liftToast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
-         renderAgeBar, reportScopeLine,
+         renderAgeBar, reportScopeLine, renderStanding, renderBoard,
          categoryLabel, advisoryDialogHTML, quakePopupHTML, disasterPopupHTML,
          weatherDialogHTML, weatherPopupHTML } from './js/ui.js';
 import { countryName } from './js/i18n.js';
@@ -411,22 +412,30 @@ window.addEventListener('popstate', () => {
 // still here, since that view keeps your own rows visible to you whatever
 // their age.
 // ---------------------------------------------------------------------------
-const profile = { reports: [], confirmed: null, stats: null, filter: 'filed' };
+const profile = { reports: [], confirmed: null, stats: null, filter: 'filed',
+                  standing: null, board: null };
 
 async function openProfile() {
   $('#profile-email').textContent = state.user?.email ?? t('header.signedIn');
   $('#profile-reports').innerHTML = `<p class="empty-note">${esc(t('filters.loading'))}</p>`;
   $('#profile-stats').innerHTML = '';
   profile.filter = 'filed';
+  profile.board = null;
   openDialog('#profile-dialog');
   await loadProfile();
 }
 
 async function loadProfile() {
   try {
-    const [reports, given, saved] = await Promise.all([
-      myReports(), myConfirmationCount(), getProfile(),
+    // myStanding is in the same breath but cannot fail the rest: it returns
+    // null on a database without the levels tables rather than throwing, so an
+    // older schema costs the level block and nothing else.
+    const [reports, given, saved, standing] = await Promise.all([
+      myReports(), myConfirmationCount(), getProfile(), myStanding(),
     ]);
+    profile.standing = standing;
+    renderStanding($('#profile-standing'), standing);
+    $('#profile-listed').checked = Boolean(standing?.listed ?? saved?.listed);
     profile.reports = reports;
     profile.confirmed = null;              // fetched only if you ask for it
 
@@ -450,6 +459,14 @@ async function loadProfile() {
     console.error(err);
     $('#profile-reports').innerHTML = `<p class="empty-note">${esc(t('profile.failed'))}</p>`;
   }
+}
+
+async function loadBoard(force = false) {
+  if (profile.board && !force) return;
+  const host = $('#contributors-board');
+  if (!profile.board) host.innerHTML = `<p class="empty-note">${esc(t('filters.loading'))}</p>`;
+  profile.board = await contributorsBoard(20);
+  renderBoard(host, profile.board);
 }
 
 /** Which reports the current tile is counting. */
@@ -2101,6 +2118,29 @@ function wireUI() {
     } catch (err) {
       toast(err.message, { error: true });
     }
+  });
+
+  $('#profile-listed').addEventListener('change', async e => {
+    const wanted = e.target.checked;
+    try {
+      await saveListed(wanted);
+      if (profile.standing) profile.standing.listed = wanted;
+      // The board is other people's rows, and the one that just changed is
+      // yours — so it is re-read rather than patched, and only while the
+      // drawer showing it is open.
+      if ($('#board-disclosure').open) loadBoard(true);
+      toast(t(wanted ? 'toast.listedOn' : 'toast.listedOff'));
+    } catch (err) {
+      e.target.checked = !wanted;                      // say so by not moving
+      toast(err.message, { error: true });
+    }
+  });
+
+  // Fetched when the drawer is first opened, not when the dialog is. It is a
+  // league table somebody may never look at, and a round trip for it on every
+  // visit to your own profile is a round trip for nothing.
+  $('#board-disclosure').addEventListener('toggle', () => {
+    if ($('#board-disclosure').open) loadBoard();
   });
 
   // Not '#password-form': the sign-in dialog already owns that id, and

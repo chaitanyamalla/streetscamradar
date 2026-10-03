@@ -347,6 +347,40 @@ export async function adminRemoveMember(id) {
   return true;
 }
 
+// --- The console: reports, the ladder, the regions, the settings -----------
+const rpc = async (name, args) => {
+  need();
+  const { data, error } = await supabase.rpc(name, args);
+  if (error) throw error;
+  return data;
+};
+
+export const adminReports = (filter = 'flagged', search = '', limit = 100) =>
+  rpc('admin_reports', { p_filter: filter, p_search: search || null, p_limit: limit })
+    .then(rows => rows ?? []);
+
+export const adminSetReportStatus = (id, status) =>
+  rpc('admin_set_report_status', { p_id: id, p_status: status });
+
+export const adminDeleteReport = (id) => rpc('admin_delete_report', { p_id: id });
+
+/** The whole ladder at once — it is only valid as a set. */
+export const adminSetLevels = (rows) =>
+  rpc('admin_set_levels', { p_rows: rows }).then(out => out ?? []);
+
+export const adminRegionCatalog = () => rpc('admin_region_catalog').then(r => r ?? []);
+
+export const adminBlockedRegions = () =>
+  rpc('admin_blocked_regions').then(r => (Array.isArray(r) ? r[0] : r) ?? null);
+
+export const adminSetBlockedRegions = (countries, groups) =>
+  rpc('admin_set_blocked_regions', { p_countries: countries, p_groups: groups });
+
+export const adminSettings = () => rpc('admin_settings').then(r => r ?? []);
+
+export const adminSetSetting = (key, value) =>
+  rpc('admin_set_setting', { p_key: key, p_value: String(value) });
+
 // --- The ladder itself -----------------------------------------------------
 /**
  * The level thresholds, as the database currently has them.

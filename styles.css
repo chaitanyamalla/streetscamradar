@@ -1219,10 +1219,14 @@ body.page { min-height:100vh; background:var(--paper); }
 .admin-gate p { margin:0 0 12px; color:var(--ink-2); font-size:14px; line-height:1.6; }
 
 .admin-toolbar { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
-#admin-search { flex:1; min-width:0; padding:10px 13px; border:1px solid var(--line-strong);
-  border-radius:var(--radius); background:var(--surface); color:var(--ink); font:inherit;
-  font-size:14px; }
-#admin-search:focus-visible { outline:2px solid var(--brand); outline-offset:1px; }
+.admin-toolbar input[type="search"] { flex:1; min-width:0; padding:10px 13px;
+  border:1px solid var(--line-strong); border-radius:var(--radius);
+  background:var(--surface); color:var(--ink); font:inherit; font-size:14px; }
+.admin-toolbar input[type="search"]:focus-visible { outline:2px solid var(--brand);
+  outline-offset:1px; }
+.admin-toolbar select { flex:none; padding:10px 11px; border:1px solid var(--line-strong);
+  border-radius:var(--radius); background:var(--surface); color:var(--ink);
+  font:inherit; font-size:13.5px; }
 .admin-count { flex:none; color:var(--muted); font:11px 'DM Mono',monospace; }
 
 .admin-row { display:grid; gap:12px; padding:15px 16px; margin-bottom:10px;
@@ -1271,4 +1275,71 @@ body.page { min-height:100vh; background:var(--paper); }
   .admin-row { grid-template-columns:minmax(0, 1fr) auto; align-items:start; }
   .ar-controls { justify-content:flex-end; }
   .ar-badges, .ar-danger { grid-column:1 / -1; }
+}
+
+/* --- Admin console: tabs and the four screens ---------------------------- */
+.admin-tabs { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:18px;
+  padding-bottom:10px; border-bottom:1px solid var(--line); }
+.admin-tab { border:1px solid transparent; border-radius:100px; background:none;
+  padding:7px 14px; font:inherit; font-size:13px; font-weight:700; color:var(--muted);
+  cursor:pointer; }
+.admin-tab:hover { color:var(--ink); }
+.admin-tab.is-on { background:var(--brand-fill); color:var(--on-accent); }
+.admin-tab:focus-visible { outline:2px solid var(--brand); outline-offset:2px; }
+
+.admin-actions { display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px;
+  margin-top:16px; }
+.admin-actions .ar-field { flex:1; min-width:180px; }
+.admin-actions input[type="text"] { padding:8px 10px; border:1px solid var(--line-strong);
+  border-radius:var(--radius); background:var(--surface); color:var(--ink);
+  font:inherit; font-size:13px; width:100%; }
+.ghost-button.small { padding:7px 12px; font-size:12.5px; }
+
+.admin-table { width:100%; border-collapse:collapse; font-size:13.5px; }
+.admin-table th, .admin-table td { padding:9px 10px; text-align:left;
+  border-bottom:1px solid var(--line); vertical-align:middle; }
+.admin-table thead th { color:var(--muted); font-size:10.5px; letter-spacing:.09em;
+  text-transform:uppercase; font-weight:600; }
+.admin-table tbody th { font-weight:700; white-space:nowrap; }
+.admin-table input { padding:6px 9px; border:1px solid var(--line-strong);
+  border-radius:8px; background:var(--surface); color:var(--ink); font:inherit;
+  font-size:13px; width:9ch; }
+.admin-table input:disabled { background:var(--paper); color:var(--muted); }
+.set-key { display:inline; padding:2px 6px; border:0; background:var(--paper);
+  font:11.5px 'DM Mono',monospace; border-radius:6px; }
+.set-note { color:var(--muted); font-size:12px; line-height:1.5; }
+
+/* Reports. The text is the point, so it gets a column of its own rather than
+   being clamped into a cell. */
+.report-row .ar-controls { align-items:center; }
+.rr-status { padding:1px 8px; border-radius:100px; font:600 10.5px 'DM Mono',monospace; }
+.rr-status.is-published { background:var(--tint-brand); color:var(--brand); }
+.rr-status.is-under_review { background:#f3e2c4; color:#8a5d10; }
+.rr-status.is-removed { background:#f0d8d5; color:#9c2f24; }
+.rr-flags { color:#c5382c; font-weight:700; }
+.rr-ok { color:var(--brand); font-weight:700; }
+.ar-meta > span + span { margin-left:9px; }
+.rr-text { margin:8px 0 0; color:var(--ink-2); font-size:13px; line-height:1.55;
+  max-width:68ch; text-wrap:pretty; }
+
+/* Regions. A long list, so it scrolls inside its own box rather than pushing
+   Save off the bottom of a 250-row page. */
+.region-state { margin:0 0 14px; font-size:13.5px; font-weight:700; color:var(--brand); }
+.region-state.is-closed { color:#c5382c; }
+.region-list { max-height:360px; overflow:auto; border:1px solid var(--line);
+  border-radius:var(--radius); background:var(--surface); }
+.region-row { display:flex; align-items:center; gap:10px; padding:8px 12px;
+  border-bottom:1px solid var(--line); cursor:pointer; font-size:13px; }
+.region-row:last-child { border-bottom:0; }
+.region-row:hover { background:var(--paper); }
+.region-row.is-on { background:var(--tint-warm); }
+.rg-name { flex:1; font-weight:700; }
+.rg-kind { color:var(--muted); font:10.5px 'DM Mono',monospace; }
+.rg-count { width:3ch; text-align:right; color:var(--muted);
+  font:11px 'DM Mono',monospace; }
+
+@media (max-width: 620px) {
+  .admin-tab { padding:7px 11px; font-size:12.5px; }
+  .admin-table th, .admin-table td { padding:8px 6px; }
+  .set-note { display:none; }
 }

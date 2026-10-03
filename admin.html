@@ -93,7 +93,7 @@
     <main class="prose-page admin-page">
       <header class="prose-head">
         <p class="eyebrow">Administration</p>
-        <h1>Members</h1>
+        <h1 id="admin-title">Members</h1>
         <p class="prose-lede" id="admin-lede">Checking whether you are an admin…</p>
       </header>
 
@@ -106,27 +106,121 @@
       </section>
 
       <section id="admin-body" hidden>
-        <div class="admin-toolbar">
-          <label class="visually-hidden" for="admin-search">Search by name or email</label>
-          <input id="admin-search" type="search" autocomplete="off"
-                 placeholder="Search by nickname or email" />
-          <span class="admin-count" id="admin-count"></span>
+        <!-- One screen per job rather than one long page. A tablist because
+             that is what it is, and arrow keys should move along it. -->
+        <div class="admin-tabs" role="tablist" aria-label="Sections">
+          <button role="tab" class="admin-tab is-on" data-tab="members"
+                  aria-selected="true" aria-controls="tab-members">Members</button>
+          <button role="tab" class="admin-tab" data-tab="reports"
+                  aria-selected="false" aria-controls="tab-reports" tabindex="-1">Reports</button>
+          <button role="tab" class="admin-tab" data-tab="levels"
+                  aria-selected="false" aria-controls="tab-levels" tabindex="-1">Levels</button>
+          <button role="tab" class="admin-tab" data-tab="regions"
+                  aria-selected="false" aria-controls="tab-regions" tabindex="-1">Regions</button>
+          <button role="tab" class="admin-tab" data-tab="settings"
+                  aria-selected="false" aria-controls="tab-settings" tabindex="-1">Settings</button>
         </div>
 
-        <div id="admin-list" class="admin-list"></div>
+        <!-- ---- Members -------------------------------------------------- -->
+        <div id="tab-members" role="tabpanel" class="admin-panel">
+          <div class="admin-toolbar">
+            <label class="visually-hidden" for="admin-search">Search by name or email</label>
+            <input id="admin-search" type="search" autocomplete="off"
+                   placeholder="Search by nickname or email" />
+            <span class="admin-count" id="admin-count"></span>
+          </div>
+          <div id="admin-list" class="admin-list"></div>
+          <p class="prose-note">
+            There is no “add member” button, and there cannot be one. Creating an
+            account needs Supabase’s admin API and the secret key, and that key
+            bypasses every rule protecting this database — so it can never be in
+            a page served to the public. Anyone can sign up on the map
+            themselves; what you do here is decide what they are once they have.
+          </p>
+          <p class="prose-note">
+            The first admin is made in the Supabase SQL editor, which is the only
+            place it can be done:
+            <code>update public.profiles set role = 'admin' where id = (select id from auth.users where email = 'you@example.com');</code>
+          </p>
+        </div>
 
-        <p class="prose-note" id="admin-add-note">
-          There is no “add member” button, and there cannot be one. Creating an
-          account needs Supabase’s admin API and the secret key, and that key
-          bypasses every rule protecting this database — so it can never be in a
-          page served to the public. Anyone can sign up on the map themselves;
-          what you do here is decide what they are once they have.
-        </p>
-        <p class="prose-note">
-          The first admin is made in the Supabase SQL editor, which is the only
-          place it can be done:
-          <code>update public.profiles set role = 'admin' where id = (select id from auth.users where email = 'you@example.com');</code>
-        </p>
+        <!-- ---- Reports -------------------------------------------------- -->
+        <div id="tab-reports" role="tabpanel" class="admin-panel" hidden>
+          <div class="admin-toolbar">
+            <label class="visually-hidden" for="report-filter">Which reports</label>
+            <select id="report-filter">
+              <option value="flagged">Flagged</option>
+              <option value="under_review">Hidden, under review</option>
+              <option value="removed">Taken down</option>
+              <option value="published">On the map</option>
+              <option value="all">Everything</option>
+            </select>
+            <label class="visually-hidden" for="report-search">Search reports</label>
+            <input id="report-search" type="search" autocomplete="off"
+                   placeholder="Search a headline, a city or who filed it" />
+            <span class="admin-count" id="report-count"></span>
+          </div>
+          <div id="report-admin-list" class="admin-list"></div>
+          <p class="prose-note">
+            Approving a report clears its flags, so the same people cannot
+            re-hide what you have already looked at. Hiding keeps it in the
+            table; deleting does not, and is for a report that should never
+            have been filed at all.
+          </p>
+        </div>
+
+        <!-- ---- Levels --------------------------------------------------- -->
+        <div id="tab-levels" role="tabpanel" class="admin-panel" hidden>
+          <p class="prose-note">
+            The points each rung needs. Level 1 is where everybody starts, so it
+            stays at 0, and each rung has to ask for more than the one below it
+            — the database refuses a ladder that does not climb. Names come from
+            the site’s nine translation files, so a rung past level 10 shows as
+            a bare number until one is added there.
+          </p>
+          <table class="admin-table" id="levels-admin"></table>
+          <div class="admin-actions">
+            <button class="ghost-button small" id="level-add" type="button">Add a rung</button>
+            <button class="ghost-button small" id="level-drop" type="button">Remove the top rung</button>
+            <button class="primary-button" id="levels-save" type="button">Save the ladder</button>
+          </div>
+        </div>
+
+        <!-- ---- Regions -------------------------------------------------- -->
+        <div id="tab-regions" role="tabpanel" class="admin-panel" hidden>
+          <!-- The lede above already says what this screen does; this says the
+               one thing it does not. -->
+          <p class="prose-note">
+            Close a whole region rather than listing countries one at a time —
+            the single-country box below is for the odd exception.
+          </p>
+          <p class="region-state" id="region-state"></p>
+          <div class="admin-toolbar">
+            <label class="visually-hidden" for="region-search">Find a region</label>
+            <input id="region-search" type="search" autocomplete="off"
+                   placeholder="Find a region — continent, zone or union" />
+          </div>
+          <div id="region-list" class="region-list"></div>
+          <div class="admin-actions">
+            <label class="ar-field">
+              <span>Single countries, as ISO codes</span>
+              <input id="region-countries" type="text" autocomplete="off" placeholder="MX, TH" />
+            </label>
+            <button class="primary-button" id="regions-save" type="button">Save</button>
+          </div>
+        </div>
+
+        <!-- ---- Settings ------------------------------------------------- -->
+        <div id="tab-settings" role="tabpanel" class="admin-panel" hidden>
+          <p class="prose-note">
+            Numbers that change how the site behaves, applied the moment they
+            are saved. Every one of them is read as a number somewhere, so a
+            word here is refused rather than failing quietly at the next
+            refresh.
+          </p>
+          <table class="admin-table" id="settings-admin"></table>
+        </div>
+
         <p class="prose-back"><a href="index.html#map">← Back to the map</a></p>
       </section>
     </main>

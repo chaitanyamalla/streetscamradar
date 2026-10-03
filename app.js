@@ -248,7 +248,7 @@ async function adoptAccountLanguage() {
  *
  * Here rather than in a data-i18n attribute because both carry a number that
  * comes from app_settings, which a plain attribute cannot fill — the same
- * reason #when-hint and #hazard-window are rewritten below.
+ * reason #when-hint is rewritten below.
  */
 function paintAgeEnds() {
   $('#age-end-near').textContent = ageLabel(1, REPORT_WINDOW_DAYS);
@@ -264,10 +264,6 @@ function onLanguageChanged() {
   if (state.placeLabel) $('#place-label').textContent = state.placeLabel;
   if (signedIn()) $('#profile-email').textContent = state.user?.email ?? t('header.signedIn');
   $('#when-hint').textContent = t('report.whenHint', { days: REPORT_WINDOW_DAYS });
-  // The panel says what the map is NOT showing. It hides hazards the agency
-  // still lists, and a reader comparing it with gdacs.org deserves to know
-  // that rather than wonder which of the two is broken.
-  $('#hazard-window').textContent = t('hazards.window', { days: REPORT_WINDOW_DAYS });
   paintAgeEnds();
   setAgeSlider($('#age-range'), state.ageDays, REPORT_WINDOW_DAYS);
   if (!state.pin) $('#pin-status').textContent = t('report.noPin');

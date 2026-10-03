@@ -231,6 +231,162 @@ select pg_temp.check(public.contribution_points('11111111-1111-1111-1111-1111111
   'withdrawing an unconfirmed report costs its 5 points (got '
   || public.contribution_points('11111111-1111-1111-1111-111111111111') || ')');
 
+
+-- ===========================================================================
+-- Roles, and the admin page's calls
+-- ===========================================================================
+-- Nobody is an admin to begin with. The first one is made in the SQL editor,
+-- which is the only place that can be done, and that is deliberate.
+select pg_temp.check((select count(*) from public.profiles where role = 'admin') = 0,
+  'a fresh install has no admins at all');
+select pg_temp.check(not public.is_admin('11111111-1111-1111-1111-111111111111'),
+  'and filing reports does not make you one');
+
+update public.profiles set role = 'admin'
+ where id = '11111111-1111-1111-1111-111111111111';
+select pg_temp.check(public.is_admin('11111111-1111-1111-1111-111111111111'),
+  'the first admin is made by hand, in the SQL editor');
+
+-- --- A member cannot use any of it ------------------------------------------
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$
+declare n int;
+begin
+  select count(*) into n from public.admin_members(null, 10);
+  perform pg_temp.check(false, 'a member should not be able to list the members');
+exception when others then
+  perform pg_temp.check(sqlerrm = 'admins only', 'a member listing members is refused: ' || sqlerrm);
+end $$;
+do $$
+begin
+  perform public.admin_set_role('22222222-2222-2222-2222-222222222222', 'admin');
+  perform pg_temp.check(false, 'a member should not be able to make themselves an admin');
+exception when others then
+  perform pg_temp.check(sqlerrm = 'admins only', 'nor make themselves one: ' || sqlerrm);
+end $$;
+do $$
+begin
+  perform public.admin_remove_member('11111111-1111-1111-1111-111111111111');
+  perform pg_temp.check(false, 'a member should not be able to remove the admin');
+exception when others then
+  perform pg_temp.check(sqlerrm = 'admins only', 'nor remove anybody: ' || sqlerrm);
+end $$;
+reset role; reset request.jwt.claim.sub;
+
+-- --- A signed-out caller cannot either ---------------------------------------
+set role authenticated;
+do $$
+begin
+  perform public.admin_members(null, 10);
+  perform pg_temp.check(false, 'a caller with no identity should be refused');
+exception when others then
+  perform pg_temp.check(sqlerrm = 'sign in required',
+    'and a caller it cannot identify is told to sign in rather than told "no such member": ' || sqlerrm);
+end $$;
+reset role;
+
+-- --- The admin can ----------------------------------------------------------
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+select pg_temp.check((select count(*) from public.admin_members(null, 100)) = 3,
+  'an admin sees every member');
+select pg_temp.check(
+  (select email from public.admin_members('bo@example', 100)) = 'bo@example.com',
+  'and can find one by a fragment of their email address');
+select pg_temp.check(
+  (select count(*) from public.admin_members('ana', 100)) = 2,
+  'or by a fragment of a nickname, which may well match two people');
+select pg_temp.check(
+  (select role from public.admin_members('bo@example', 100)) = 'member',
+  'the list says what role each of them has');
+
+-- Roles.
+select pg_temp.check(
+  public.admin_set_role('22222222-2222-2222-2222-222222222222', 'moderator') = 'moderator',
+  'an admin can give somebody a role');
+do $$
+begin
+  perform public.admin_set_role('22222222-2222-2222-2222-222222222222', 'wizard');
+  perform pg_temp.check(false, 'a role that does not exist should be refused');
+exception when others then
+  perform pg_temp.check(sqlerrm like 'no such role%', 'a role that does not exist is refused');
+end $$;
+
+-- A level given rather than earned.
+select pg_temp.check(public.admin_set_level('22222222-2222-2222-2222-222222222222', 8) = 8,
+  'an admin can put somebody on a level their points do not reach');
+select pg_temp.check(public.member_level('22222222-2222-2222-2222-222222222222') = 8
+                 and public.level_for(public.contribution_points('22222222-2222-2222-2222-222222222222')) = 2,
+  'the given level wins, and the earned one underneath it is untouched');
+select pg_temp.check(public.admin_set_level('22222222-2222-2222-2222-222222222222', null) = 2,
+  'and clearing it hands the member back to the arithmetic');
+do $$
+begin
+  perform public.admin_set_level('22222222-2222-2222-2222-222222222222', 44);
+  perform pg_temp.check(false, 'a level off the ladder should be refused');
+exception when others then
+  perform pg_temp.check(sqlerrm like 'there is no level%', 'a level the ladder does not have is refused');
+end $$;
+
+-- Badges, from the page rather than from the SQL editor.
+select pg_temp.check(
+  public.admin_set_badge('22222222-2222-2222-2222-222222222222', 'creator', true, 'Reels')
+    = array['creator'],
+  'an admin can give a badge from the page');
+select pg_temp.check(
+  public.admin_set_badge('22222222-2222-2222-2222-222222222222', 'creator', false) = '{}',
+  'and take it off again');
+
+-- --- The two ways to lock yourself out, both refused ------------------------
+do $$
+begin
+  perform public.admin_set_role('11111111-1111-1111-1111-111111111111', 'member');
+  perform pg_temp.check(false, 'the last admin should not be able to demote themselves');
+exception when others then
+  perform pg_temp.check(sqlerrm like 'that is the last admin%',
+    'the last admin cannot demote themselves: ' || sqlerrm);
+end $$;
+do $$
+begin
+  perform public.admin_remove_member('11111111-1111-1111-1111-111111111111');
+  perform pg_temp.check(false, 'an admin should not remove themselves here');
+exception when others then
+  perform pg_temp.check(sqlerrm like 'use Account settings%',
+    'and removing yourself is sent to the ordinary door: ' || sqlerrm);
+end $$;
+
+-- With a second admin in place, the first may step down.
+select pg_temp.check(
+  public.admin_set_role('22222222-2222-2222-2222-222222222222', 'admin') = 'admin',
+  'a second admin can be made');
+select pg_temp.check(
+  public.admin_set_role('11111111-1111-1111-1111-111111111111', 'member') = 'member',
+  'and then the first can step down');
+reset role; reset request.jwt.claim.sub;
+select pg_temp.check(not public.is_admin('11111111-1111-1111-1111-111111111111'),
+  'which really does take the role away');
+
+-- --- Removing somebody takes their reports with them ------------------------
+-- Counted outside the role, because `authenticated` has no select on reports
+-- at all — the whole table is read through reports_feed. Being refused here
+-- would say nothing about the removal.
+select pg_temp.check(
+  (select count(*) from public.reports where reporter_id = '11111111-1111-1111-1111-111111111111') > 0,
+  'the member about to be removed has reports on the map');
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+select pg_temp.check(public.admin_remove_member('11111111-1111-1111-1111-111111111111'),
+  'an admin can remove a member');
+reset role; reset request.jwt.claim.sub;
+select pg_temp.check(
+  (select count(*) from public.reports where reporter_id = '11111111-1111-1111-1111-111111111111') = 0,
+  'and their reports go with them');
+select pg_temp.check(
+  (select count(*) from auth.users where id = '11111111-1111-1111-1111-111111111111') = 0
+  and (select count(*) from public.profiles where id = '11111111-1111-1111-1111-111111111111') = 0,
+  'along with the account itself and the profile that cascades from it');
+
 \echo ''
 select (select count(*) - (select count(*) from pg_temp.failures) from pg_temp.ran)
        || '/' || (select count(*) from pg_temp.ran) || ' passed'

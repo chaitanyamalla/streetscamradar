@@ -556,10 +556,56 @@ That is what a badge is for. Granted by hand, with a reason written beside it.
 Somebody can hold several at once, which is why they are a table rather than a
 column.
 
+### The admin page
+
+`/admin.html`, for whoever runs the site. It lists every member with their
+nickname, email, level, points, reports and badges, and lets an admin change
+four things: their role, their level, their badges, and whether they appear on
+the contributors list. It can also remove a member, which deletes their reports
+and their account together.
+
+**What protects it is the database, not the page.** Every call it makes is
+refused unless `auth.uid()` belongs to somebody whose profile row says `admin`,
+and that check runs inside each function. Hiding the controls from a member is
+politeness; opening a console and calling `admin_set_role` yourself gets
+`admins only`. There is a test for exactly that.
+
+**Two lockouts are refused**: the last admin cannot demote themselves, and an
+admin cannot remove themselves here (close your own account from your profile,
+like anybody else). Both would leave a site nobody can administer, with the SQL
+editor as the only way back.
+
+**The first admin is made in the SQL editor**, because there is nowhere else it
+can be done:
+
+```sql
+update public.profiles set role = 'admin'
+ where id = (select id from auth.users where email = 'you@example.com');
+```
+
+**There is no "add member" button, and there cannot be one.** Creating an
+account needs Supabase's admin API and the secret key, and that key bypasses
+every rule in `schema.sql` — so it can never be in a page served to the public.
+Anyone can sign up on the map themselves; the admin page decides what they are
+once they have. To create an account by hand, use **Authentication → Users** in
+the Supabase dashboard.
+
+The page is in **English only**, and it is the only page here that is.
+Everything a traveller reads is in nine languages; this is a control panel for
+one or two people who chose to run the site, and half of what it shows —
+`that is the last admin`, `no such role: wizard` — comes back from Postgres in
+English anyway.
+
+A level given from the admin page sits in `profiles.level_override` and wins
+over the earned one. The profile shows the given level without a progress bar:
+somebody handed level 7 has not earned 600 points, and a bar pretending
+otherwise would be a lie about their own account.
+
 ### Finding somebody and giving them a badge
 
-In the **Supabase SQL editor** — not the Database workflow, whose logs are
-public along with this repository. Find them by whatever you happen to know:
+Either from the admin page above, or in the **Supabase SQL editor** — not the
+Database workflow, whose logs are public along with this repository. Find them
+by whatever you happen to know:
 
 ```sql
 select * from public.admin_contributors
@@ -608,14 +654,34 @@ ever saying which pin on the map is whose. Being on that list is opt-in and off
 by default, because the name most members carry was taken from their email
 address at sign-up rather than chosen.
 
+### The reference page
+
+`/guide.html` explains, for readers rather than for operators: what red and
+orange mean on each of the two scales, what a level is and how points are
+earned, what each badge means, and where every layer comes from with its own
+limit beside it. In all nine languages.
+
+It exists because the map's own panels were filling up with it. The weather key
+carried five paragraphs — how far ahead warnings reach, what the two marker
+brightnesses mean, what a marker's position does and does not mean, which
+countries are covered, and that this is not an alert service — in a panel
+floating over the map that somebody opened to find out what a colour meant.
+What stays in the key is the line that reads the markers in front of you and
+the credit for whoever issued them. The rest moved, with a link where it was.
+
+The levels table, the point weights, the badge list and the grade names on that
+page are all read from the same places the map reads them, so retuning
+`contributor_levels` or `points_per_report` changes what the page tells people
+rather than leaving it quoting the numbers it shipped with.
+
 ### Testing the SQL
 
 Everything else in this repository tests the page with the database stubbed,
 which means the stub and the page can agree perfectly while the SQL underneath
 is wrong. `supabase/test/run.sh` applies `schema.sql` to a throwaway Postgres
-and checks the arithmetic, the lookups and who may read what — 38 assertions,
-including putting a `REVOKE` back to confirm the permission checks fail when
-they should.
+and checks the arithmetic, the lookups, the admin calls and who may read what
+— 66 assertions, including putting a `REVOKE` back to confirm the permission
+checks fail when they should.
 
 ---
 

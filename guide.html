@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#101d26" />
+    <!-- Before the first paint, and before any module loads: a reader who
+         chose dark must not watch a cream page arrive and then turn. It reads
+         the same key js/theme.js writes, and falls back to the system switch.
+         Inline because an external file is one more round trip, and this has
+         to run before the body renders or it has not done its job. -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('ssr.theme');
+          var dark = saved ? saved === 'dark'
+            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          if (dark) document.querySelector('meta[name="theme-color"]')
+            .setAttribute('content', '#081116');
+        } catch (e) { /* blocked storage: the page is simply light */ }
+      })();
+    </script>
+    <meta name="description" data-i18n-content="guide.meta.description" content="What the levels mean, what a red or orange alert means, and where every layer on the StreetScamRadar map comes from." />
+    <title data-i18n="guide.meta.title">What this map shows — StreetScamRadar</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="page">
+    <header class="topbar">
+      <a class="brand" href="index.html#map" data-i18n-aria="brand.home" aria-label="StreetScamRadar home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-text">
+          <span class="brand-word">Street<span class="accent">Scam</span>Radar</span>
+          <span class="brand-tagline" data-i18n="brand.tagline">Plan your trip. Travel informed.</span>
+        </span>
+      </a>
+
+      <nav data-i18n-aria="nav.label" aria-label="Main">
+        <a href="index.html#map" data-i18n="nav.map">Map</a>
+        <a href="index.html#how" data-i18n="nav.how">How it works</a>
+        <a href="index.html#safety" data-i18n="nav.safety">Staying safe</a>
+        <a class="active" href="guide.html" data-i18n="nav.guide">What this shows</a>
+      </nav>
+
+      <!-- Outside .top-actions on purpose: on a phone the header wraps, and a
+           picker sharing that row squeezed "Sign in" and "Report a scam" onto
+           two lines each. Here it sits beside the brand instead. -->
+      <label class="lang-picker">
+        <span class="visually-hidden" data-i18n="header.language">Language</span>
+        <select id="lang-select" data-i18n-aria="header.language" aria-label="Language"></select>
+      </label>
+
+      <!-- aria-pressed rather than a label that changes: the button IS dark
+           mode, and it is either on or off. A label reading "Light mode" while
+           the page is light leaves a reader guessing whether it describes the
+           state or the destination. -->
+      <button class="theme-button" id="theme-button" type="button" aria-pressed="false"
+              data-i18n-aria="header.darkMode" data-i18n-title="header.darkMode"
+              aria-label="Dark mode" title="Dark mode">
+        <!-- Both are here and CSS shows one. Drawn rather than typed: ☀ and
+             ☾ are at the mercy of whatever font the device has, and on many
+             Androids one of them arrives as a colour emoji and the other as a
+             thin outline, so the button would change weight as you pressed it.
+             Each shows the mode you are IN, which is what aria-pressed says
+             too — sun for light, moon for dark. -->
+        <svg class="theme-icon is-sun" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+             stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+          <circle cx="12" cy="12" r="4.4" />
+          <path d="M12 2.2v2.4M12 19.4v2.4M2.2 12h2.4M19.4 12h2.4
+                   M5.1 5.1l1.7 1.7M17.2 17.2l1.7 1.7M18.9 5.1l-1.7 1.7M6.8 17.2l-1.7 1.7" />
+        </svg>
+        <svg class="theme-icon is-moon" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+             stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20.8 13.4A8.9 8.9 0 1 1 10.6 3.2a7 7 0 0 0 10.2 10.2z" />
+        </svg>
+      </button>
+
+    </header>
+
+    <main class="prose-page">
+      <header class="prose-head">
+        <p class="eyebrow" data-i18n="guide.eyebrow">Reference</p>
+        <h1 data-i18n="guide.title">What this map shows, and what it means</h1>
+        <p class="prose-lede" data-i18n="guide.lede">Four layers from four sources, each with its own grading and its own limits. This page is where those are written down, so the map itself can stay a map.</p>
+      </header>
+
+      <!-- ---- Alerts ------------------------------------------------------
+           First, because it is what somebody clicking through from a warning
+           on the map came to find out. -->
+      <section class="prose-section" id="alerts">
+        <h2 data-i18n="guide.alerts.title">Red and orange alerts</h2>
+        <p data-i18n="guide.alerts.lede">Two different services grade what they publish, on two different scales, and the map shows only the top two steps of each. A grade is the issuing service's own judgement — never ours.</p>
+
+        <div class="grade-cards">
+          <div class="grade-card is-severe">
+            <p class="grade-name" data-i18n="hazard.grade.severe">Red alert</p>
+            <p data-i18n="guide.alerts.red">The most serious thing either service issues. Act on it: it means severe impact is expected, not merely possible.</p>
+          </div>
+          <div class="grade-card is-notice">
+            <p class="grade-name" data-i18n="hazard.grade.notice">Orange alert</p>
+            <p data-i18n="guide.alerts.orange">Serious enough to change a plan. Expect disruption, and check the issuing service before you set out.</p>
+          </div>
+        </div>
+
+        <h3 data-i18n="guide.alerts.gdacs.title">Disasters, graded by GDACS</h3>
+        <p data-i18n="guide.alerts.gdacs">GDACS grades an earthquake, flood, cyclone, wildfire or volcano by its likely humanitarian impact — how much ground moved and how many people live on it, not the magnitude alone. Green is the routine background of a working planet and is not drawn here.</p>
+
+        <h3 data-i18n="guide.alerts.meteoalarm.title">Weather, graded by the national met services</h3>
+        <p data-i18n="guide.alerts.meteoalarm">A weather warning is graded by the country's own meteorological service and published through MeteoAlarm. Their scale has four steps; the map shows the top two. Yellow means ordinary bad weather, and a map carrying every yellow warning in Europe would be a map of Europe.</p>
+        <p class="prose-note" data-i18n="weather.marks">Bright marker: in force now. Pale marker: issued for later.</p>
+        <p class="prose-note" data-i18n="weather.lead">Weather warnings reach about two days ahead. Nothing further is forecast.</p>
+        <p class="prose-note" data-i18n="weather.serves">Europe only, from the national met services via MeteoAlarm.</p>
+        <p class="prose-note" data-i18n="weather.placed">Markers sit on the country, not the exact area, and are spread apart where several share a spot.</p>
+        <p class="prose-note" data-i18n="hazards.placed">A marker is where GDACS puts the event: a volcano or fire exactly, a storm where it was last seen, a flood at the centre of the area affected.</p>
+      </section>
+
+      <!-- ---- Levels ------------------------------------------------------ -->
+      <section class="prose-section" id="levels">
+        <h2 data-i18n="guide.levels.title">Levels</h2>
+        <p data-i18n="guide.levels.lede">Reporting a scam helps the next traveller, and a level is how that adds up. It is on your own profile and nowhere else unless you ask to be listed.</p>
+
+        <h3 data-i18n="guide.points.title">How points are earned</h3>
+        <table class="prose-table" id="points-table"></table>
+        <p data-i18n="guide.points.why">Points rather than a count of reports, on purpose. Rewarding volume alone would reward filing more, and the cheapest way to file more is to file worse — on a map people use to decide where to walk, that is the failure that matters. So the heaviest thing you can earn is somebody else recognising what you reported.</p>
+        <p class="prose-note" data-i18n="guide.points.lifetime">Points are for life. A report that has aged off the map was still filed. Withdrawing one takes its points back, because withdrawing deletes it.</p>
+
+        <h3 data-i18n="guide.levels.ladder">The ten levels</h3>
+        <table class="prose-table" id="levels-table"></table>
+      </section>
+
+      <!-- ---- Badges ------------------------------------------------------ -->
+      <section class="prose-section" id="badges">
+        <h2 data-i18n="guide.badges.title">Badges</h2>
+        <p data-i18n="guide.badges.lede">Points measure reports filed and recognised. They say nothing about somebody who makes videos about street scams and sends their audience here, who may be the most useful contributor on the site while never filing a report. That is what a badge is for. They are given by hand, and they change nothing about how anybody's reports are shown.</p>
+        <div class="badge-guide" id="badge-guide"></div>
+      </section>
+
+      <!-- ---- Sources ----------------------------------------------------- -->
+      <section class="prose-section" id="sources">
+        <h2 data-i18n="guide.sources.title">Where all of it comes from</h2>
+        <table class="prose-table" id="sources-table"></table>
+        <p class="prose-note" id="guide-window"></p>
+      </section>
+
+      <!-- ---- Limits ------------------------------------------------------ -->
+      <section class="prose-section" id="limits">
+        <h2 data-i18n="guide.limits.title">What this is not</h2>
+        <p data-i18n="hazard.notAlert">Not an alert service — check official sources before you travel.</p>
+        <p data-i18n="guide.limits.reports">Reports are unverified accounts from the public. They are what somebody says happened, which is useful and is not the same as a fact. Confirmations from other people are the only weight behind any of them.</p>
+        <p data-i18n="guide.limits.emergency">In an emergency, contact local emergency services first. Nothing here reaches anybody.</p>
+        <p class="prose-back"><a href="index.html#map" data-i18n="guide.back">← Back to the map</a></p>
+      </section>
+    </main>
+
+    <script type="module" src="js/guide.js"></script>
+  </body>
+</html>

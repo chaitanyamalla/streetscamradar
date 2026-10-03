@@ -53,6 +53,7 @@
         <a class="active" href="#map" data-i18n="nav.map">Map</a>
         <a href="#how" data-i18n="nav.how">How it works</a>
         <a href="#safety" data-i18n="nav.safety">Staying safe</a>
+        <a href="guide.html" data-i18n="nav.guide">What this shows</a>
       </nav>
 
       <!-- Outside .top-actions on purpose: on a phone the header wraps, and a
@@ -189,29 +190,25 @@
                   </div>
                   <div id="weather-legend-rows"></div>
                   <p class="hp-foot" id="weather-note"></p>
-                  <!-- How far ahead this reaches. People plan trips on this page,
-                       so "is there a warning for next week" is a fair question
-                       with an unwelcome answer: no met service issues one that
-                       far out. Better said plainly than left to be assumed. -->
-                  <p class="hp-foot" data-i18n="weather.lead">Weather warnings reach about two days ahead. Nothing further is forecast.</p>
-                  <!-- What the markers mean, since this is where somebody looks
-                       to find out. Two states only: in force, or issued for
-                       later. A warning that is over is deleted, so there is no
-                       third one to explain. -->
+                  <!-- One line, and a door.
+                       This panel used to carry five paragraphs: how far ahead
+                       warnings reach, what the two marker brightnesses mean,
+                       what a marker's position does and does not mean, which
+                       countries are covered, and that we are not an alert
+                       service. All true, all worth saying once — and all of it
+                       on top of the map, in a floating panel somebody opened to
+                       find out what a colour meant.
+                       What stays is the one line that reads the markers in
+                       front of you, because that is what a key is for.
+                       Everything else moved to the reference page, which can
+                       give it room. -->
                   <p class="hp-foot" data-i18n="weather.marks">Bright marker: in force now. Pale marker: issued for later.</p>
-                  <!-- What a marker's POSITION means, said once here instead of in
-                       every popup. It was three sentences on each one — where the
-                       point came from, that it had been nudged, and what it did
-                       not mean — which is a paragraph to read before getting to
-                       the wind warning you clicked. -->
-                  <p class="hp-foot" data-i18n="weather.placed">Markers sit on the country, not the exact area, and are spread apart where several share a spot.</p>
-                  <!-- Where this stops. Said here rather than only when you have
-                       wandered outside it, so a reader knows the shape of what
-                       they are being told before they rely on it. -->
+                  <!-- Whose warnings these are. Kept where the five paragraphs
+                       around it went, because crediting the service is not
+                       padding: somebody reading a warning is entitled to know
+                       who issued it without leaving the panel. -->
                   <p class="hp-foot" data-i18n="weather.serves">Europe only, from the national met services via MeteoAlarm.</p>
-                  <p class="hp-foot" data-i18n="hazard.notAlert">
-                    Not an alert service — check official sources before you travel.
-                  </p>
+                  <p class="hp-foot"><a class="hp-link" href="guide.html#alerts" data-i18n="guide.more">What these mean</a></p>
                 </section>
               </div>
 
@@ -355,22 +352,15 @@
                    across every country it touches, so five of them filled
                    48 of the table's 51 rows. -->
 
-              <!-- Naming them is the whole of it. A paragraph explaining that we
-                   add nothing of our own said in many words what one line says
-                   by simply crediting somebody else. -->
-              <!-- What a marker's POSITION means, said once here instead of on
-                   every single marker. It is the same sentence for every event
-                   of a kind, and it was three lines of prose on a popup that
-                   had nothing to say about the event itself. -->
-              <p class="hp-foot" data-i18n="hazards.placed">A marker is where GDACS puts the event: a volcano or fire exactly, a storm where it was last seen, a flood at the centre of the area affected.</p>
+              <!-- Who publishes this, and a door to the rest. Cut the same way
+                   as the weather key above and for the same reason: where a
+                   marker sits, how far back the list reaches and that this is
+                   not an alert service are all true, said once, and belong on a
+                   page with room for them rather than in a drawer under the
+                   filters. The credit stays, because crediting somebody else is
+                   the shortest way to say we add nothing of our own. -->
               <p class="hp-foot" data-i18n="hazards.source">Source: GDACS</p>
-              <!-- Its English lives here and onLanguageChanged rewrites it, the
-                   same as #when-hint: the sentence carries a number, so a
-                   plain data-i18n cannot fill it. -->
-              <p class="hp-foot" id="hazard-window">Ongoing events and the last 7 days.</p>
-              <p class="hp-foot" data-i18n="hazard.notAlert">
-                Not an alert service — check official sources before you travel.
-              </p>
+              <p class="hp-foot"><a class="hp-link" href="guide.html#alerts" data-i18n="guide.more">What these mean</a></p>
             </div>
           </details>
         </details>

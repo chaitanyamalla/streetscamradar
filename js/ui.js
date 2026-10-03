@@ -144,38 +144,35 @@ export function renderCategoryFilters(host, categories, activeSet) {
 }
 
 /**
- * How far back to look, as one chip per answer.
+ * How far back, in words: "Today", or "Last 3 days".
  *
- * The labels are not "1 day", "2 days", "3 days": the first one is "Today",
- * because a day counted back from right now is what a person means by today
- * and "1 day" reads like a duration rather than a choice. The widest is named
- * for what it is — "All 7 days" — so the chip that shows everything says so
- * instead of looking like one more step on the ladder.
+ * One function because three things say it — the line above the list, the far
+ * end of the slider, and the value a screen reader reads out — and they must
+ * not drift apart. A day counted back from now is what somebody means by
+ * today, so it is named rather than called "1 day", which reads as a duration
+ * instead of a choice.
  */
-export function renderAgeBar(host, chips, chosen, windowDays) {
-  // Built once, then only ever updated. It would be shorter to rewrite
-  // innerHTML every time, and that is what this did first — but the bar is
-  // repainted on every pan and every refetch, and rewriting it throws away the
-  // focused element. The cost was a keyboard: an arrow key moved the chip, the
-  // refetch landed a moment later, and focus was on the body, so the next
-  // arrow key went nowhere. Nothing a mouse would ever notice.
-  const signature = `${chips.join(',')}|${windowDays}|${currentLanguage()}`;
-  if (host.dataset.chips !== signature) {
-    host.dataset.chips = signature;
-    host.innerHTML = chips.map(days => {
-      const label = days === 1 ? t('reports.when.today')
-        : days >= windowDays ? t('reports.when.all', { n: windowDays })
-        : plural('reports.when.days', days);
-      return `<button type="button" class="age-chip" role="radio"
-                      data-age="${days}">${esc(label)}</button>`;
-    }).join('');
-  }
-  for (const chip of host.querySelectorAll('.age-chip')) {
-    const on = Number(chip.dataset.age) === chosen;
-    chip.classList.toggle('is-on', on);
-    chip.setAttribute('aria-checked', String(on));
-    chip.tabIndex = on ? 0 : -1;
-  }
+export function ageLabel(days, windowDays) {
+  return days <= 1 ? t('reports.when.today')
+    : plural('reports.window.days', Math.min(days, windowDays));
+}
+
+/**
+ * Point the slider at a number of days.
+ *
+ * The filled part of the track is a CSS custom property rather than a second
+ * element: a range input paints its own thumb and track, and the one thing it
+ * will not do by itself is colour the part behind the thumb.
+ */
+export function setAgeSlider(input, days, windowDays) {
+  input.min = 1;
+  input.max = windowDays;
+  input.value = String(days);
+  // What a screen reader says instead of "3". Without it the control announces
+  // a bare number with no unit, which is the least useful part of it.
+  input.setAttribute('aria-valuetext', ageLabel(days, windowDays));
+  const span = Math.max(windowDays - 1, 1);
+  input.style.setProperty('--filled', `${((days - 1) / span * 100).toFixed(1)}%`);
 }
 
 /**
@@ -185,10 +182,8 @@ export function renderAgeBar(host, chips, chosen, windowDays) {
  * and the order of the two are a language's business, not ours.
  */
 export function reportScopeLine({ mode, ageDays, windowDays }) {
-  const when = ageDays === 1
-    ? t('reports.when.today')
-    : plural('reports.window.days', Math.min(ageDays, windowDays));
-  return t(mode === 'member' ? 'reports.scope.member' : 'reports.scope.public', { when });
+  return t(mode === 'member' ? 'reports.scope.member' : 'reports.scope.public',
+           { when: ageLabel(ageDays, windowDays) });
 }
 
 export function renderReportList(host, reports, { categories, mode, supported, signedIn,

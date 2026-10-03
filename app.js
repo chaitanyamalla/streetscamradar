@@ -7,7 +7,6 @@
 // not this file's.
 // ---------------------------------------------------------------------------
 import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS,
-         REPORT_AGE_CHIPS,
          REPORT_MOVE_WINDOW_HOURS, SAFETY_MIN_ZOOM, EMERGENCY_MIN_ZOOM,
          SUGGEST_MIN_CHARS, SUGGEST_DEBOUNCE_MS, REPORT_BOUNDS,
          WEATHER_COUNTRIES } from './js/config.js';
@@ -32,7 +31,7 @@ import { quakesIn, inBounds, quakeTone, hazardLabel, isLive, hasEnded,
 import { hazardSignSVG } from './js/hazard-signs.js';
 import { esc, toast, liftToast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
-         renderAgeBar, reportScopeLine, renderStanding, renderBoard,
+         setAgeSlider, ageLabel, reportScopeLine, renderStanding, renderBoard,
          categoryLabel, advisoryDialogHTML, quakePopupHTML, disasterPopupHTML,
          weatherDialogHTML, weatherPopupHTML } from './js/ui.js';
 import { countryName } from './js/i18n.js';
@@ -244,6 +243,18 @@ async function adoptAccountLanguage() {
   await setLanguage(wanted);
 }
 
+/**
+ * The two ends of the slider, named.
+ *
+ * Here rather than in a data-i18n attribute because both carry a number that
+ * comes from app_settings, which a plain attribute cannot fill — the same
+ * reason #when-hint and #hazard-window are rewritten below.
+ */
+function paintAgeEnds() {
+  $('#age-end-near').textContent = ageLabel(1, REPORT_WINDOW_DAYS);
+  $('#age-end-far').textContent = ageLabel(REPORT_WINDOW_DAYS, REPORT_WINDOW_DAYS);
+}
+
 function onLanguageChanged() {
   for (const select of [$('#lang-select'), $('#profile-lang')]) {
     if (select) select.value = currentLanguage();
@@ -257,6 +268,8 @@ function onLanguageChanged() {
   // still lists, and a reader comparing it with gdacs.org deserves to know
   // that rather than wonder which of the two is broken.
   $('#hazard-window').textContent = t('hazards.window', { days: REPORT_WINDOW_DAYS });
+  paintAgeEnds();
+  setAgeSlider($('#age-range'), state.ageDays, REPORT_WINDOW_DAYS);
   if (!state.pin) $('#pin-status').textContent = t('report.noPin');
 
   paintAuthState();
@@ -1346,7 +1359,7 @@ function draw() {
     ? 'reports.title.region' : 'reports.title.here');
   $('#reports-scope').textContent = reportScopeLine(
     { mode, ageDays: state.ageDays, windowDays: REPORT_WINDOW_DAYS });
-  renderAgeBar($('#age-bar'), REPORT_AGE_CHIPS, state.ageDays, REPORT_WINDOW_DAYS);
+  setAgeSlider($('#age-range'), state.ageDays, REPORT_WINDOW_DAYS);
 
   renderReportList($('#report-list'), visible, {
     categories: state.categories, mode, supported: state.supported, signedIn: signedIn(),
@@ -1824,38 +1837,23 @@ function wireUI() {
 
   // --- how far back
   //
-  // Two things happen on a press and they are not the same thing twice. draw()
-  // repaints from rows the page already has, so the chip answers immediately.
-  // refresh() re-asks the database, which is the only way the counts in the
-  // density circles — added up there, not here — can follow the chip at all.
-  function chooseAge(days) {
+  // Two things happen when the slider moves and they run at different speeds.
+  // draw() repaints from rows the page already holds, so the map follows the
+  // thumb as it is dragged. refresh() re-asks the database, which is the only
+  // way the counts in the density circles — added up there, not here — can
+  // follow at all, and asking on every step of a drag would be seven requests
+  // for one gesture. So that one waits for the dragging to stop.
+  let ageRefresh;
+  $('#age-range').addEventListener('input', e => {
+    const days = Number(e.target.value);
     if (!days || days === state.ageDays) return;
     state.ageDays = days;
     draw();
-    refresh();
-  }
-
-  $('#age-bar').addEventListener('click', e => {
-    const chip = e.target.closest('.age-chip');
-    if (chip) chooseAge(Number(chip.dataset.age));
+    clearTimeout(ageRefresh);
+    ageRefresh = setTimeout(refresh, 250);
   });
 
-  // Arrow keys move along the row, which is what a radiogroup promises and
-  // what somebody who reached it by keyboard will try. Home and End because
-  // "everything" and "today" are the two ends people actually want.
-  $('#age-bar').addEventListener('keydown', e => {
-    const keys = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 };
-    const here = REPORT_AGE_CHIPS.indexOf(state.ageDays);
-    let next = null;
-    if (e.key in keys) next = here + keys[e.key];
-    else if (e.key === 'Home') next = 0;
-    else if (e.key === 'End') next = REPORT_AGE_CHIPS.length - 1;
-    if (next === null) return;
-    e.preventDefault();
-    const days = REPORT_AGE_CHIPS[Math.min(Math.max(next, 0), REPORT_AGE_CHIPS.length - 1)];
-    chooseAge(days);
-    $(`.age-chip[data-age="${days}"]`)?.focus();
-  });
+  paintAgeEnds();
 
   // --- report list actions
   $('#report-list').addEventListener('click', async e => {

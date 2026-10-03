@@ -552,23 +552,36 @@ em { font-style:italic; }
 .count-pill { flex:none; min-width:30px; padding:5px 10px; border-radius:100px;
   background:var(--pin); color:var(--on-accent); text-align:center;
   font:600 12px 'DM Mono',monospace; }
-/* How far back. Wraps rather than scrolls, which was the first attempt and was
-   wrong: five chips do not fit across a 314px card in any language, so the
-   widest one — the one chosen when the map opens — sat off the right edge
-   where nobody would find it. Seeing all five answers at once is the entire
-   reason this is a row of chips and not a dropdown, so the second line is
-   worth the 24px it costs the list. */
-.age-bar { display:flex; flex-wrap:wrap; gap:6px; padding:0 14px 10px; }
-.age-chip { flex:none; border:1px solid var(--line-strong); border-radius:100px;
-  background:var(--surface); padding:4px 10px; font-size:10.5px; color:var(--ink-2);
-  white-space:nowrap; }
-.age-chip:hover { border-color:var(--brand); }
-/* The chosen one is filled rather than merely un-dimmed. The category chips
-   above dim what is OFF, which works when several are on at once; exactly one
-   of these is ever on, and dimming four to point at the fifth reads as four
-   disabled controls. */
-.age-chip.is-on { border-color:var(--brand-fill); background:var(--brand-fill);
-  color:var(--on-accent); font-weight:700; }
+/* How far back.
+   The filled part of the track is painted by a gradient on the input itself,
+   stopping at --filled, which app.js moves. A range input will style its thumb
+   and its track but gives no hook at all for "the part behind the thumb", and
+   that filled span is the whole reason this reads as a length of time rather
+   than as a dial. */
+.age-slider { padding:2px 14px 9px; }
+#age-range { -webkit-appearance:none; appearance:none; width:100%; height:18px;
+  background:none; cursor:pointer; display:block; }
+#age-range::-webkit-slider-runnable-track { height:6px; border-radius:100px;
+  background:linear-gradient(to right,
+    var(--brand-fill) 0 var(--filled, 100%), var(--line) var(--filled, 100%) 100%); }
+#age-range::-moz-range-track { height:6px; border-radius:100px; background:var(--line); }
+#age-range::-moz-range-progress { height:6px; border-radius:100px; background:var(--brand-fill); }
+#age-range::-webkit-slider-thumb { -webkit-appearance:none; appearance:none;
+  width:16px; height:16px; margin-top:-5px; border-radius:50%;
+  background:var(--surface); border:2px solid var(--brand-fill);
+  box-shadow:0 1px 3px rgba(0,0,0,.22); }
+#age-range::-moz-range-thumb { width:16px; height:16px; border-radius:50%;
+  background:var(--surface); border:2px solid var(--brand-fill);
+  box-shadow:0 1px 3px rgba(0,0,0,.22); }
+#age-range:focus-visible { outline:2px solid var(--brand); outline-offset:4px;
+  border-radius:100px; }
+
+/* The scale. The CURRENT value is not here — it is the line above the title,
+   which already reads "Last 3 days · every report in view" and updates as the
+   thumb moves. Repeating it beside the slider would be the same sentence twice
+   in a 314px card. */
+.age-ends { display:flex; justify-content:space-between; gap:10px; margin-top:1px;
+  color:var(--muted); font-size:10px; letter-spacing:.02em; }
 
 .report-list { overflow:auto; }
 .report-entry { display:flex; gap:10px; padding:11px 14px; border-top:1px solid var(--line);
@@ -1055,8 +1068,11 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   .filter-row { min-height:36px; font-size:13px; }
   .filter-row input { width:17px; height:17px; }
   .cat-chip { padding:8px 12px 8px 9px; font-size:12px; }
-  /* Thumb-sized on a phone, like every other chip here. */
-  .age-chip { padding:8px 13px; font-size:12px; }
+  /* A bigger thumb for a thumb. */
+  #age-range { height:26px; }
+  #age-range::-webkit-slider-thumb { width:22px; height:22px; margin-top:-8px; }
+  #age-range::-moz-range-thumb { width:22px; height:22px; }
+  .age-ends { font-size:11px; }
   .chip-action { padding:6px 12px; font-size:11.5px; }
   .close-button { width:44px; height:44px; }
 

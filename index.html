@@ -54,6 +54,12 @@
         <a href="#how" data-i18n="nav.how">How it works</a>
         <a href="#safety" data-i18n="nav.safety">Staying safe</a>
         <a href="guide.html" data-i18n="nav.guide">What this shows</a>
+        <!-- Shown only to an admin, and only once the DATABASE has said so.
+             Not a secret: the page itself refuses anybody else, and so does
+             every call it makes, so hiding the link protects nothing. It is
+             hidden because a link to a door you cannot open is clutter on
+             everybody else's header. -->
+        <a id="nav-admin" href="admin.html" hidden>Admin</a>
       </nav>
 
       <!-- Outside .top-actions on purpose: on a phone the header wraps, and a

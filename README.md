@@ -564,6 +564,22 @@ four things: their role, their level, their badges, and whether they appear on
 the contributors list. It can also remove a member, which deletes their reports
 and their account together.
 
+**Its address is `/admin`** — `vercel.json` sets `cleanUrls`, so Vercel serves
+the extensionless form and 308-redirects `/admin.html` to it. Checked against
+the live site rather than assumed: `/admin` → 200, `/admin.html` → 308,
+`/nonsense` → 404.
+
+**A secret address would not be security**, and it is worth being clear about
+why. The page is useless to a non-admin: every call it makes is refused by the
+database, and `js/data.js` names those calls in plain sight to anybody who opens
+the browser's sources. Moving it to `/x7f2-admin` would hide the link and not
+the functions, which is the wrong half. What actually protects it is below.
+
+The link in the map's header is shown only to an admin, for the same reason —
+not as a lock, but because a link to a door you cannot open is clutter in
+everybody else's header. It is read from the profile row that is fetched on
+sign-in anyway, so it costs no extra round trip.
+
 **What protects it is the database, not the page.** Every call it makes is
 refused unless `auth.uid()` belongs to somebody whose profile row says `admin`,
 and that check runs inside each function. Hiding the controls from a member is

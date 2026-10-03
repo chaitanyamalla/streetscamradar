@@ -376,6 +376,32 @@ check(len(names) == slots,
       f"every column named in the INSERT has a value ({len(names)} names, {slots} values)")
 check('measure' in line, 'and measure is one of them')
 
+# --- the measurement line on a popup ----------------------------------------
+# Every string here is copied from what GDACS answered the live probe with, not
+# written to suit the parser. Two of the four are the reason measure_line
+# exists: the fire hides a real number behind GDACS's alert word, and the flood
+# measures nothing while looking like it does.
+def measure(text, value, unit):
+    data = "{'severity': %s, 'severitytext': %r, 'severityunit': %r}" % (value, text, unit)
+    return fd.severity_numbers({"severitydata": data.replace('"', "'")})[2]
+
+
+check(measure('Hurricane/Typhoon > 74 mph (maximum wind speed of 194 km/h)',
+              194.4432, 'km/h')
+      == 'Hurricane/Typhoon > 74 mph (maximum wind speed of 194 km/h)',
+      "a cyclone's own sentence reaches the popup unchanged")
+check(measure('Magnitude 5M, Depth:10km', 5.0, 'M') == 'Magnitude 5M, Depth:10km',
+      "an earthquake's magnitude and depth reach it unchanged")
+check(measure('Green impact for forestfire in 5027 ha', 5027.0, 'ha') == '5,027 ha',
+      "a fire is the burnt area, not GDACS's word for our own grade")
+check(measure('Red impact for forestfire in 2 ha', 2.0, 'ha') == '2 ha',
+      "and that holds whichever alert word GDACS puts in front of it")
+check(measure('Magnitude 0 ', 0.0, '') is None,
+      "a flood's 'Magnitude 0' is dropped rather than shown as a measurement")
+check(measure('', 0.0, '') is None, "and so is an empty one")
+check(fd.severity_numbers({"severitydata": "not json at all"})[2] is None,
+      "unparseable severity data costs the line, not the run")
+
 failed = [label for ok, label in results if not ok]
 for ok, label in results:
     print(("  ok    " if ok else "  FAIL  ") + label)

@@ -253,7 +253,47 @@ def severity_numbers(props):
     # what they say differs by kind in a way no wording of ours could cover.
     # Empty for the kinds GDACS does not measure, and that is fine: the popup
     # then has one line fewer rather than a line saying nothing.
-    return magnitude, depth, (text[:160] or None)
+    return magnitude, depth, measure_line(raw, text)
+
+
+LEVEL_WORDS = ("green", "orange", "red")
+
+
+def measure_line(raw, text):
+    """GDACS's measurement as one popup line, or nothing.
+
+    Not every kind measures itself the same way, and two of them send something
+    that should not reach a reader. Asked of the live list rather than guessed
+    (tools/probe_gdacs.py), each kind sends:
+
+      cyclone     'Hurricane/Typhoon > 74 mph (maximum wind speed of 194 km/h)'
+      earthquake  'Magnitude 5M, Depth:10km'
+      wildfire    'Green impact for forestfire in 5027 ha'
+      flood       'Magnitude 0 '
+
+    The first two are exactly what a popup wants. The fire buries a real number
+    behind GDACS's own alert word, which the popup already states a line above —
+    so the number and its unit are used instead of the sentence. The flood
+    measures nothing at all, and a line reading "Magnitude 0" is worse than no
+    line.
+    """
+    try:
+        value = float(raw.get("severity"))
+    except (TypeError, ValueError):
+        value = None
+    unit = str(raw.get("severityunit") or "").strip()
+
+    if not value and not unit:
+        return None
+    if re.fullmatch(r"magnitude\s*0+(\.0+)?\s*", text.lower()):
+        return None
+
+    if text.lower().startswith(LEVEL_WORDS):
+        if value is None or not unit:
+            return None
+        return "{:,.0f} {}".format(value, unit)
+
+    return text[:160] or None
 
 
 def point_of(feature):

@@ -24,8 +24,9 @@ export default {
   'header.darkMode': 'Dark mode',
 
   // --- intro ---------------------------------------------------------------
-  'intro.heading': 'Plan your trip,<br /><em>street by street.</em>',
-  'intro.copy': 'Scams reported by travellers, official travel advice, weather warnings and the nearest hospital — on one map.',
+  'intro.heading': 'Know the scams<br /><em>before you arrive.</em>',
+  'intro.copy': 'Street scams reported by the travellers and locals they happened to — with official travel advice, severe weather warnings and the nearest hospital on the same map.',
+  'intro.who': 'Free to look, anywhere in the world. Members see every report in an area and can add their own.',
   'intro.search.label': 'Search a city, town, postcode or address',
   'intro.search.placeholder': 'Try Lisbon, 10115 Berlin, or Khao San Road',
   'intro.search.go': 'Search',

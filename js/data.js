@@ -169,11 +169,16 @@ export async function getProfile() {
   if (!user) return null;
   const columns = 'id,display_name,home_label,home_lat,home_lng,locale,created_at';
   const { data, error } = await supabase.from('profiles')
-    .select(`${columns},role,listed`).eq('id', user.id).maybeSingle();
-  // A database that has not had the roles part of schema.sql applied has no
-  // such columns, and PostgREST refuses the whole select rather than the two
-  // it does not know. Asked again without them, because losing the name you
-  // chose over a nav link you would not have seen anyway is the wrong trade.
+    .select(`${columns},listed`).eq('id', user.id).maybeSingle();
+  // `role` is NOT read here. Nothing on the public site branches on it — the
+  // admin page asks the database directly, which is the only answer that
+  // counts — and a page that fetches somebody's role suggests it is about to
+  // decide something with it.
+  //
+  // A database without the listed column refuses the whole select rather than
+  // the one field it does not know, so it is asked again without it: losing
+  // the name somebody chose over a checkbox they have not seen is the wrong
+  // trade.
   if (error) {
     const again = await supabase.from('profiles')
       .select(columns).eq('id', user.id).maybeSingle();

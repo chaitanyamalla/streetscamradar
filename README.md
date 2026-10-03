@@ -605,10 +605,10 @@ database, and `js/data.js` names those calls in plain sight to anybody who opens
 the browser's sources. Moving it to `/x7f2-admin` would hide the link and not
 the functions, which is the wrong half. What actually protects it is below.
 
-The link in the map's header is shown only to an admin, for the same reason —
-not as a lock, but because a link to a door you cannot open is clutter in
-everybody else's header. It is read from the profile row that is fetched on
-sign-in anyway, so it costs no extra round trip.
+**The public site does not link to it at all**, not even for an admin. That
+header belongs to the map, administration is not part of it, and `/admin` is
+reached by typing it or by a bookmark. Tidiness, not a lock: the protection is
+below, and the map does not read anybody's `role` for any purpose.
 
 **What protects it is the database, not the page.** Every call it makes is
 refused unless `auth.uid()` belongs to somebody whose profile row says `admin`,

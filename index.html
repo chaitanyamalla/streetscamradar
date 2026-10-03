@@ -54,12 +54,12 @@
         <a href="#how" data-i18n="nav.how">How it works</a>
         <a href="#safety" data-i18n="nav.safety">Staying safe</a>
         <a href="guide.html" data-i18n="nav.guide">What this shows</a>
-        <!-- Shown only to an admin, and only once the DATABASE has said so.
-             Not a secret: the page itself refuses anybody else, and so does
-             every call it makes, so hiding the link protects nothing. It is
-             hidden because a link to a door you cannot open is clutter on
-             everybody else's header. -->
-        <a id="nav-admin" href="admin.html" hidden>Admin</a>
+        <!-- No Admin link here, deliberately, not even for an admin.
+             This header belongs to the public site and administration is not
+             part of it; /admin is reached by typing it or by a bookmark. That
+             is a tidiness decision and NOT a security one — the page refuses
+             anybody who is not an admin, and so does every call it makes, so
+             nothing here is what keeps anyone out. -->
       </nav>
 
       <!-- Outside .top-actions on purpose: on a phone the header wraps, and a
@@ -108,10 +108,19 @@
     <main>
       <section class="map-area" id="map" data-i18n-aria="map.area" aria-label="Worldwide scam map">
         <aside class="map-intro">
-          <h1 data-i18n-html="intro.heading">Plan your trip,<br /><em>street by street.</em></h1>
+          <h1 data-i18n-html="intro.heading">Know the scams<br /><em>before you arrive.</em></h1>
           <p class="intro-copy" data-i18n="intro.copy">
-            Scams reported by travellers, official travel advice, weather warnings
-            and the nearest hospital — on one map.
+            Street scams reported by the travellers and locals they happened to —
+            with official travel advice, severe weather warnings and the nearest
+            hospital on the same map.
+          </p>
+          <!-- What it costs and what an account is for, in one line. It was the
+               most common thing to wonder about this page and the answer was
+               only inside the sign-in dialog, where somebody deciding whether to
+               bother had not been yet. -->
+          <p class="intro-who" data-i18n="intro.who">
+            Free to look, anywhere in the world. Members see every report in an
+            area and can add their own.
           </p>
 
           <form class="place-search" id="place-form" role="search">

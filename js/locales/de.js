@@ -20,8 +20,9 @@ export default {
   'header.language': 'Sprache',
   'header.darkMode': 'Dunkler Modus',
 
-  'intro.heading': 'Reise planen,<br /><em>Straße für Straße.</em>',
-  'intro.copy': 'Von Reisenden gemeldete Maschen, offizielle Reisehinweise, Wetterwarnungen und das nächste Krankenhaus — auf einer Karte.',
+  'intro.heading': 'Maschen kennen,<br /><em>bevor du ankommst.</em>',
+  'intro.copy': 'Straßenbetrug, gemeldet von Reisenden und Einheimischen, denen er passiert ist — mit amtlichen Reisehinweisen, Unwetterwarnungen und dem nächsten Krankenhaus auf derselben Karte.',
+  'intro.who': 'Überall auf der Welt kostenlos einsehbar. Mitglieder sehen jede Meldung in einem Gebiet und können eigene hinzufügen.',
   'intro.search.label': 'Stadt, Ort, Postleitzahl oder Adresse suchen',
   'intro.search.placeholder': 'Zum Beispiel Lissabon, 10115 Berlin oder Khao San Road',
   'intro.search.go': 'Suchen',

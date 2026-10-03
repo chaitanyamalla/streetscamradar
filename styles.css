@@ -894,6 +894,11 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 .popup-action:hover { border-color:var(--brand); color:var(--brand); }
 .popup-action.is-primary { border-color:var(--brand-fill); background:var(--brand-fill); color:var(--on-accent); }
 .popup-action.is-primary:hover { background:var(--brand-deep); color:var(--on-accent); }
+/* The agency's own measurement — "Magnitude 5.2M, Depth:10km". Monospaced
+   because it is numbers and units, and it should read as something read off an
+   instrument rather than as another sentence of ours. */
+.popup-measure { margin:7px 0 0; color:var(--ink-2); font:12px/1.5 'DM Mono',monospace; }
+
 .popup-meta { margin:10px 0 0; padding-top:9px; border-top:1px solid var(--line);
   color:var(--muted); font:10px/1.5 'DM Mono',monospace; }
 

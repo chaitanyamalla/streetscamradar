@@ -24,7 +24,7 @@ import { preferredTheme, currentTheme, applyTheme, toggleTheme, chooseTheme,
          themeChoice, onThemeChange, followSystem } from './js/theme.js';
 import { createMap, addLayers, setMapTheme, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
-         setHazards, setDisasters, setWeather, maplibregl } from './js/map.js';
+         setHazards, setDisasters, setWeather, startPulse, maplibregl } from './js/map.js';
 import { quakesIn, inBounds, quakeTone, hazardLabel, isLive, hasEnded,
          isUpcoming } from './js/hazards.js';
 import { hazardSignSVG } from './js/hazard-signs.js';
@@ -98,8 +98,14 @@ let openPopup = null;   // only one info window at a time
  * Called on first load and again after every basemap swap, because setStyle
  * throws all of it away — sources, layers and the images the layers name.
  */
+// The ring around the red alerts. A style swap throws its layers away, so the
+// loop writing to them is stopped before the new ones are built.
+let pulse = null;
+
 function buildMapLayers() {
+  pulse?.stop();
   addLayers(map);
+  pulse = startPulse(map);
   layersReady = true;
   if (state.categories.length) registerCategoryIcons(map, state.categories);
   registerSafetyIcons(map);
@@ -304,15 +310,29 @@ function paintAvatar() {
 // ---------------------------------------------------------------------------
 // What is open is a function of where you are in history, and popstate's job
 // is to make the page match. Anything that closes a dialog as part of going
-// somewhere else closes it quietly — without that flag, the close handler
-// below would treat it as the user going back and pop an entry we are relying
-// on.
-let historySyncing = false;
+// somewhere else closes it quietly — otherwise the close handler below would
+// treat it as the user going back and pop an entry we are relying on.
+//
+// Counted, not flagged, and this is the whole subtlety of this section: a
+// dialog's `close` event is QUEUED, not dispatched where close() was called.
+// A boolean set and cleared around the call is always back to false by the
+// time the event arrives, so the flag suppressed nothing — it only looked
+// like it did, because the event usually arrived before anything else could
+// go wrong. A count per dialog survives the wait.
+const quietCloses = new WeakMap();
 
 function closeQuietly(dialog) {
   if (!dialog?.open) return;
-  historySyncing = true;
-  try { dialog.close(); } finally { historySyncing = false; }
+  quietCloses.set(dialog, (quietCloses.get(dialog) ?? 0) + 1);
+  dialog.close();
+}
+
+/** Was this close event one of ours? Asked once per event, and spent. */
+function wasQuiet(dialog) {
+  const owed = quietCloses.get(dialog) ?? 0;
+  if (!owed) return false;
+  quietCloses.set(dialog, owed - 1);
+  return true;
 }
 
 function openDialog(selector) {
@@ -323,7 +343,12 @@ function openDialog(selector) {
   // A dialog joins the top layer above anything already in it, so a message
   // put up a moment ago would now be behind this window. Lift it back.
   liftToast();
-  history.pushState({ dialog: selector }, '');
+  // One entry per window, not one per opening. A close event that arrived late
+  // leaves the entry it was going to pop still standing, and pushing a second
+  // one for the same window means closing it lands on the first — which says
+  // this window should be open, so popstate dutifully reopens it. A window you
+  // just shut reappearing is worse than a back button that skips a step.
+  if (history.state?.dialog !== selector) history.pushState({ dialog: selector }, '');
 }
 
 /** Leave the dialog for the page behind it, keeping the dialog in history so
@@ -334,9 +359,26 @@ function leaveDialogForPage(selector) {
 }
 
 // The X, Escape, or a button that closes: all of them mean "back".
+//
+// Two things have to be true before a step back is owed, and both are about
+// the queue this event came off rather than about the dialog.
+//
+//   OURS ALREADY     popstate and openDialog close windows themselves. Those
+//                    are not somebody leaving, and a step back for one of them
+//                    pops an entry the page is relying on.
+//   STILL CLOSED     the window may have been REOPENED in the time the event
+//                    spent queued, and then there is nothing to go back from.
+//                    This is the one that was wrong, and it cost the report
+//                    window: picking a place closes it and a refused pin
+//                    reopens it in the same turn, so the close event landed on
+//                    an open window, stepped back anyway, and popstate shut the
+//                    window a person was looking at. Visible only once the ring
+//                    around the red alerts was drawing every frame, which is
+//                    enough to reorder the two — the fault was always there.
 for (const dialog of document.querySelectorAll('dialog')) {
   dialog.addEventListener('close', () => {
-    if (historySyncing) return;
+    if (wasQuiet(dialog)) return;
+    if (dialog.open) return;
     if (history.state?.dialog === `#${dialog.id}`) history.back();
   });
 }
@@ -795,6 +837,20 @@ function countWeatherLegend() {
 }
 
 /**
+ * Tell the ring whether there is anything red to ring.
+ *
+ * It animates frame by frame, and a loop waking sixty times a second to move a
+ * circle nobody can see is a flat battery on a phone in a pocket. The page knows
+ * what it just drew, so it says so, and on the ordinary day when nothing is red
+ * anywhere the loop never starts.
+ */
+function tellPulse() {
+  const red = (rows) => rows?.some(r => r.severity === 'severe'
+    && !r.ended && !r.upcoming) ?? false;
+  pulse?.setActive(red(state.disasterMarkers) || red(state.weatherMarkers));
+}
+
+/**
  * The weather warnings that came with a position, drawn.
  *
  * Every country at once, not just the one in view: these are map markers, and a
@@ -846,6 +902,7 @@ function paintWeatherMarkers() {
   }
   state.weatherMarkers = fanOut([...byPoint.values()]);
   setWeather(map, state.weatherMarkers);
+  tellPulse();
   countWeatherLegend();
 }
 
@@ -968,6 +1025,7 @@ function paintDisasterMarkers() {
     .map(row => ({ ...row, ended: hasEnded(row) }));
   state.disasterMarkers = rows.filter(r => state.layers[r.kind]);
   setDisasters(map, state.disasterMarkers);
+  tellPulse();
 
   const bounds = boundsOf(map);
   // The same words for every row, because they answer the same question about

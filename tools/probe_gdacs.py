@@ -155,6 +155,46 @@ def main():
         print(f"  last update within {cut:>2} days: {kept:>3} of {len(rows)}"
               f"   |   started within {cut:>2} days: {by_start:>3}")
 
+
+    # --- what we could put on a popup: severitytext, per kind ---------------
+    #
+    # The popup now shows a one-line measurement taken from severitytext
+    # ("Tropical storm (maximum wind speed of 120 km/h)"). The live table had
+    # one event in it when that shipped, so it proved the cyclone case and
+    # nothing else. This asks GDACS directly: of the events we keep (Red and
+    # Orange), which kinds actually carry that line, and what does it read?
+    print(f"\n{'=' * 70}\nSEVERITYTEXT — does each kind carry a measurement?\n{'=' * 70}")
+    carried = collections.Counter()
+    seen = collections.Counter()
+    examples = collections.defaultdict(list)
+    for feature in features:
+        props = (feature or {}).get("properties") or {}
+        kind = KINDS.get(str(props.get("eventtype") or "").strip().upper(), "?")
+        if str(props.get("alertlevel") or "").strip() not in ("Red", "Orange"):
+            continue
+        seen[kind] += 1
+        raw = props.get("severitydata")
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw.replace("'", '"'))
+            except json.JSONDecodeError:
+                raw = {}
+        text = str((raw or {}).get("severitytext") or "").strip()
+        if text:
+            carried[kind] += 1
+            if len(examples[kind]) < 3:
+                examples[kind].append(text[:120])
+
+    print(f"  {'kind':<12}{'red+orange':>12}{'with text':>11}")
+    print("  " + "-" * 35)
+    for kind in sorted(seen):
+        print(f"  {kind:<12}{seen[kind]:>12}{carried[kind]:>11}")
+    for kind in sorted(examples):
+        for text in examples[kind]:
+            print(f"    {kind:<10} {text!r}")
+    if not seen:
+        print("  (nothing red or orange on the map right now)")
+
     print("\nDone.")
 
 

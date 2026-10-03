@@ -82,6 +82,16 @@ const weatherIcon = (kind) => `weather-icon-${kind}`;
 const GRADE_SIZE = ['match', ['get', 'severity'],
   'severe', 1.3, 1.1];
 
+// The breathing ring around a red alert: how far it grows, and in what.
+//
+// The colour is the danger red the rest of the page uses for "severe", because
+// a reader has already learnt it on the chips and in the popups; a new colour
+// here would be a new thing to learn in the one place there is no time to.
+const PULSE_MIN = 13;
+const PULSE_MAX = 30;
+const PULSE_MS = 2000;
+const PULSE_COLOR = '#c5382c';
+
 // Earthquakes are drawn in a colour used nowhere else here, so the mark cannot
 // be mistaken for a scam report. See the layer for why that matters.
 const QUAKE_COLOR = '#5c2d91';
@@ -262,6 +272,43 @@ export function addLayers(map) {
     },
   });
 
+  // --- The red ones, ringed ------------------------------------------------
+  //
+  // A red alert is the one mark on this map somebody has to find before they
+  // find anything else, and size alone was not doing it: a red cyclone among
+  // forty orange wind warnings is 30% bigger than its neighbours and that is
+  // all. So the red ones get a ring that breathes — it grows out of the marker
+  // and fades, about once every two seconds.
+  //
+  // Why a pulse and not a blink. A blink is either on or off, so for half of
+  // every cycle the thing you are trying to draw attention to is MISSING, and
+  // on a map somebody is reading that is worse than no emphasis at all. A ring
+  // that grows and fades never takes the marker away.
+  //
+  // Only what is RED and HAPPENING. An ended disaster and a warning that starts
+  // on Friday are both drawn quietly on purpose, and a ring around either would
+  // undo that. Under the markers, never over them, so nothing is ever obscured
+  // by its own emphasis.
+  //
+  // It stops entirely for a reader who has asked for less motion — see
+  // startPulse, where that is checked rather than assumed.
+  for (const [id, source, extra] of [
+    ['disaster-pulse', 'disasters', ['!', ['get', 'ended']]],
+    ['weather-pulse', 'weather', ['!', ['get', 'upcoming']]],
+  ]) {
+    map.addLayer({
+      id, type: 'circle', source,
+      filter: ['all', ['==', ['get', 'severity'], 'severe'], extra],
+      paint: {
+        'circle-radius': PULSE_MIN,
+        'circle-color': 'rgba(0,0,0,0)',
+        'circle-stroke-width': 2.4,
+        'circle-stroke-color': PULSE_COLOR,
+        'circle-stroke-opacity': 0.75,
+      },
+    });
+  }
+
   // --- What the met services are warning of ---------------------------------
   //
   // A chip above the map says which country is being warned and of what, and
@@ -385,6 +432,86 @@ export function addLayers(map) {
   });
 }
 
+/**
+ * Run the ring around the red alerts.
+ *
+ * MapLibre animates nothing on its own, so the radius and the fade are set on
+ * every frame. That sounds expensive and is not: two paint properties on two
+ * layers, and the layers are empty unless something red is actually happening,
+ * which on most days is nothing at all.
+ *
+ * REDUCED MOTION IS HONOURED, and honoured properly — the ring becomes a plain
+ * static circle rather than disappearing. Somebody who has asked their machine
+ * for less movement has not asked to be told less, and the emphasis is the
+ * point; only the movement is negotiable. The preference is re-read when it
+ * changes, so turning it on stops the animation without a reload.
+ *
+ * It also runs ONLY while something red is on the map, which on most days is
+ * never. A requestAnimationFrame loop that wakes sixty times a second to animate
+ * nothing is a flat battery on a phone in somebody's pocket, and the page knows
+ * perfectly well whether it drew anything red — so it says so.
+ *
+ * Returns { stop, setActive }: stop for the theme rebuild, which throws the
+ * layers away and would leave a loop writing to nothing, and setActive for the
+ * painters, which know what they just drew.
+ */
+export function startPulse(map) {
+  const calmer = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+  let frame = null;
+  let stopped = false;
+  let anyRed = false;
+
+  const paint = (radius, opacity) => {
+    for (const id of ['disaster-pulse', 'weather-pulse']) {
+      if (!map.getLayer?.(id)) continue;
+      map.setPaintProperty(id, 'circle-radius', radius);
+      map.setPaintProperty(id, 'circle-stroke-opacity', opacity);
+    }
+  };
+
+  const tick = (now) => {
+    if (stopped || !anyRed) { frame = null; return; }
+    // Sawtooth: grow from PULSE_MIN to PULSE_MAX while fading out, then start
+    // again. Eased so it leaves quickly and arrives slowly, which reads as a
+    // pulse rather than as something sliding.
+    const phase = (now % PULSE_MS) / PULSE_MS;
+    const eased = 1 - (1 - phase) ** 2;
+    paint(PULSE_MIN + (PULSE_MAX - PULSE_MIN) * eased, 0.75 * (1 - phase));
+    frame = requestAnimationFrame(tick);
+  };
+
+  const settle = () => {
+    if (frame) cancelAnimationFrame(frame);
+    frame = null;
+    if (stopped) return;
+    if (calmer?.matches) {
+      // Still ringed, just not moving.
+      paint(PULSE_MIN + 4, 0.8);
+    } else if (anyRed) {
+      frame = requestAnimationFrame(tick);
+    }
+  };
+
+  settle();
+  calmer?.addEventListener?.('change', settle);
+
+  return {
+    stop() {
+      stopped = true;
+      if (frame) cancelAnimationFrame(frame);
+      frame = null;
+      calmer?.removeEventListener?.('change', settle);
+    },
+    // Called by whoever just drew the markers. Idempotent, and cheap enough to
+    // call on every pan: it only does anything when the answer changes.
+    setActive(on) {
+      if (anyRed === Boolean(on)) return;
+      anyRed = Boolean(on);
+      settle();
+    },
+  };
+}
+
 export const toFeatures = (reports) => ({
   type: 'FeatureCollection',
   features: reports.map(r => ({
@@ -456,6 +583,9 @@ export const toDisasterFeatures = (rows) => ({
       country_code: d.country_code, from_date: d.from_date ?? '',
       to_date: d.to_date ?? '', url: d.url ?? '',
       magnitude: d.magnitude ?? '', depth_km: d.depth_km ?? '',
+      // GDACS's own measurement, in its own words. The one line in the popup
+      // that is a fact about the event rather than a sentence about the map.
+      measure: d.measure ?? '',
     },
   })),
 });

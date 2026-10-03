@@ -213,7 +213,7 @@ def countries_of(props):
 
 
 def severity_numbers(props):
-    """Magnitude and depth, where GDACS measured them.
+    """GDACS's measurement: its own words, and the two numbers worth having.
 
     severitydata arrives as a Python-repr string like
     {'severity': 5.0, 'severitytext': 'Magnitude 5M, Depth:157.801km', ...}
@@ -229,7 +229,7 @@ def severity_numbers(props):
         except json.JSONDecodeError:
             raw = None
     if not isinstance(raw, dict):
-        return None, None
+        return None, None, None
 
     magnitude = None
     if str(raw.get("severityunit") or "").strip().upper() == "M":
@@ -238,14 +238,62 @@ def severity_numbers(props):
         except (TypeError, ValueError):
             magnitude = None
 
+    text = str(raw.get("severitytext") or "").strip()
+
     depth = None
-    match = re.search(r"Depth:\s*([0-9.]+)\s*km", str(raw.get("severitytext") or ""))
+    match = re.search(r"Depth:\s*([0-9.]+)\s*km", text)
     if match:
         try:
             depth = round(float(match.group(1)), 1)
         except ValueError:
             depth = None
-    return magnitude, depth
+
+    # The words themselves, kept. They are the only line in a popup that is a
+    # measurement of the event rather than a sentence of ours about the map, and
+    # what they say differs by kind in a way no wording of ours could cover.
+    # Empty for the kinds GDACS does not measure, and that is fine: the popup
+    # then has one line fewer rather than a line saying nothing.
+    return magnitude, depth, measure_line(raw, text)
+
+
+LEVEL_WORDS = ("green", "orange", "red")
+
+
+def measure_line(raw, text):
+    """GDACS's measurement as one popup line, or nothing.
+
+    Not every kind measures itself the same way, and two of them send something
+    that should not reach a reader. Asked of the live list rather than guessed
+    (tools/probe_gdacs.py), each kind sends:
+
+      cyclone     'Hurricane/Typhoon > 74 mph (maximum wind speed of 194 km/h)'
+      earthquake  'Magnitude 5M, Depth:10km'
+      wildfire    'Green impact for forestfire in 5027 ha'
+      flood       'Magnitude 0 '
+
+    The first two are exactly what a popup wants. The fire buries a real number
+    behind GDACS's own alert word, which the popup already states a line above —
+    so the number and its unit are used instead of the sentence. The flood
+    measures nothing at all, and a line reading "Magnitude 0" is worse than no
+    line.
+    """
+    try:
+        value = float(raw.get("severity"))
+    except (TypeError, ValueError):
+        value = None
+    unit = str(raw.get("severityunit") or "").strip()
+
+    if not value and not unit:
+        return None
+    if re.fullmatch(r"magnitude\s*0+(\.0+)?\s*", text.lower()):
+        return None
+
+    if text.lower().startswith(LEVEL_WORDS):
+        if value is None or not unit:
+            return None
+        return "{:,.0f} {}".format(value, unit)
+
+    return text[:160] or None
 
 
 def point_of(feature):
@@ -346,7 +394,7 @@ def rows_from(payload, now=None):
                 and str(props.get("iscurrent") or "true").strip().lower() == "false":
             continue
 
-        magnitude, depth = severity_numbers(props)
+        magnitude, depth, measure = severity_numbers(props)
 
         name = str(props.get("name") or props.get("description") or "").strip()
         if not name:
@@ -383,7 +431,7 @@ def rows_from(payload, now=None):
                 "from_date": as_timestamp(props.get("fromdate")),
                 "to_date": to_date,
                 "url": url, "lat": lat, "lng": lng,
-                "magnitude": magnitude, "depth_km": depth,
+                "magnitude": magnitude, "depth_km": depth, "measure": measure,
             }
 
     # An event GDACS lists but names no country for cannot answer the only
@@ -407,17 +455,18 @@ def sql_num(value):
 
 def emit_sql(rows):
     columns = ("event_id", "country_code", "kind", "severity", "name",
-               "from_date", "to_date", "url", "lat", "lng", "magnitude", "depth_km")
+               "from_date", "to_date", "url", "lat", "lng", "magnitude", "depth_km",
+               "measure")
     print(f"-- {len(rows)} country alerts from {SOURCE}")
     print("begin;")
 
     values = [
-        "  ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, now())".format(
+        "  ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, now())".format(
             sql_str(r["event_id"]), sql_str(r["country_code"]), sql_str(r["kind"]),
             sql_str(r["severity"]), sql_str(r["name"]),
             sql_str(r["from_date"]), sql_str(r["to_date"]), sql_str(r["url"]),
             sql_num(r["lat"]), sql_num(r["lng"]),
-            sql_num(r["magnitude"]), sql_num(r["depth_km"]))
+            sql_num(r["magnitude"]), sql_num(r["depth_km"]), sql_str(r["measure"]))
         for r in rows
     ]
     for start in range(0, len(values), INSERT_BATCH):
@@ -429,6 +478,7 @@ def emit_sql(rows):
               "from_date = excluded.from_date, to_date = excluded.to_date, "
               "url = excluded.url, lat = excluded.lat, lng = excluded.lng, "
               "magnitude = excluded.magnitude, depth_km = excluded.depth_km, "
+              "measure = excluded.measure, "
               "refreshed_at = now();")
 
     # GDACS decides when something is over. Anything it stopped listing goes,

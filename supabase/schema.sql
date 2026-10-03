@@ -996,6 +996,18 @@ alter table public.disaster_alerts add column if not exists lng double precision
 alter table public.disaster_alerts add column if not exists magnitude numeric(4,1);
 alter table public.disaster_alerts add column if not exists depth_km  numeric(6,1);
 
+-- GDACS's own measurement of the event, in its own words: "Magnitude 5.2M,
+-- Depth:10km", "Tropical storm (maximum wind speed of 120 km/h)". It arrives in
+-- severitydata.severitytext and we were throwing it away, keeping only the two
+-- numbers we could parse out of it for earthquakes.
+--
+-- Stored verbatim and shown verbatim. It is the one line in a disaster popup
+-- that is a FACT about the event rather than a sentence of ours about the map,
+-- and what it says differs by kind in a way no wording of ours could cover.
+-- Empty for the kinds GDACS does not measure, and then the popup simply has one
+-- line fewer.
+alter table public.disaster_alerts add column if not exists measure text;
+
 -- The severity rule widened after the table already existed, so the old
 -- constraint is replaced rather than left to reject every Green row.
 alter table public.disaster_alerts drop constraint if exists disaster_alerts_severity_check;

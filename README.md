@@ -479,9 +479,143 @@ In the `app_settings` table:
 | `public_sample_limit` | `5` | How many reports a signed-out visitor may see |
 | `public_detail_max_span` | `0.35` | How far in they must zoom before seeing any |
 | `auto_hide_flag_threshold` | `999999` | Flags before a report auto-hides. **Set to `2`** to switch community moderation on |
+| `points_per_report` | `5` | Points for a report that is still published |
+| `points_per_confirmation` | `4` | Points for each confirmation one of your reports receives |
+| `points_per_given` | `1` | Points for confirming somebody else's report |
 
 Add a scam category by inserting a row into `scam_categories` — the map, the
 filters and the report form all pick it up with no code change.
+
+The ten levels are rows in `contributor_levels`, so a threshold is an `update`
+and nothing is stored against a member — change one and everybody's level
+recomputes at once.
+
+---
+
+## Levels and badges
+
+### How a level is earned
+
+Points, not a count of reports. Level by volume alone rewards filing, and the
+cheapest way to file more is to file worse — on a map people use to decide
+where to walk, that is the one failure that matters. So the heaviest single
+thing a member can earn is somebody else recognising what they reported:
+
+| | Points |
+|---|---|
+| Filing a report | 5 |
+| A confirmation your report receives | 4 |
+| Confirming somebody else's report | 1 |
+
+A report nobody confirms is worth 5; the same report with three confirmations
+is worth 17. Confirming your own report is worth nothing on either side, and
+the insert policy on `report_supports` refuses it anyway.
+
+Points are lifetime. A report that has aged off the map was still filed.
+Withdrawing one does take its points back, because withdrawing deletes it.
+
+### Ten levels, not a hundred
+
+| Level | Points | | Level | Points |
+|---|---|---|---|---|
+| 1 Beginner | 0 | | 6 Veteran | 150 |
+| 2 Reporter | 10 | | 7 Guardian | 230 |
+| 3 Contributor | 25 | | 8 Expert | 330 |
+| 4 Regular | 50 | | 9 Champion | 450 |
+| 5 Trusted | 90 | | 10 Legend | 600 |
+
+A hundred was the other option and it is the wrong shape here. A ladder only
+works while the next rung is in sight, and the realistic distribution on a site
+like this is steep: most members file one or two reports ever, a handful file
+dozens. Over a hundred rungs that leaves almost everybody on level 1 with a bar
+that never visibly moves and ninety rungs nobody will stand on. Ten rungs, with
+the first few reachable in an afternoon and the top a real achievement, is the
+version where the bar moves.
+
+Watch the distribution rather than guessing — `supabase/ops/contributors.sql`
+prints it. If almost everybody is on 1 and 2 the bottom is too far apart; if
+half the site is on 10 it is too close together. Either is a reason to retune
+`contributor_levels`, and neither is a reason to add more levels. The names
+live in `js/locales`, not in the database, because this site is read in nine
+languages.
+
+### Badges
+
+Points measure reports filed and recognised. They say nothing about somebody
+who makes videos about street scams and sends their audience here — who may be
+the most useful contributor on the site while never filing a single report.
+That is what a badge is for. Granted by hand, with a reason written beside it.
+
+| Badge | For |
+|---|---|
+| `creator` | Makes videos or posts about street scams |
+| `top` | A contributor you want named whatever the arithmetic says |
+| `founder` | Here early, when the map was mostly empty |
+| `partner` | An organisation rather than a person |
+
+Somebody can hold several at once, which is why they are a table rather than a
+column.
+
+### Finding somebody and giving them a badge
+
+In the **Supabase SQL editor** — not the Database workflow, whose logs are
+public along with this repository. Find them by whatever you happen to know:
+
+```sql
+select * from public.admin_contributors
+ where display_name ilike '%ana%' or email ilike '%ana%';
+```
+
+`admin_contributors` is the dashboard: nickname, email, level, points, reports,
+confirmations, badges, and whether they are on the contributors list. It is
+revoked from both browser roles, so only the SQL editor and the table editor
+can read it.
+
+Then grant. A nickname, an email address or the id — all three work:
+
+```sql
+select * from public.grant_badge('Ana Beltran', 'creator', 'Scam awareness reels');
+select * from public.grant_badge('ana@example.com', 'top');
+select * from public.grant_badge('6f1c…-the-uuid', 'founder');
+select public.revoke_badge('ana', 'creator');     -- returns how many rows went
+```
+
+An ambiguous nickname is **refused** with the matches named, never guessed at.
+`display_name` is not unique and cannot safely be made unique — two people
+signing up as `john@gmail.com` and `john@yahoo.com` are both "john" through no
+fault of their own — so the one thing this must never do is quietly badge the
+wrong John. Use the email or the id when it says so.
+
+Granting also puts them on the contributors list, because that is normally the
+point; pass `false` as the fourth argument for a badge that is only for your
+records. Revoking a badge does **not** take them off the list — being named is
+their decision, not a side effect of yours.
+
+### When Google sign-in is added
+
+Nothing above changes. A Google account arrives in `auth.users` with an email
+like any other, and the sign-up trigger now prefers the name Google supplies
+(`raw_user_meta_data->>'full_name'`, then `name`, then `preferred_username`)
+over the local part of the address — so the nickname you search for is what
+they are actually called rather than a fragment of their address. Members can
+still edit it in account settings.
+
+### What levels and badges never do
+
+They do not attach a name to a report. `reports_feed` drops `reporter_id` on
+purpose, and the contributors list carries a name, a level and a badge without
+ever saying which pin on the map is whose. Being on that list is opt-in and off
+by default, because the name most members carry was taken from their email
+address at sign-up rather than chosen.
+
+### Testing the SQL
+
+Everything else in this repository tests the page with the database stubbed,
+which means the stub and the page can agree perfectly while the SQL underneath
+is wrong. `supabase/test/run.sh` applies `schema.sql` to a throwaway Postgres
+and checks the arithmetic, the lookups and who may read what — 38 assertions,
+including putting a `REVOKE` back to confirm the permission checks fail when
+they should.
 
 ---
 

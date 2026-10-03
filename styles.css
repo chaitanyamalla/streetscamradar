@@ -552,6 +552,24 @@ em { font-style:italic; }
 .count-pill { flex:none; min-width:30px; padding:5px 10px; border-radius:100px;
   background:var(--pin); color:var(--on-accent); text-align:center;
   font:600 12px 'DM Mono',monospace; }
+/* How far back. Wraps rather than scrolls, which was the first attempt and was
+   wrong: five chips do not fit across a 314px card in any language, so the
+   widest one — the one chosen when the map opens — sat off the right edge
+   where nobody would find it. Seeing all five answers at once is the entire
+   reason this is a row of chips and not a dropdown, so the second line is
+   worth the 24px it costs the list. */
+.age-bar { display:flex; flex-wrap:wrap; gap:6px; padding:0 14px 10px; }
+.age-chip { flex:none; border:1px solid var(--line-strong); border-radius:100px;
+  background:var(--surface); padding:4px 10px; font-size:10.5px; color:var(--ink-2);
+  white-space:nowrap; }
+.age-chip:hover { border-color:var(--brand); }
+/* The chosen one is filled rather than merely un-dimmed. The category chips
+   above dim what is OFF, which works when several are on at once; exactly one
+   of these is ever on, and dimming four to point at the fifth reads as four
+   disabled controls. */
+.age-chip.is-on { border-color:var(--brand-fill); background:var(--brand-fill);
+  color:var(--on-accent); font-weight:700; }
+
 .report-list { overflow:auto; }
 .report-entry { display:flex; gap:10px; padding:11px 14px; border-top:1px solid var(--line);
   cursor:pointer; }
@@ -745,6 +763,45 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 .profile-identity { margin:0 0 16px; font-size:13px; font-weight:700; }
 .profile-since { display:block; margin-top:2px; color:var(--muted);
   font-size:11px; font-weight:500; }
+
+/* --- Standing: level, bar, badges ---------------------------------------- */
+.standing { margin-bottom:14px; padding:13px 14px; border:1px solid var(--line);
+  border-radius:var(--radius); background:var(--paper); }
+.standing-head { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.standing-level { margin:0; display:flex; align-items:baseline; gap:7px; flex-wrap:wrap; }
+.standing-number { font:700 13px/1.2 'DM Mono',monospace; color:var(--brand);
+  letter-spacing:.02em; }
+.standing-name { font-size:15px; font-weight:800; line-height:1.2; }
+.standing-points { margin:0; color:var(--muted); font:11px/1.3 'DM Mono',monospace; }
+
+/* The rung, not the climb. Measured from the points that reached this level to
+   the points that reach the next, so it moves for everybody — a bar against
+   the top of a ladder sits near zero for almost every member and tells them
+   only that they are nowhere. */
+.standing-bar { margin-top:10px; height:6px; border-radius:100px;
+  background:var(--line); overflow:hidden; }
+.standing-bar i { display:block; height:100%; border-radius:100px;
+  background:var(--brand-fill); transition:width .35s ease; }
+.standing-next { margin:7px 0 0; color:var(--ink-2); font-size:11.5px; line-height:1.4; }
+.standing-how { margin:4px 0 0; color:var(--muted); font-size:10.5px; line-height:1.45; }
+
+.badge-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+.badge-chip { display:inline-flex; align-items:center; gap:5px; padding:3px 9px 3px 7px;
+  border:1px solid var(--tint-warm-line); border-radius:100px; background:var(--tint-warm);
+  font-size:10.5px; font-weight:700; color:var(--ink-2); }
+
+/* --- The board ----------------------------------------------------------- */
+.board-row { display:flex; align-items:center; gap:9px; padding:7px 0;
+  border-top:1px solid var(--line); }
+.board-row:first-child { border-top:0; }
+.board-rank { flex:none; width:20px; color:var(--muted);
+  font:600 11px 'DM Mono',monospace; text-align:right; }
+.board-name { flex:1; min-width:0; font-size:12.5px; font-weight:700;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.board-badges { flex:none; display:flex; gap:4px; }
+.board-level { flex:none; color:var(--brand); font:600 10.5px 'DM Mono',monospace; }
+
+.listed-row { margin-top:14px; }
 
 .stat-row { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
 /* Each tile is a button: a number you cannot act on is trivia, a number that
@@ -998,6 +1055,8 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   .filter-row { min-height:36px; font-size:13px; }
   .filter-row input { width:17px; height:17px; }
   .cat-chip { padding:8px 12px 8px 9px; font-size:12px; }
+  /* Thumb-sized on a phone, like every other chip here. */
+  .age-chip { padding:8px 13px; font-size:12px; }
   .chip-action { padding:6px 12px; font-size:11.5px; }
   .close-button { width:44px; height:44px; }
 

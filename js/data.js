@@ -45,17 +45,32 @@ export async function getCategories() {
  *   'member'  — every live report in view
  *   'sample'  — a capped handful (signed out, zoomed in)
  *   'summary' — counts per grid cell only (signed out, zoomed out)
+ *
+ * `ageDays` is the chip above the report list, and it is passed to the two
+ * public functions rather than applied here. A density circle is a number the
+ * database already added up, so there is nothing left in the browser to
+ * filter; and the five-row sample has to be the five newest of what was ASKED
+ * for, not five from across the week with four of them then dropped.
+ *
+ * The member query is the exception: it narrows here as well, because the row
+ * cap is 500 and a narrower window should spend all 500 on days the reader can
+ * actually see.
  */
-export async function fetchForBounds(bounds, { signedIn }) {
+export async function fetchForBounds(bounds, { signedIn, ageDays = null }) {
   need();
   const { minLat, minLng, maxLat, maxLng } = bounds;
+  const since = ageDays
+    ? new Date(Date.now() - ageDays * 86400000).toISOString()
+    : null;
 
   if (signedIn) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('reports_feed')
       .select('id,category,impacts,headline,description,lat,lng,address,city,country_code,happened_at,support_count,is_mine')
       .gte('lat', minLat).lte('lat', maxLat)
-      .gte('lng', minLng).lte('lng', maxLng)
+      .gte('lng', minLng).lte('lng', maxLng);
+    if (since) query = query.gte('happened_at', since);
+    const { data, error } = await query
       .order('happened_at', { ascending: false })
       .limit(500);
     if (error) throw error;
@@ -66,6 +81,7 @@ export async function fetchForBounds(bounds, { signedIn }) {
   if (span <= PUBLIC_DETAIL_MAX_SPAN) {
     const { data, error } = await supabase.rpc('public_sample_reports', {
       min_lat: minLat, min_lng: minLng, max_lat: maxLat, max_lng: maxLng,
+      max_age_days: ageDays,
     });
     if (error) throw error;
     const reports = data ?? [];
@@ -75,6 +91,7 @@ export async function fetchForBounds(bounds, { signedIn }) {
 
   const { data, error } = await supabase.rpc('public_area_summary', {
     min_lat: minLat, min_lng: minLng, max_lat: maxLat, max_lng: maxLng, cells: 14,
+    max_age_days: ageDays,
   });
   if (error) throw error;
   return { mode: 'summary', reports: [], cells: data ?? [], hiddenCount: 0 };
@@ -259,6 +276,39 @@ export async function myConfirmationCount() {
   const { data, error } = await supabase.rpc('my_confirmation_count');
   if (error) throw error;
   return Number(data) || 0;
+}
+
+// --- Standing: level, points, badges ---------------------------------------
+/**
+ * Your own level and what it is made of, in one call.
+ *
+ * Quiet on failure, deliberately. This is an ornament on a dialog whose job is
+ * showing you your reports; a database that has not had the levels part of
+ * schema.sql applied yet should cost the ornament, not the dialog.
+ */
+export async function myStanding() {
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc('my_standing');
+  if (error) return null;
+  return (Array.isArray(data) ? data[0] : data) ?? null;
+}
+
+/** The members who asked to be named, best first. */
+export async function contributorsBoard(limit = 20) {
+  if (!supabase) return [];
+  const { data, error } = await supabase.rpc('contributors_board', { p_limit: limit });
+  if (error) return [];
+  return data ?? [];
+}
+
+/** Put yourself on the board, or take yourself off it again. */
+export async function saveListed(listed) {
+  need();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { error } = await supabase.from('profiles')
+    .update({ listed: Boolean(listed) }).eq('id', user.id);
+  if (error) throw error;
 }
 
 export async function saveHomeArea({ label, lat, lng }) {

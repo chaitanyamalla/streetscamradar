@@ -383,6 +383,15 @@
             </div>
             <span class="count-pill" id="reports-count">0</span>
           </div>
+
+          <!-- How far back to look. A radiogroup rather than a row of buttons,
+               because that is what it is: exactly one is chosen, and arrow keys
+               should move between them the way they do in every other one.
+               Filled by app.js from REPORT_AGE_CHIPS so the widest chip is
+               always the window itself. -->
+          <div class="age-bar" id="age-bar" role="radiogroup"
+               data-i18n-aria="reports.when.label" aria-label="How far back"></div>
+
           <div id="report-list" class="report-list"></div>
           <div id="gate-note" class="gate-note" hidden></div>
         </aside>
@@ -492,6 +501,12 @@
           <span class="profile-since" id="profile-since"></span>
         </p>
 
+        <!-- Your level, and any badges. Above the four count tiles because it
+             is the summary they add up to, and hidden outright on a database
+             that has not had the levels part of schema.sql applied — one
+             ornament missing beats a dialog that will not open. -->
+        <div class="standing" id="profile-standing" hidden></div>
+
         <div class="stat-row" id="profile-stats"></div>
 
         <section class="profile-section">
@@ -512,6 +527,18 @@
              most of a phone screen, for settings somebody changes once. They
              are in here now, with the things they belong with: this is the
              drawer for everything you do TO the account rather than with it. -->
+        <!-- Closed by default. It is a league table, which is not what
+             somebody opened their own profile to look at — but it is the only
+             place a badge is seen by anybody other than its owner, so it has
+             to exist somewhere. -->
+        <details class="profile-section disclosure" id="board-disclosure">
+          <summary class="block-title" data-i18n="profile.board">Top contributors</summary>
+          <div id="contributors-board" class="board">
+            <p class="empty-note" data-i18n="filters.loading">Loading…</p>
+          </div>
+          <p class="field-hint" data-i18n="profile.board.who">Only members who switched this on in their account settings are listed.</p>
+        </details>
+
         <details class="profile-section disclosure" id="account-disclosure">
           <summary class="block-title" data-i18n="profile.settings">Account settings</summary>
 
@@ -523,6 +550,16 @@
               <button class="ghost-button small" type="submit" data-i18n="profile.save">Save</button>
             </div>
           </form>
+
+          <!-- Opt-in, and off to begin with. The name most members carry was
+               taken from their email address on sign-up rather than chosen, so
+               publishing it because they filed a report would be taking their
+               decision for them. -->
+          <label class="filter-row listed-row">
+            <input type="checkbox" id="profile-listed" />
+            <span class="fr-name" data-i18n="profile.listed">Show me on the contributors list</span>
+          </label>
+          <p class="field-hint" data-i18n="profile.listedHint">Your name, level and badges — never your reports, which stay anonymous either way.</p>
 
           <div class="settings-pair">
             <div>

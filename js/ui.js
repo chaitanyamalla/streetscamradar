@@ -143,13 +143,67 @@ export function renderCategoryFilters(host, categories, activeSet) {
     </button>`).join('');
 }
 
-export function renderReportList(host, reports, { categories, mode, supported, signedIn }) {
+/**
+ * How far back to look, as one chip per answer.
+ *
+ * The labels are not "1 day", "2 days", "3 days": the first one is "Today",
+ * because a day counted back from right now is what a person means by today
+ * and "1 day" reads like a duration rather than a choice. The widest is named
+ * for what it is — "All 7 days" — so the chip that shows everything says so
+ * instead of looking like one more step on the ladder.
+ */
+export function renderAgeBar(host, chips, chosen, windowDays) {
+  // Built once, then only ever updated. It would be shorter to rewrite
+  // innerHTML every time, and that is what this did first — but the bar is
+  // repainted on every pan and every refetch, and rewriting it throws away the
+  // focused element. The cost was a keyboard: an arrow key moved the chip, the
+  // refetch landed a moment later, and focus was on the body, so the next
+  // arrow key went nowhere. Nothing a mouse would ever notice.
+  const signature = `${chips.join(',')}|${windowDays}|${currentLanguage()}`;
+  if (host.dataset.chips !== signature) {
+    host.dataset.chips = signature;
+    host.innerHTML = chips.map(days => {
+      const label = days === 1 ? t('reports.when.today')
+        : days >= windowDays ? t('reports.when.all', { n: windowDays })
+        : plural('reports.when.days', days);
+      return `<button type="button" class="age-chip" role="radio"
+                      data-age="${days}">${esc(label)}</button>`;
+    }).join('');
+  }
+  for (const chip of host.querySelectorAll('.age-chip')) {
+    const on = Number(chip.dataset.age) === chosen;
+    chip.classList.toggle('is-on', on);
+    chip.setAttribute('aria-checked', String(on));
+    chip.tabIndex = on ? 0 : -1;
+  }
+}
+
+/**
+ * The line above the list: how far back, and whose view of it.
+ *
+ * Both halves in one string rather than concatenated, because the separator
+ * and the order of the two are a language's business, not ours.
+ */
+export function reportScopeLine({ mode, ageDays, windowDays }) {
+  const when = ageDays === 1
+    ? t('reports.when.today')
+    : plural('reports.window.days', Math.min(ageDays, windowDays));
+  return t(mode === 'member' ? 'reports.scope.member' : 'reports.scope.public', { when });
+}
+
+export function renderReportList(host, reports, { categories, mode, supported, signedIn,
+                                                  narrowed = false }) {
   const byslug = new Map(categories.map(c => [c.slug, c]));
 
   if (!reports.length) {
-    host.innerHTML = `<p class="empty-note">${esc(
-      t(mode === 'summary' ? 'reports.empty.summary' : 'reports.empty.here')
-    )}</p>`;
+    // "Nothing reported here in the last 7 days" is the wrong sentence when
+    // the reader has just narrowed it to today: the right answer is that the
+    // window is narrow, not that the place is quiet, and those two readings
+    // lead somewhere different.
+    const key = mode === 'summary' ? 'reports.empty.summary'
+      : narrowed ? 'reports.empty.narrowed'
+      : 'reports.empty.here';
+    host.innerHTML = `<p class="empty-note">${esc(t(key))}</p>`;
     return;
   }
 
@@ -843,4 +897,88 @@ export function setGateNote(host, { mode, shown = 0, hiddenCount = 0, signedIn }
   } else {
     host.innerHTML = t('gate.invite');
   }
+}
+
+// ---------------------------------------------------------------------------
+// Standing: a level, a bar, and any badges.
+// ---------------------------------------------------------------------------
+
+/** Every badge the database can hold, in the order they are shown. */
+export const BADGES = ['creator', 'top', 'founder', 'partner'];
+
+const BADGE_GLYPH = { creator: '🎥', top: '🏅', founder: '🌱', partner: '🤝' };
+
+/**
+ * One badge, as a chip with its meaning on hover.
+ *
+ * A badge the page has no string for is drawn as nothing rather than as its
+ * slug. Somebody adding a fifth kind in SQL before adding it to js/locales
+ * should see it missing, not see `partner_2` on a stranger's profile in nine
+ * languages.
+ */
+export function badgeChip(slug) {
+  const name = tOr(`badge.${slug}`, '');
+  if (!name) return '';
+  return `<span class="badge-chip" title="${esc(tOr(`badge.${slug}.note`, name))}"
+    ><span aria-hidden="true">${BADGE_GLYPH[slug] ?? '★'}</span>${esc(name)}</span>`;
+}
+
+/**
+ * Where you are on the ladder.
+ *
+ * The bar measures the CURRENT rung rather than the whole climb — the distance
+ * from the points that got you to this level to the points that reach the
+ * next. A bar against the top of the ladder would sit at four percent for
+ * almost everybody and tell them nothing except that they are nowhere, which
+ * is the failure that makes hundred-level systems feel pointless.
+ */
+export function renderStanding(host, standing) {
+  if (!standing) { host.hidden = true; return; }
+  host.hidden = false;
+
+  const level = Number(standing.level) || 1;
+  const points = Number(standing.points) || 0;
+  const floor = Number(standing.level_floor) || 0;
+  const next = standing.next_points == null ? null : Number(standing.next_points);
+
+  const span = next == null ? 0 : Math.max(next - floor, 1);
+  const done = next == null ? 1 : Math.min(Math.max((points - floor) / span, 0), 1);
+
+  const name = tOr(`level.${level}`, '');
+  const badges = (standing.badges ?? []).map(badgeChip).join('');
+
+  host.innerHTML = `
+    <div class="standing-head">
+      <p class="standing-level">
+        <span class="standing-number">${t('profile.level.n', { n: level })}</span>
+        ${name ? `<span class="standing-name">${esc(name)}</span>` : ''}
+      </p>
+      <p class="standing-points">${esc(plural('profile.level.points', points))}</p>
+    </div>
+    ${badges ? `<div class="badge-row">${badges}</div>` : ''}
+    <div class="standing-bar" role="img"
+         aria-label="${esc(next == null
+            ? t('profile.level.max')
+            : tn('profile.level.toNext', next - points, { level: level + 1 }))}">
+      <i style="width:${(done * 100).toFixed(1)}%"></i>
+    </div>
+    <p class="standing-next">${esc(next == null
+      ? t('profile.level.max')
+      : tn('profile.level.toNext', next - points, { level: level + 1 }))}</p>
+    <p class="standing-how">${esc(t('profile.level.how'))}</p>`;
+}
+
+/** The members who asked to be named. */
+export function renderBoard(host, rows) {
+  if (!rows.length) {
+    host.innerHTML = `<p class="empty-note">${esc(t('profile.board.empty'))}</p>`;
+    return;
+  }
+  host.innerHTML = rows.map((r, i) => `
+    <div class="board-row">
+      <span class="board-rank">${i + 1}</span>
+      <span class="board-name">${esc(r.display_name ?? '')}</span>
+      <span class="board-badges">${(r.badges ?? []).map(badgeChip).join('')}</span>
+      <span class="board-level">${esc(t('profile.level.n', { n: Number(r.level) || 1 }))}</span>
+    </div>`).join('');
 }

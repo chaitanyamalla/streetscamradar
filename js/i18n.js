@@ -177,15 +177,23 @@ export function applyTranslations(root = document) {
   }
   for (const [attr, name] of [['data-i18n-placeholder', 'placeholder'],
                               ['data-i18n-aria', 'aria-label'],
-                              ['data-i18n-title', 'title']]) {
+                              ['data-i18n-title', 'title'],
+                              ['data-i18n-content', 'content']]) {
     for (const el of root.querySelectorAll(`[${attr}]`)) {
       el.setAttribute(name, t(el.getAttribute(attr)));
     }
   }
+  // The map's own title and description, for the map's own page. A page that
+  // names its own — the guide does, with data-i18n on the <title> and
+  // data-i18n-content on the meta — has already been translated by the loops
+  // above, and writing the map's over the top is how the reference page ended
+  // up announcing itself as the map in a search result.
   const title = document.querySelector('title');
-  if (title) title.textContent = t('meta.title');
+  if (title && !title.dataset.i18n) title.textContent = t('meta.title');
   const description = document.querySelector('meta[name="description"]');
-  if (description) description.setAttribute('content', t('meta.description'));
+  if (description && !description.getAttribute('data-i18n-content')) {
+    description.setAttribute('content', t('meta.description'));
+  }
 }
 
 /**

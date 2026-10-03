@@ -50,6 +50,16 @@ select public.level_for(public.contribution_points(p.id)) as level,
 select b.badge, count(*) as people, max(b.granted_at) as most_recent
   from public.contributor_badges b group by 1 order by 2 desc;
 
+-- --- Who can administer the site -------------------------------------------
+-- Nicknames only, for the same reason as above. If this comes back empty,
+-- nobody can open /admin.html and the first admin has to be made by hand —
+-- see the recipe at the bottom of this file.
+select coalesce(nullif(btrim(p.display_name), ''), '(no nickname)') as goes_by,
+       p.role
+  from public.profiles p
+ where p.role <> 'member'
+ order by p.role, 1;
+
 
 -- ===========================================================================
 -- GIVING SOMEBODY A BADGE — run these in the Supabase SQL editor, not here.
@@ -99,6 +109,18 @@ select b.badge, count(*) as people, max(b.granted_at) as most_recent
 -- The whole dashboard, with email addresses — SQL editor only:
 --
 --   select * from public.admin_contributors order by points desc limit 50;
+--
+-- ---------------------------------------------------------------------------
+-- MAKING THE FIRST ADMIN. There is nowhere else this can be done: /admin.html
+-- refuses anybody who is not already an admin, which is the point of it.
+--
+--   update public.profiles set role = 'admin'
+--    where id = (select id from auth.users where email = 'you@example.com');
+--
+-- After that, every other role change can happen on the page. Two things it
+-- will refuse: the last admin demoting themselves, and an admin removing
+-- themselves — both leave a site nobody can administer, with this editor as
+-- the only way back.
 --
 -- ---------------------------------------------------------------------------
 -- WHAT A BADGE DOES NOT DO. It does not change anybody's level, it does not

@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#101d26" />
+    <!-- Before the first paint, and before any module loads: a reader who
+         chose dark must not watch a cream page arrive and then turn. It reads
+         the same key js/theme.js writes, and falls back to the system switch.
+         Inline because an external file is one more round trip, and this has
+         to run before the body renders or it has not done its job. -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('ssr.theme');
+          var dark = saved ? saved === 'dark'
+            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          if (dark) document.querySelector('meta[name="theme-color"]')
+            .setAttribute('content', '#081116');
+        } catch (e) { /* blocked storage: the page is simply light */ }
+      })();
+    </script>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="Member administration for StreetScamRadar." />
+    <title>Members — StreetScamRadar admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="page">
+    <header class="topbar">
+      <a class="brand" href="index.html#map" data-i18n-aria="brand.home" aria-label="StreetScamRadar home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-text">
+          <span class="brand-word">Street<span class="accent">Scam</span>Radar</span>
+          <span class="brand-tagline" data-i18n="brand.tagline">Plan your trip. Travel informed.</span>
+        </span>
+      </a>
+
+      <nav data-i18n-aria="nav.label" aria-label="Main">
+        <a href="index.html#map" data-i18n="nav.map">Map</a>
+        <a href="index.html#how" data-i18n="nav.how">How it works</a>
+        <a href="index.html#safety" data-i18n="nav.safety">Staying safe</a>
+        <a href="guide.html" data-i18n="nav.guide">What this shows</a>
+        <a class="active" href="admin.html">Admin</a>
+      </nav>
+
+      <!-- Outside .top-actions on purpose: on a phone the header wraps, and a
+           picker sharing that row squeezed "Sign in" and "Report a scam" onto
+           two lines each. Here it sits beside the brand instead. -->
+      <label class="lang-picker">
+        <span class="visually-hidden" data-i18n="header.language">Language</span>
+        <select id="lang-select" data-i18n-aria="header.language" aria-label="Language"></select>
+      </label>
+
+      <!-- aria-pressed rather than a label that changes: the button IS dark
+           mode, and it is either on or off. A label reading "Light mode" while
+           the page is light leaves a reader guessing whether it describes the
+           state or the destination. -->
+      <button class="theme-button" id="theme-button" type="button" aria-pressed="false"
+              data-i18n-aria="header.darkMode" data-i18n-title="header.darkMode"
+              aria-label="Dark mode" title="Dark mode">
+        <!-- Both are here and CSS shows one. Drawn rather than typed: ☀ and
+             ☾ are at the mercy of whatever font the device has, and on many
+             Androids one of them arrives as a colour emoji and the other as a
+             thin outline, so the button would change weight as you pressed it.
+             Each shows the mode you are IN, which is what aria-pressed says
+             too — sun for light, moon for dark. -->
+        <svg class="theme-icon is-sun" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+             stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+          <circle cx="12" cy="12" r="4.4" />
+          <path d="M12 2.2v2.4M12 19.4v2.4M2.2 12h2.4M19.4 12h2.4
+                   M5.1 5.1l1.7 1.7M17.2 17.2l1.7 1.7M18.9 5.1l-1.7 1.7M6.8 17.2l-1.7 1.7" />
+        </svg>
+        <svg class="theme-icon is-moon" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+             stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20.8 13.4A8.9 8.9 0 1 1 10.6 3.2a7 7 0 0 0 10.2 10.2z" />
+        </svg>
+      </button>
+
+    </header>
+
+    <!-- ENGLISH ONLY, ON PURPOSE, and the one page on this site that is.
+         Everything a traveller reads is in nine languages. This is not that:
+         it is the control panel for whoever runs the site, its audience is one
+         or two people who chose to run it, and half of what it displays —
+         "that is the last admin", "no such role: wizard" — comes back from
+         Postgres in English and cannot be translated from here anyway. Nine
+         translations of a table of buttons for an audience of two is cost with
+         no reader. -->
+    <main class="prose-page admin-page">
+      <header class="prose-head">
+        <p class="eyebrow">Administration</p>
+        <h1>Members</h1>
+        <p class="prose-lede" id="admin-lede">Checking whether you are an admin…</p>
+      </header>
+
+      <!-- Everything below is hidden until the DATABASE says this is an admin.
+           Hiding it is politeness; the check that matters is on every one of
+           the calls underneath, which a page cannot talk its way past. -->
+      <section id="admin-gate" class="admin-gate" hidden>
+        <p id="admin-gate-note"></p>
+        <button class="ghost-button" id="admin-signin" type="button" hidden>Sign in</button>
+      </section>
+
+      <section id="admin-body" hidden>
+        <div class="admin-toolbar">
+          <label class="visually-hidden" for="admin-search">Search by name or email</label>
+          <input id="admin-search" type="search" autocomplete="off"
+                 placeholder="Search by nickname or email" />
+          <span class="admin-count" id="admin-count"></span>
+        </div>
+
+        <div id="admin-list" class="admin-list"></div>
+
+        <p class="prose-note" id="admin-add-note">
+          There is no “add member” button, and there cannot be one. Creating an
+          account needs Supabase’s admin API and the secret key, and that key
+          bypasses every rule protecting this database — so it can never be in a
+          page served to the public. Anyone can sign up on the map themselves;
+          what you do here is decide what they are once they have.
+        </p>
+        <p class="prose-note">
+          The first admin is made in the Supabase SQL editor, which is the only
+          place it can be done:
+          <code>update public.profiles set role = 'admin' where id = (select id from auth.users where email = 'you@example.com');</code>
+        </p>
+        <p class="prose-back"><a href="index.html#map">← Back to the map</a></p>
+      </section>
+    </main>
+
+    <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+      <div class="dialog-body">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">Careful</p>
+            <h2 id="confirm-title">Remove this member?</h2>
+          </div>
+          <button class="close-button" data-close="confirm-dialog" type="button" aria-label="Close">×</button>
+        </div>
+        <p class="form-note" id="confirm-text"></p>
+        <div class="confirm-actions">
+          <button class="ghost-button" id="confirm-no" type="button">Keep them</button>
+          <button class="primary-button is-danger" id="confirm-yes" type="button">Remove</button>
+        </div>
+      </div>
+    </dialog>
+
+    <div id="toast" role="status" aria-live="polite" popover="manual"></div>
+
+    <script type="module" src="js/admin.js"></script>
+  </body>
+</html>

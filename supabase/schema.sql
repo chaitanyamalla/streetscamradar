@@ -844,6 +844,22 @@ insert into public.app_settings (key, value, note) values
   ('points_per_given',        '1', 'Points for confirming somebody else''s report.')
 on conflict (key) do nothing;
 
+-- Just the three point weights, for the page that explains them.
+--
+-- A function rather than a read of app_settings, which is revoked from both
+-- browser roles and should stay that way: it also holds which regions are
+-- closed to reporting and what the auto-hide threshold is, neither of which is
+-- a visitor's business. What a report is worth is.
+create or replace function public.point_weights()
+returns table (report int, confirmation int, given int)
+language sql stable security definer set search_path = public as $$
+  select public.setting_int('points_per_report', 5),
+         public.setting_int('points_per_confirmation', 4),
+         public.setting_int('points_per_given', 1);
+$$;
+
+grant execute on function public.point_weights() to anon, authenticated;
+
 -- ---------------------------------------------------------------------------
 -- Points.
 --
@@ -906,6 +922,60 @@ returns int language sql stable security definer set search_path = public as $$
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Roles, and a level set by hand.
+--
+-- Three roles. `moderator` is defined here and granted nothing yet — it is in
+-- the constraint so that giving it meaning later is a policy change rather
+-- than a migration, and so the admin page can hand it out before it does
+-- anything. `admin` is the one with teeth.
+--
+-- WHAT AN ADMIN CANNOT DO FROM A BROWSER, and this is a property of the
+-- architecture rather than an omission: create an account. That needs
+-- Supabase's admin API and the secret key, and the secret key cannot be in a
+-- page served to the public — it bypasses every rule in this file. Anyone can
+-- sign up on their own, so an "add user" button would only be a way of doing
+-- what they can already do; the admin page says so rather than offering a
+-- button that cannot work.
+-- ---------------------------------------------------------------------------
+alter table public.profiles add column if not exists role text not null default 'member';
+alter table public.profiles drop constraint if exists profiles_role_known;
+alter table public.profiles add constraint profiles_role_known
+  check (role in ('member', 'moderator', 'admin'));
+
+-- A level given rather than earned. Null means the arithmetic decides, which
+-- is the normal case; a number here wins over it. For the people whose
+-- contribution the points cannot see — the same reason badges exist.
+alter table public.profiles add column if not exists level_override int;
+alter table public.profiles drop constraint if exists profiles_level_override_range;
+alter table public.profiles add constraint profiles_level_override_range
+  check (level_override is null or level_override between 1 and 100);
+
+create index if not exists profiles_role_idx on public.profiles (role) where role <> 'member';
+
+-- Whether somebody is an admin.
+--
+-- SECURITY DEFINER because every policy and every admin function below has to
+-- ask, and a member can only read their OWN profile row — so a plain select
+-- here would answer "no" for everybody but yourself and quietly lock the admin
+-- page to one person.
+create or replace function public.is_admin(p_user uuid default auth.uid())
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.profiles p where p.id = p_user and p.role = 'admin'
+  );
+$$;
+
+grant execute on function public.is_admin(uuid) to authenticated;
+
+-- The level somebody is actually on: the one given, or the one earned.
+create or replace function public.member_level(p_user uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select p.level_override from public.profiles p where p.id = p_user),
+    public.level_for(public.contribution_points(p_user)));
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Badges, for the people this does not measure.
 --
 -- Points describe one kind of contribution — reports filed and recognised.
@@ -957,21 +1027,31 @@ create index if not exists profiles_display_name_idx
 -- One call rather than four, and SECURITY DEFINER because it reads other
 -- people's support rows to count what yours received.
 -- ---------------------------------------------------------------------------
+-- The output columns changed — role and given_level were added — and Postgres
+-- will not replace a function's return type in place. Dropped first, which on
+-- a live database is the difference between a schema that applies and one that
+-- stops here.
+drop function if exists public.my_standing();
 create or replace function public.my_standing()
 returns table (
   points int, level int, level_floor int,
   next_level int, next_points int,
   reports int, received int, given int,
-  badges text[], listed boolean
+  badges text[], listed boolean, role text, given_level int
 )
 language sql stable security definer set search_path = public as $$
   with me as (select auth.uid() as id),
   p as (select public.contribution_points((select id from me)) as points),
-  lv as (select public.level_for((select points from p)) as level)
+  -- The level SHOWN, which is the given one where there is one. The rungs
+  -- below still describe the earned ladder: somebody handed level 7 has not
+  -- earned 600 points, and a progress bar pretending otherwise would be a lie
+  -- about their own account. The page reads given_level and drops the bar.
+  lv as (select public.member_level((select id from me)) as level),
+  earned as (select public.level_for((select points from p)) as level)
   select (select points from p)::int,
          (select level from lv)::int,
          (select min_points from public.contributor_levels
-           where level = (select level from lv))::int,
+           where level = (select level from earned))::int,
          (select min(level) from public.contributor_levels
            where min_points > (select points from p))::int,
          (select min(min_points) from public.contributor_levels
@@ -991,7 +1071,11 @@ language sql stable security definer set search_path = public as $$
          (select coalesce(array_agg(b.badge order by b.granted_at), '{}')
             from public.contributor_badges b where b.profile_id = (select id from me)),
          coalesce((select pr.listed from public.profiles pr
-                    where pr.id = (select id from me)), false)
+                    where pr.id = (select id from me)), false),
+         coalesce((select pr.role from public.profiles pr
+                    where pr.id = (select id from me)), 'member'),
+         (select pr.level_override from public.profiles pr
+           where pr.id = (select id from me))
    where (select id from me) is not null;
 $$;
 
@@ -1012,7 +1096,7 @@ create or replace function public.contributors_board(p_limit int default 20)
 returns table (display_name text, level int, points int, badges text[])
 language sql stable security definer set search_path = public as $$
   select coalesce(nullif(btrim(p.display_name), ''), 'Member'),
-         public.level_for(public.contribution_points(p.id)),
+         public.member_level(p.id),
          public.contribution_points(p.id),
          coalesce((select array_agg(b.badge order by b.granted_at)
                      from public.contributor_badges b where b.profile_id = p.id), '{}')
@@ -1035,11 +1119,13 @@ grant execute on function public.contributors_board(int) to authenticated;
 -- is that it joins names to addresses. supabase/ops/contributors.sql is the
 -- version that is safe to run there.
 -- ---------------------------------------------------------------------------
+drop view if exists public.admin_contributors;
 create or replace view public.admin_contributors as
   select p.id,
          p.display_name,
          u.email,
-         public.level_for(public.contribution_points(p.id)) as level,
+         p.role,
+         public.member_level(p.id)                          as level,
          public.contribution_points(p.id)                   as points,
          coalesce((select array_agg(b.badge order by b.granted_at)
                      from public.contributor_badges b where b.profile_id = p.id), '{}') as badges,
@@ -1055,6 +1141,181 @@ create or replace view public.admin_contributors as
     left join auth.users u on u.id = p.id;
 
 revoke all on public.admin_contributors from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- The admin page's own calls.
+--
+-- Every one of them asks the database whether the caller is an admin, and the
+-- answer does not come from the page. A page can be edited in a console; this
+-- cannot. Hiding the controls is politeness, the check is the security.
+-- ---------------------------------------------------------------------------
+create or replace function public.admin_required()
+returns void language plpgsql stable security definer set search_path = public as $$
+begin
+  if auth.uid() is null then
+    raise exception 'sign in required';
+  end if;
+  if not public.is_admin(auth.uid()) then
+    raise exception 'admins only';
+  end if;
+end;
+$$;
+
+create or replace function public.admin_members(
+  p_search text default null,
+  p_limit  int  default 100
+)
+returns table (
+  id uuid, display_name text, email text, role text,
+  level int, level_override int, points int,
+  reports int, badges text[], listed boolean, created_at timestamptz
+)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  return query
+    select p.id,
+           p.display_name,
+           u.email,
+           p.role,
+           public.member_level(p.id),
+           p.level_override,
+           public.contribution_points(p.id),
+           (select count(*)::int from public.reports r
+             where r.reporter_id = p.id and r.status = 'published'),
+           coalesce((select array_agg(b.badge order by b.granted_at)
+                       from public.contributor_badges b where b.profile_id = p.id), '{}'),
+           p.listed,
+           p.created_at
+      from public.profiles p
+      left join auth.users u on u.id = p.id
+     where p_search is null
+        or btrim(p_search) = ''
+        or p.display_name ilike '%' || btrim(p_search) || '%'
+        or u.email        ilike '%' || btrim(p_search) || '%'
+     order by public.contribution_points(p.id) desc, p.created_at
+     limit least(greatest(coalesce(p_limit, 100), 1), 500);
+end;
+$$;
+
+-- How many admins there would be left. Used by both of the calls that can
+-- remove one, because locking yourself out of your own admin page is a
+-- mistake nobody makes twice and everybody makes once.
+create or replace function public.other_admins(p_except uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int from public.profiles p
+   where p.role = 'admin' and p.id is distinct from p_except;
+$$;
+
+create or replace function public.admin_set_role(p_id uuid, p_role text)
+returns text language plpgsql security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  if p_role not in ('member', 'moderator', 'admin') then
+    raise exception 'no such role: %', p_role;
+  end if;
+  if not exists (select 1 from public.profiles where id = p_id) then
+    raise exception 'no such member';
+  end if;
+  -- Taking admin away from the last admin leaves a site nobody can administer,
+  -- and the only way back is the SQL editor. Refused, including when it is
+  -- yourself doing it to yourself.
+  if p_role <> 'admin'
+     and exists (select 1 from public.profiles where id = p_id and role = 'admin')
+     and public.other_admins(p_id) = 0 then
+    raise exception 'that is the last admin — make somebody else an admin first';
+  end if;
+  update public.profiles set role = p_role where id = p_id;
+  return p_role;
+end;
+$$;
+
+create or replace function public.admin_set_level(p_id uuid, p_level int)
+returns int language plpgsql security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  if p_level is not null and not exists
+       (select 1 from public.contributor_levels where level = p_level) then
+    raise exception 'there is no level %', p_level;
+  end if;
+  update public.profiles set level_override = p_level where id = p_id;
+  if not found then raise exception 'no such member'; end if;
+  return public.member_level(p_id);
+end;
+$$;
+
+create or replace function public.admin_set_badge(
+  p_id uuid, p_badge text, p_on boolean, p_note text default null
+)
+returns text[] language plpgsql security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  if p_on then
+    insert into public.contributor_badges (profile_id, badge, note)
+    values (p_id, p_badge, p_note)
+    on conflict (profile_id, badge)
+      do update set note = coalesce(excluded.note, public.contributor_badges.note);
+  else
+    delete from public.contributor_badges b
+     where b.profile_id = p_id and b.badge = p_badge;
+  end if;
+  return coalesce((select array_agg(b.badge order by b.granted_at)
+                     from public.contributor_badges b where b.profile_id = p_id), '{}');
+end;
+$$;
+
+create or replace function public.admin_set_listed(p_id uuid, p_listed boolean)
+returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  update public.profiles set listed = coalesce(p_listed, false) where id = p_id;
+  if not found then raise exception 'no such member'; end if;
+  return coalesce(p_listed, false);
+end;
+$$;
+
+-- Removing somebody. Their reports go with them, which is what account
+-- deletion already does for a member removing themselves — the difference is
+-- only who asked.
+create or replace function public.admin_remove_member(p_id uuid)
+returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  if p_id = auth.uid() then
+    raise exception 'use Account settings to close your own account';
+  end if;
+  if exists (select 1 from public.profiles where id = p_id and role = 'admin')
+     and public.other_admins(p_id) = 0 then
+    raise exception 'that is the last admin — make somebody else an admin first';
+  end if;
+  if not exists (select 1 from public.profiles where id = p_id) then
+    raise exception 'no such member';
+  end if;
+  delete from public.reports where reporter_id = p_id;
+  delete from auth.users where id = p_id;   -- profiles cascades from here
+  return true;
+end;
+$$;
+
+-- These are reachable from a browser, by a signed-in member, and every one of
+-- them refuses anybody who is not an admin. That refusal is the whole of the
+-- security — the page hiding its own buttons is only good manners.
+revoke all on function public.admin_members(text, int) from public, anon;
+revoke all on function public.admin_set_role(uuid, text) from public, anon;
+revoke all on function public.admin_set_level(uuid, int) from public, anon;
+revoke all on function public.admin_set_badge(uuid, text, boolean, text) from public, anon;
+revoke all on function public.admin_set_listed(uuid, boolean) from public, anon;
+revoke all on function public.admin_remove_member(uuid) from public, anon;
+grant execute on function public.admin_members(text, int) to authenticated;
+grant execute on function public.admin_set_role(uuid, text) to authenticated;
+grant execute on function public.admin_set_level(uuid, int) to authenticated;
+grant execute on function public.admin_set_badge(uuid, text, boolean, text) to authenticated;
+grant execute on function public.admin_set_listed(uuid, boolean) to authenticated;
+grant execute on function public.admin_remove_member(uuid) to authenticated;
+-- admin_required and other_admins are called by the functions above while they
+-- run as the definer, so they need no grant of their own.
+revoke all on function public.admin_required() from public, anon, authenticated;
+revoke all on function public.other_admins(uuid) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Granting a badge, by whatever you happen to know about the person.
@@ -1112,6 +1373,7 @@ begin
 end;
 $$;
 
+drop function if exists public.grant_badge(text, text, text, boolean);
 create or replace function public.grant_badge(
   p_who   text,
   p_badge text,

@@ -278,6 +278,99 @@ export async function myConfirmationCount() {
   return Number(data) || 0;
 }
 
+// --- Administration --------------------------------------------------------
+//
+// Every one of these is refused by the database unless the caller is an admin.
+// None of them trusts the page it is called from, which is why there is no
+// "am I allowed" flag anywhere in here: the answer is whatever the call says.
+
+/** Am I an admin? Asked of the database, never of the page. */
+export async function amAdmin() {
+  if (!supabase) return false;
+  const { data, error } = await supabase.rpc('is_admin');
+  if (error) return false;
+  return data === true;
+}
+
+export async function adminMembers(search = '', limit = 100) {
+  need();
+  const { data, error } = await supabase.rpc('admin_members',
+    { p_search: search || null, p_limit: limit });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function adminSetRole(id, role) {
+  need();
+  const { data, error } = await supabase.rpc('admin_set_role', { p_id: id, p_role: role });
+  if (error) throw error;
+  return data;
+}
+
+export async function adminSetLevel(id, level) {
+  need();
+  const { data, error } = await supabase.rpc('admin_set_level',
+    { p_id: id, p_level: level ?? null });
+  if (error) throw error;
+  return data;
+}
+
+export async function adminSetBadge(id, badge, on, note = null) {
+  need();
+  const { data, error } = await supabase.rpc('admin_set_badge',
+    { p_id: id, p_badge: badge, p_on: on, p_note: note });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function adminSetListed(id, listed) {
+  need();
+  const { data, error } = await supabase.rpc('admin_set_listed',
+    { p_id: id, p_listed: listed });
+  if (error) throw error;
+  return data;
+}
+
+export async function adminRemoveMember(id) {
+  need();
+  const { error } = await supabase.rpc('admin_remove_member', { p_id: id });
+  if (error) throw error;
+  return true;
+}
+
+// --- The ladder itself -----------------------------------------------------
+/**
+ * The level thresholds, as the database currently has them.
+ *
+ * Read by the reference page so that retuning contributor_levels changes what
+ * the page tells people, rather than leaving it quoting numbers from the day
+ * it was written. Public, like the categories: a ladder nobody can see is not
+ * a ladder anybody can climb towards.
+ */
+export async function contributorLadder() {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('contributor_levels').select('level,min_points').order('level');
+  if (error) return [];
+  return (data ?? []).map(r => [Number(r.level), Number(r.min_points)]);
+}
+
+/**
+ * What a report, a confirmation received and a confirmation given are worth.
+ *
+ * Through a function rather than by reading app_settings, which is revoked
+ * from the browser and should stay that way — it also holds which regions are
+ * closed to reporting.
+ */
+export async function pointWeights() {
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc('point_weights');
+  if (error) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row ? { report: Number(row.report), confirmation: Number(row.confirmation),
+                 given: Number(row.given) } : null;
+}
+
 // --- Standing: level, points, badges ---------------------------------------
 /**
  * Your own level and what it is made of, in one call.

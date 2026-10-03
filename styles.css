@@ -1150,3 +1150,125 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   html { scroll-behavior:auto; }
   #toast { transition:none; }
 }
+
+/* --- Reference pages ------------------------------------------------------
+   guide.html and admin.html. They share the header with the map and nothing
+   else: no map frame, so the body scrolls normally and the content gets a
+   measure rather than the full width of a desktop. */
+body.page { min-height:100vh; background:var(--paper); }
+.prose-page { max-width:780px; margin:0 auto; padding:34px var(--gutter) 90px; }
+.prose-head { margin-bottom:34px; }
+.prose-head h1 { margin:6px 0 0; font-size:clamp(26px, 4.4vw, 38px); line-height:1.12;
+  letter-spacing:-.015em; text-wrap:balance; }
+.prose-lede { margin:14px 0 0; max-width:62ch; color:var(--ink-2); font-size:15.5px;
+  line-height:1.6; text-wrap:pretty; }
+
+.prose-section { margin-top:40px; padding-top:28px; border-top:1px solid var(--line); }
+.prose-section h2 { margin:0 0 14px; font-size:21px; line-height:1.2; letter-spacing:-.01em; }
+.prose-section h3 { margin:26px 0 8px; font-size:14.5px; letter-spacing:.01em; }
+.prose-section p { margin:0 0 12px; max-width:62ch; font-size:14px; line-height:1.65;
+  color:var(--ink-2); text-wrap:pretty; }
+.prose-note { color:var(--muted) !important; font-size:12.5px !important; }
+.prose-back { margin-top:28px !important; }
+.prose-back a { color:var(--brand); font-weight:700; }
+
+/* Two cards rather than two paragraphs: the whole point is that these are the
+   two steps of a scale, and side by side is how a scale reads. */
+.grade-cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr));
+  gap:12px; margin:18px 0 6px; }
+.grade-card { padding:14px 15px; border:1px solid var(--line); border-radius:var(--radius);
+  background:var(--surface); border-left-width:4px; }
+.grade-card p { margin:0; font-size:13px; }
+.grade-card .grade-name { margin-bottom:6px; font-weight:800; font-size:13.5px; color:var(--ink); }
+.grade-card.is-severe { border-left-color:#c5382c; }
+.grade-card.is-notice { border-left-color:#d08a21; }
+
+.prose-table { width:100%; border-collapse:collapse; margin:14px 0 18px; font-size:13.5px; }
+.prose-table th, .prose-table td { padding:9px 10px; text-align:left; vertical-align:top;
+  border-bottom:1px solid var(--line); }
+.prose-table thead th { color:var(--muted); font-size:10.5px; letter-spacing:.09em;
+  text-transform:uppercase; font-weight:600; }
+.prose-table tbody th { font-weight:700; color:var(--ink); }
+.prose-table td { color:var(--ink-2); }
+.lv-n { display:inline-block; min-width:62px; color:var(--brand);
+  font:600 12px 'DM Mono',monospace; }
+.lv-name { font-weight:700; }
+
+.badge-explain { display:flex; align-items:flex-start; gap:12px; padding:11px 0;
+  border-bottom:1px solid var(--line); }
+.badge-explain .badge-chip { flex:none; margin-top:1px; }
+.badge-explain p { margin:0; font-size:13px; }
+
+.hp-link { color:var(--brand); font-weight:700; text-decoration:underline;
+  text-underline-offset:2px; }
+
+@media (max-width: 620px) {
+  .prose-page { padding-top:22px; }
+  .prose-table { font-size:13px; }
+  .prose-table th, .prose-table td { padding:8px 7px; }
+  .lv-n { min-width:0; display:block; }
+}
+
+/* --- Admin ---------------------------------------------------------------
+   A card per member rather than a table with ten columns. A table is tidier on
+   a desktop and unusable on anything narrower, and the controls here are
+   selects and checkboxes that a table cell makes cramped at any width. */
+.admin-page { max-width:860px; }
+.admin-gate { padding:18px 20px; border:1px solid var(--line); border-radius:var(--radius);
+  background:var(--surface); }
+.admin-gate p { margin:0 0 12px; color:var(--ink-2); font-size:14px; line-height:1.6; }
+
+.admin-toolbar { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+#admin-search { flex:1; min-width:0; padding:10px 13px; border:1px solid var(--line-strong);
+  border-radius:var(--radius); background:var(--surface); color:var(--ink); font:inherit;
+  font-size:14px; }
+#admin-search:focus-visible { outline:2px solid var(--brand); outline-offset:1px; }
+.admin-count { flex:none; color:var(--muted); font:11px 'DM Mono',monospace; }
+
+.admin-row { display:grid; gap:12px; padding:15px 16px; margin-bottom:10px;
+  border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); }
+.ar-name { margin:0; font-size:15px; font-weight:800; display:flex; align-items:center; gap:7px; }
+.ar-you { padding:1px 7px; border-radius:100px; background:var(--tint-brand);
+  color:var(--brand); font:600 10px 'DM Mono',monospace; }
+.ar-mail { margin:2px 0 0; color:var(--ink-2); font:12px 'DM Mono',monospace;
+  overflow:hidden; text-overflow:ellipsis; }
+.ar-meta { margin:4px 0 0; color:var(--muted); font-size:11.5px; }
+
+.ar-controls { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; }
+.ar-field { display:flex; flex-direction:column; gap:4px; }
+.ar-field > span { color:var(--muted); font-size:10.5px; letter-spacing:.06em;
+  text-transform:uppercase; font-weight:600; }
+.ar-field select { padding:7px 9px; border:1px solid var(--line-strong);
+  border-radius:var(--radius); background:var(--surface); color:var(--ink);
+  font:inherit; font-size:13px; }
+.ar-check { display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ink-2); }
+
+.ar-badges { display:flex; flex-wrap:wrap; gap:8px; padding-top:11px;
+  border-top:1px solid var(--line); }
+/* The chip itself is the control. A checkbox beside a chip saying the same
+   thing twice is two things to read for one decision; the chip dims when the
+   badge is off, which is the same language the category filters already use. */
+.ar-badge { display:inline-flex; align-items:center; gap:6px; cursor:pointer; opacity:.4; }
+.ar-badge.is-on { opacity:1; }
+.ar-badge input { accent-color:var(--brand-fill); }
+
+.ar-danger { padding-top:10px; border-top:1px solid var(--line); }
+.link-danger { border:0; background:none; padding:0; color:#c5382c; font:inherit;
+  font-size:12.5px; font-weight:700; cursor:pointer; text-decoration:underline;
+  text-underline-offset:2px; }
+.link-danger[disabled] { color:var(--muted); cursor:not-allowed; text-decoration:none; }
+
+.primary-button.is-danger { background:#c5382c; }
+.primary-button.is-danger:hover { background:#a92d23; }
+.confirm-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+
+.admin-page code { display:block; margin-top:6px; padding:8px 10px; border-radius:8px;
+  background:var(--paper); border:1px solid var(--line); color:var(--ink-2);
+  font:11px/1.5 'DM Mono',monospace; overflow-x:auto; white-space:pre-wrap;
+  word-break:break-word; }
+
+@media (min-width: 720px) {
+  .admin-row { grid-template-columns:minmax(0, 1fr) auto; align-items:start; }
+  .ar-controls { justify-content:flex-end; }
+  .ar-badges, .ar-danger { grid-column:1 / -1; }
+}

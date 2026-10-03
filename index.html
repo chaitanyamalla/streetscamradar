@@ -384,13 +384,27 @@
             <span class="count-pill" id="reports-count">0</span>
           </div>
 
-          <!-- How far back to look. A radiogroup rather than a row of buttons,
-               because that is what it is: exactly one is chosen, and arrow keys
-               should move between them the way they do in every other one.
-               Filled by app.js from REPORT_AGE_CHIPS so the widest chip is
-               always the window itself. -->
-          <div class="age-bar" id="age-bar" role="radiogroup"
-               data-i18n-aria="reports.when.label" aria-label="How far back"></div>
+          <!-- How far back to look.
+               A slider, snapped to whole days. The first version was five
+               chips, and the objection to a slider then was that a continuous
+               one over a seven-day window offers 168 positions for a question
+               with about five useful answers. Stepping it by a day answers
+               that: there are seven positions, every one of them is a sentence
+               somebody can say out loud, and a bar that fills reads as a span
+               of time in a way five separate buttons never did.
+               A native range input rather than anything built here, because it
+               already answers arrow keys, Home, End and Page Up/Down, and
+               carries its value to a screen reader. min/max/value are set by
+               app.js from the window, so widening report_window_days widens
+               this with it. -->
+          <div class="age-slider">
+            <input type="range" id="age-range" min="1" max="7" step="1" value="7"
+                   data-i18n-aria="reports.when.label" aria-label="How far back" />
+            <div class="age-ends">
+              <span id="age-end-near"></span>
+              <span id="age-end-far"></span>
+            </div>
+          </div>
 
           <div id="report-list" class="report-list"></div>
           <div id="gate-note" class="gate-note" hidden></div>

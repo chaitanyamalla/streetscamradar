@@ -167,9 +167,18 @@ export async function getProfile() {
   if (!supabase) return null;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  const { data } = await supabase.from('profiles')
-    .select('id,display_name,home_label,home_lat,home_lng,locale,created_at')
-    .eq('id', user.id).maybeSingle();
+  const columns = 'id,display_name,home_label,home_lat,home_lng,locale,created_at';
+  const { data, error } = await supabase.from('profiles')
+    .select(`${columns},role,listed`).eq('id', user.id).maybeSingle();
+  // A database that has not had the roles part of schema.sql applied has no
+  // such columns, and PostgREST refuses the whole select rather than the two
+  // it does not know. Asked again without them, because losing the name you
+  // chose over a nav link you would not have seen anyway is the wrong trade.
+  if (error) {
+    const again = await supabase.from('profiles')
+      .select(columns).eq('id', user.id).maybeSingle();
+    return again.data ?? null;
+  }
   return data ?? null;
 }
 

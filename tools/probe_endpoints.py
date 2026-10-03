@@ -143,6 +143,35 @@ def main():
         look(name, url)
     for name, url in PAGES:
         read_page(name, url)
+
+    # --- our own URLs, since vercel.json claims cleanUrls ----------------
+    #
+    # The question this answers: does streetscamradar.vercel.app/admin work,
+    # or does the admin page only exist at /admin.html? cleanUrls is set and
+    # Vercel documents it as serving the extensionless form and redirecting
+    # the .html one — but the sandbox cannot reach vercel.app, so the only way
+    # to know what our own site does is to ask it from here.
+    print(f"\n{'=' * 70}\nOUR OWN URLS\n{'=' * 70}")
+    import http.client
+    from urllib.parse import urlsplit
+    for path in ("/", "/admin", "/admin.html", "/guide", "/guide.html", "/nonsense"):
+        url = "https://streetscamradar.vercel.app" + path
+        try:
+            parts = urlsplit(url)
+            conn = http.client.HTTPSConnection(parts.netloc, timeout=20)
+            # No redirect following: the hop itself is what is being asked about.
+            conn.request("GET", parts.path or "/", headers={"User-Agent": UA})
+            response = conn.getresponse()
+            where = response.getheader("location") or ""
+            body = response.read(400).decode("utf-8", "replace")
+            title = ""
+            if "<title" in body:
+                title = body.split("<title", 1)[1].split(">", 1)[1].split("<")[0][:48]
+            print(f"  {path:<14} {response.status} {where[:46]:<48} {title}")
+            conn.close()
+        except Exception as error:
+            print(f"  {path:<14} failed: {error}")
+
     print("\nDone.")
 
 

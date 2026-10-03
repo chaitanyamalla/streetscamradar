@@ -387,6 +387,226 @@ select pg_temp.check(
   and (select count(*) from public.profiles where id = '11111111-1111-1111-1111-111111111111') = 0,
   'along with the account itself and the profile that cascades from it');
 
+
+-- ===========================================================================
+-- The rest of the admin console
+-- ===========================================================================
+-- Bo is the admin by now; the member Ana was removed above. A second member
+-- and a report to moderate.
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('44444444-4444-4444-4444-444444444444', 'dee@example.com', '{"full_name": "Dee"}');
+
+do $$
+declare dee uuid := '44444444-4444-4444-4444-444444444444';
+        bo  uuid := '22222222-2222-2222-2222-222222222222';
+        r   uuid;
+begin
+  insert into public.reports (reporter_id, category, headline, description, lat, lng, happened_at)
+  values (dee, 'pickpocket', 'A report somebody flagged', 'detail', 48.86, 2.33, now() - interval '2 hours')
+  returning id into r;
+  insert into public.report_flags (report_id, user_id, reason) values (r, bo, 'wrong');
+end $$;
+
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+
+-- --- Reports ----------------------------------------------------------------
+select pg_temp.check((select count(*) from public.admin_reports('flagged', null, 50)) = 1,
+  'the flagged filter finds the one report somebody flagged');
+select pg_temp.check(
+  (select reporter from public.admin_reports('flagged', null, 50)) = 'Dee',
+  'and names who filed it — which reports_feed withholds from everyone else, '
+  'because six reports from one account is the thing moderation is looking for');
+select pg_temp.check(
+  (select reasons from public.admin_reports('flagged', null, 50)) = array['wrong'],
+  'with the reasons it was flagged for');
+select pg_temp.check((select count(*) from public.admin_reports('all', null, 50)) >= 2,
+  'and the all filter shows more than the flagged one');
+select pg_temp.check((select count(*) from public.admin_reports('all', 'somebody flagged', 50)) = 1,
+  'search narrows it by headline');
+
+-- Approving clears the flags, so the same people cannot re-hide what an admin
+-- has already looked at.
+select pg_temp.check(
+  public.admin_set_report_status(
+    (select id from public.admin_reports('flagged', null, 50)), 'published') = 'published',
+  'a flagged report can be approved');
+select pg_temp.check((select count(*) from public.admin_reports('flagged', null, 50)) = 0,
+  'and approving clears the flags with it');
+
+do $$
+declare r uuid;
+begin
+  select id into r from public.admin_reports('all', 'somebody flagged', 50);
+  perform public.admin_set_report_status(r, 'under_review');
+  perform pg_temp.check(
+    (select count(*) from public.admin_reports('under_review', null, 50)) = 1,
+    'a report can be taken off the map without deleting it');
+  perform pg_temp.check(
+    (select on_the_map from public.admin_reports('under_review', null, 50)) = false,
+    'and the list says plainly that it is no longer on the map');
+  begin
+    perform public.admin_set_report_status(r, 'vanished');
+    perform pg_temp.check(false, 'a status that does not exist should be refused');
+  exception when others then
+    perform pg_temp.check(sqlerrm like 'no such status%', 'a status that does not exist is refused');
+  end;
+  perform pg_temp.check(public.admin_delete_report(r), 'and a report can be deleted outright');
+  perform pg_temp.check(
+    (select count(*) from public.admin_reports('all', 'somebody flagged', 50)) = 0,
+    'which really does remove it');
+end $$;
+
+-- A report already taken down has had its decision, and a queue that keeps
+-- showing it is a queue nobody finishes reading. On a report of its own,
+-- because the assertions above still need the first one flagged.
+reset role; reset request.jwt.claim.sub;
+do $$
+declare dee uuid := '44444444-4444-4444-4444-444444444444';
+        bo  uuid := '22222222-2222-2222-2222-222222222222';
+        r   uuid;
+begin
+  insert into public.reports (reporter_id, category, headline, description, lat, lng, happened_at)
+  values (dee, 'atm', 'A second report, also flagged', 'detail', 48.86, 2.33, now() - interval '3 hours')
+  returning id into r;
+  insert into public.report_flags (report_id, user_id, reason) values (r, bo, 'duplicate');
+end $$;
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+
+select pg_temp.check((select count(*) from public.admin_reports('flagged', null, 50)) = 1,
+  'the new flagged report is in the queue');
+select pg_temp.check(
+  public.admin_set_report_status(
+    (select id from public.admin_reports('flagged', null, 50)), 'removed') = 'removed',
+  'and it can be taken down');
+select pg_temp.check((select count(*) from public.admin_reports('flagged', null, 50)) = 0,
+  'which takes it out of the queue — what makes the queue drainable at all');
+select pg_temp.check((select count(*) from public.admin_reports('removed', null, 50)) = 1,
+  'while leaving it findable under Taken down');
+
+-- --- The ladder -------------------------------------------------------------
+select pg_temp.check(
+  (select count(*) from public.admin_set_levels(
+     '[{"level":1,"min_points":0},{"level":2,"min_points":20},{"level":3,"min_points":60}]'::jsonb)) = 3,
+  'the ladder can be replaced with a shorter one');
+select pg_temp.check(public.level_for(25) = 2 and public.level_for(60) = 3,
+  'and every level recomputes against the new rungs at once');
+
+do $$
+begin
+  perform public.admin_set_levels('[{"level":1,"min_points":0},{"level":2,"min_points":0}]'::jsonb);
+  perform pg_temp.check(false, 'a ladder that does not climb should be refused');
+exception when others then
+  perform pg_temp.check(sqlerrm like '%not more than the rung below%',
+    'a ladder that does not climb is refused: ' || sqlerrm);
+end $$;
+do $$
+begin
+  perform public.admin_set_levels('[{"level":2,"min_points":0},{"level":3,"min_points":10}]'::jsonb);
+  perform pg_temp.check(false, 'a ladder not starting at 1 should be refused');
+exception when others then
+  perform pg_temp.check(sqlerrm like '%start at level 1%', 'a ladder not starting at level 1 is refused');
+end $$;
+do $$
+begin
+  perform public.admin_set_levels('[{"level":1,"min_points":5}]'::jsonb);
+  perform pg_temp.check(false, 'a first rung above zero should be refused');
+exception when others then
+  perform pg_temp.check(sqlerrm like '%0 points%', 'and so is a first rung somebody has to climb to');
+end $$;
+select pg_temp.check((select count(*) from public.contributor_levels) = 3,
+  'a refused ladder leaves the one that was there, rather than half of it');
+
+-- A rung that no longer exists cannot be anybody's given level.
+select pg_temp.check(public.admin_set_level('44444444-4444-4444-4444-444444444444', 3) = 3,
+  'somebody can be given the top rung');
+select pg_temp.check(
+  (select count(*) from public.admin_set_levels(
+     '[{"level":1,"min_points":0},{"level":2,"min_points":20}]'::jsonb)) = 2,
+  'and the ladder can then be shortened under them');
+reset role; reset request.jwt.claim.sub;
+select pg_temp.check(
+  (select level_override from public.profiles where id = '44444444-4444-4444-4444-444444444444') is null,
+  'which clears the level they were given, rather than leaving them on a rung that is gone');
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+
+-- --- Regions ----------------------------------------------------------------
+select pg_temp.check((select closed from public.admin_blocked_regions()) = 0,
+  'nothing is closed to begin with');
+select pg_temp.check((select count(*) from public.admin_region_catalog()) > 0,
+  'and the catalogue of regions can be read rather than guessed at');
+select pg_temp.check(public.admin_set_blocked_regions(array['MX'], array['schengen']) > 1,
+  'a country and a whole region can be closed together');
+select pg_temp.check(not public.reporting_allowed('MX') and not public.reporting_allowed('FR'),
+  'and both really are closed to new reports');
+select pg_temp.check(public.reporting_allowed('JP'),
+  'while everywhere else stays open');
+do $$
+begin
+  perform public.admin_set_blocked_regions('{}', array['narnia']);
+  perform pg_temp.check(false, 'a region that does not exist should be refused');
+exception when others then
+  perform pg_temp.check(sqlerrm like '%no region called narnia%',
+    'a region nobody has heard of is refused rather than closing nothing in silence');
+end $$;
+select pg_temp.check(public.admin_set_blocked_regions('{}', '{}') = 0,
+  'and everywhere can be opened again');
+select pg_temp.check(public.reporting_allowed('FR'), 'which really does reopen it');
+
+-- --- Settings ---------------------------------------------------------------
+select pg_temp.check((select count(*) from public.admin_settings()) = 8,
+  'the editable settings are a known list, not the whole table');
+select pg_temp.check(
+  not exists (select 1 from public.admin_settings() where key = 'blocked_regions'),
+  'and blocked_regions is not one of them — it is JSON and has its own screen');
+select pg_temp.check(public.admin_set_setting('points_per_report', '7') = '7',
+  'a setting can be changed');
+select pg_temp.check(public.contribution_points('44444444-4444-4444-4444-444444444444') >= 0,
+  'and the functions that read it carry on working');
+do $$
+begin
+  perform public.admin_set_setting('points_per_report', 'lots');
+  perform pg_temp.check(false, 'a word where a number goes should be refused');
+exception when others then
+  perform pg_temp.check(sqlerrm like '%has to be a number%',
+    'a word where a number goes is refused now rather than at the next read');
+end $$;
+do $$
+begin
+  perform public.admin_set_setting('blocked_regions', '{}');
+  perform pg_temp.check(false, 'a setting off the list should be refused');
+exception when others then
+  perform pg_temp.check(sqlerrm like '%not editable from here%',
+    'and a setting that is not on the list is refused');
+end $$;
+select pg_temp.check(public.admin_set_setting('points_per_report', '5') = '5', 'and put back');
+reset role; reset request.jwt.claim.sub;
+
+-- --- None of it is reachable by a member ------------------------------------
+set role authenticated;
+set request.jwt.claim.sub = '44444444-4444-4444-4444-444444444444';
+do $$
+declare refused int := 0;
+begin
+  begin perform public.admin_reports('all', null, 10); exception when others then
+    if sqlerrm = 'admins only' then refused := refused + 1; end if; end;
+  begin perform public.admin_delete_report(gen_random_uuid()); exception when others then
+    if sqlerrm = 'admins only' then refused := refused + 1; end if; end;
+  begin perform public.admin_set_levels('[{"level":1,"min_points":0}]'::jsonb); exception when others then
+    if sqlerrm = 'admins only' then refused := refused + 1; end if; end;
+  begin perform public.admin_set_blocked_regions('{}', '{}'); exception when others then
+    if sqlerrm = 'admins only' then refused := refused + 1; end if; end;
+  begin perform public.admin_set_setting('points_per_report', '999'); exception when others then
+    if sqlerrm = 'admins only' then refused := refused + 1; end if; end;
+  begin perform public.admin_region_catalog(); exception when others then
+    if sqlerrm = 'admins only' then refused := refused + 1; end if; end;
+  perform pg_temp.check(refused = 6,
+    'every one of the six new console calls refuses a member (' || refused || ' of 6)');
+end $$;
+reset role; reset request.jwt.claim.sub;
+
 \echo ''
 select (select count(*) - (select count(*) from pg_temp.failures) from pg_temp.ran)
        || '/' || (select count(*) from pg_temp.ran) || ' passed'

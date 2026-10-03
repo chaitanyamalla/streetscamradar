@@ -558,11 +558,41 @@ column.
 
 ### The admin page
 
-`/admin.html`, for whoever runs the site. It lists every member with their
-nickname, email, level, points, reports and badges, and lets an admin change
-four things: their role, their level, their badges, and whether they appear on
-the contributors list. It can also remove a member, which deletes their reports
-and their account together.
+`/admin`, for whoever runs the site. Five screens:
+
+| Screen | What it does |
+|---|---|
+| **Members** | Every member with nickname, email, level, points, reports and badges. Change their role, give them a level, give or take a badge, put them on the contributors list, or remove them — which deletes their reports with them. |
+| **Reports** | Everything filed, filtered by flagged / hidden / taken down / on the map / all, with the text, the flag reasons and **who filed it**. Approve, hide, take down, or delete. |
+| **Levels** | The ladder, edited as a whole and saved in one go. |
+| **Regions** | Which countries are closed to new reports, picked from the list of continents, UN zones and unions rather than typed from memory. |
+| **Settings** | The `app_settings` numbers — the point weights, the report window, the auto-hide threshold — each with what it does beside it. |
+
+**Three things the screens enforce rather than trust:**
+
+- **Approving a report clears its flags.** Otherwise the same people re-hide it
+  the moment the threshold is reached again, and an admin who looked at it has
+  already answered that question.
+- **A report already taken down leaves the Flagged queue.** It has had its
+  decision; a queue that keeps showing it is a queue nobody finishes reading.
+- **The ladder is sent whole, not row by row.** It is only valid as a set —
+  ascending, starting at level 1 with 0 points — and editing it a row at a time
+  passes through states that are none of those. A refused ladder is taken off
+  the screen rather than left looking saved, and shortening the ladder clears
+  any `level_override` that pointed at a rung that no longer exists.
+
+**Reports show who filed them**, which `reports_feed` deliberately withholds
+from everybody else. Moderation is the one job that cannot be done without it:
+the thing you are usually looking at is not one bad report but six from one
+account.
+
+**It is not a generic SQL console, on purpose.** A table editor that can run
+anything is the Supabase dashboard — it exists, it is behind a real login, and
+it is not served to the public. What is here is the handful of things somebody
+running this site actually does, each with its own validation: a status that
+must be one of three, a setting that must be a number, a region handle that
+must exist (a typo closes nothing, silently, while you believe a country is
+shut).
 
 **Its address is `/admin`** — `vercel.json` sets `cleanUrls`, so Vercel serves
 the extensionless form and 308-redirects `/admin.html` to it. Checked against
@@ -696,8 +726,14 @@ Everything else in this repository tests the page with the database stubbed,
 which means the stub and the page can agree perfectly while the SQL underneath
 is wrong. `supabase/test/run.sh` applies `schema.sql` to a throwaway Postgres
 and checks the arithmetic, the lookups, the admin calls and who may read what
-— 66 assertions, including putting a `REVOKE` back to confirm the permission
+— 107 assertions, including putting a `REVOKE` back to confirm the permission
 checks fail when they should.
+
+It runs **twice**: once against an empty database, and once as an upgrade,
+applying `origin/main`'s schema first and the working copy on top. The second
+pass exists because the first one cannot see a whole class of fault — `CREATE
+OR REPLACE` will not change a function's return type, and on an empty database
+there is nothing to replace. The live apply found that the hard way.
 
 ---
 

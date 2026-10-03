@@ -15,12 +15,26 @@ import { initAuth, onAuthChange } from './auth.js';
 import { esc, toast, badgeChip, BADGES } from './ui.js';
 import { formatDate } from './i18n.js';
 import { amAdmin, adminMembers, adminSetRole, adminSetLevel, adminSetBadge,
-         adminSetListed, adminRemoveMember } from './data.js';
+         adminSetListed, adminRemoveMember, adminReports, adminSetReportStatus,
+         adminDeleteReport, contributorLadder, adminSetLevels, adminRegionCatalog,
+         adminBlockedRegions, adminSetBlockedRegions, adminSettings,
+         adminSetSetting } from './data.js';
 
 const $ = (sel) => document.querySelector(sel);
 const ROLES = ['member', 'moderator', 'admin'];
 
-const state = { me: null, admin: false, members: [], search: '', pending: null };
+const state = {
+  me: null, admin: false, pending: null,
+  tab: 'members',
+  members: [], search: '',
+  reports: [], reportFilter: 'flagged', reportSearch: '',
+  // The ladder is edited as a whole and only sent when Save is pressed: it is
+  // valid as a set, not a row at a time, so a half-edited one must not reach
+  // the database.
+  levels: [],
+  regions: [], blocked: { countries: [], groups: [], closed: 0 }, regionSearch: '',
+  settings: [],
+};
 
 // --- what the page is allowed to be ----------------------------------------
 async function decideAccess() {
@@ -44,12 +58,74 @@ async function decideAccess() {
     gate.hidden = false; body.hidden = true;
     return;
   }
-  $('#admin-lede').textContent =
-    'Roles, levels and badges. Everything here is checked again by the database, '
-    + 'so a mistake is refused rather than applied.';
   gate.hidden = true; body.hidden = false;
-  await load();
+  await showTab(state.tab);
 }
+
+// --- tabs -------------------------------------------------------------------
+const TABS = ['members', 'reports', 'levels', 'regions', 'settings'];
+
+// The heading follows the tab. Leaving it on "Members" while the Reports
+// screen is open reads as a page that did not notice it had changed.
+const HEADINGS = {
+  members: ['Members',
+    'Roles, levels and badges. Everything here is checked again by the '
+    + 'database, so a mistake is refused rather than applied.'],
+  reports: ['Reports',
+    'What people filed, and what to do about the ones somebody flagged. '
+    + 'Approving clears the flags; hiding keeps the report; deleting does not.'],
+  levels: ['Levels',
+    'The ladder every member climbs, and how far apart its rungs are. '
+    + 'Changing it recomputes everybody at once.'],
+  regions: ['Regions',
+    'Where new reports are refused. Reading is never affected — everything '
+    + 'already on the map stays visible everywhere, to everyone.'],
+  settings: ['Settings',
+    'The numbers that change how the site behaves, applied the moment they '
+    + 'are saved.'],
+};
+const LOADERS = {
+  members: load,
+  reports: loadReports,
+  levels: loadLevels,
+  regions: loadRegions,
+  settings: loadSettings,
+};
+
+async function showTab(name) {
+  if (!TABS.includes(name)) return;
+  state.tab = name;
+  const [title, lede] = HEADINGS[name];
+  $('#admin-title').textContent = title;
+  $('#admin-lede').textContent = lede;
+  for (const tab of document.querySelectorAll('.admin-tab')) {
+    const on = tab.dataset.tab === name;
+    tab.classList.toggle('is-on', on);
+    tab.setAttribute('aria-selected', String(on));
+    tab.tabIndex = on ? 0 : -1;
+  }
+  for (const panel of document.querySelectorAll('.admin-panel')) {
+    panel.hidden = panel.id !== `tab-${name}`;
+  }
+  // Fetched when first opened rather than on load: five screens' worth of
+  // queries for the one somebody wanted is five times the wait.
+  await LOADERS[name]?.();
+}
+
+$('.admin-tabs')?.addEventListener('click', (e) => {
+  const tab = e.target.closest('.admin-tab');
+  if (tab) showTab(tab.dataset.tab);
+});
+
+$('.admin-tabs')?.addEventListener('keydown', (e) => {
+  const step = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
+  if (!step) return;
+  e.preventDefault();
+  const at = TABS.indexOf(state.tab);
+  const next = TABS[(at + step + TABS.length) % TABS.length];
+  showTab(next);
+  $(`.admin-tab[data-tab="${next}"]`)?.focus();
+});
 
 async function load() {
   $('#admin-list').innerHTML = '<p class="empty-note">Loading…</p>';
@@ -196,7 +272,8 @@ $('#admin-list').addEventListener('click', (e) => {
   const id = e.target.closest('.admin-row')?.dataset.id;
   const member = state.members.find(m => m.id === id);
   if (!member) return;
-  state.pending = id;
+  state.pending = { kind: 'member', id };
+  $('#confirm-title').textContent = 'Remove this member?';
   $('#confirm-text').textContent =
     `${member.display_name || member.email || 'This member'} and their ${member.reports} `
     + `report${member.reports === 1 ? '' : 's'} will be deleted. This cannot be undone.`;
@@ -206,14 +283,21 @@ $('#admin-list').addEventListener('click', (e) => {
 $('#confirm-no').addEventListener('click', () => $('#confirm-dialog').close());
 $('[data-close="confirm-dialog"]').addEventListener('click', () => $('#confirm-dialog').close());
 $('#confirm-yes').addEventListener('click', async () => {
-  const id = state.pending;
+  const asked = state.pending;
+  state.pending = null;
   $('#confirm-dialog').close();
-  if (!id) return;
+  if (!asked) return;
   await attempt(async () => {
-    await adminRemoveMember(id);
-    state.members = state.members.filter(m => m.id !== id);
-    paint();
-    toast('Removed.');
+    if (asked.kind === 'member') {
+      await adminRemoveMember(asked.id);
+      state.members = state.members.filter(m => m.id !== asked.id);
+      paint();
+    } else {
+      await adminDeleteReport(asked.id);
+      state.reports = state.reports.filter(r => r.id !== asked.id);
+      paintReports();
+    }
+    toast('Deleted.');
   }, {});
 });
 
@@ -225,6 +309,227 @@ $('#admin-search').addEventListener('input', (e) => {
 });
 
 $('#admin-signin').addEventListener('click', () => { window.location.href = 'index.html#map'; });
+
+// --- reports ----------------------------------------------------------------
+const STATUS_WORD = {
+  published: 'On the map',
+  under_review: 'Hidden, under review',
+  removed: 'Taken down',
+};
+
+function reportRow(r) {
+  const flags = (r.reasons ?? []).join(', ');
+  const when = formatDate(r.happened_at, { day: 'numeric', month: 'short', year: 'numeric' });
+  return `
+    <article class="admin-row report-row" data-id="${esc(r.id)}">
+      <div class="ar-who">
+        <p class="ar-name">${esc(r.headline)}</p>
+        <p class="ar-meta">
+          <span class="rr-status is-${esc(r.status)}">${esc(STATUS_WORD[r.status] ?? r.status)}</span>
+          ${r.flag_count > 0 ? `<span class="rr-flags">⚑ ${r.flag_count}${flags ? ' · ' + esc(flags) : ''}</span>` : ''}
+          ${r.support_count > 0 ? `<span class="rr-ok">✓ ${r.support_count}</span>` : ''}
+        </p>
+        <p class="ar-meta">${esc(r.city || '—')}${r.country_code ? ' · ' + esc(r.country_code) : ''}
+          · ${esc(when)} · filed by ${esc(r.reporter ?? '—')}
+          ${r.on_the_map ? '' : '· <em>not on the map</em>'}</p>
+        <p class="rr-text">${esc(r.description)}</p>
+      </div>
+      <div class="ar-controls">
+        ${r.status !== 'published' ? '<button type="button" class="ghost-button small" data-act="approve">Approve</button>' : ''}
+        ${r.status !== 'under_review' ? '<button type="button" class="ghost-button small" data-act="hide">Hide</button>' : ''}
+        ${r.status !== 'removed' ? '<button type="button" class="ghost-button small" data-act="takedown">Take down</button>' : ''}
+        <button type="button" class="link-danger" data-act="delete">Delete</button>
+      </div>
+    </article>`;
+}
+
+function paintReports() {
+  const n = state.reports.length;
+  $('#report-count').textContent = n === 1 ? '1 report' : `${n} reports`;
+  $('#report-admin-list').innerHTML = n
+    ? state.reports.map(reportRow).join('')
+    : '<p class="empty-note">Nothing here.</p>';
+}
+
+async function loadReports() {
+  $('#report-admin-list').innerHTML = '<p class="empty-note">Loading…</p>';
+  try {
+    state.reports = await adminReports(state.reportFilter, state.reportSearch, 100);
+    paintReports();
+  } catch (err) {
+    $('#report-admin-list').innerHTML = `<p class="empty-note">${esc(err.message)}</p>`;
+  }
+}
+
+$('#report-filter').addEventListener('change', (e) => {
+  state.reportFilter = e.target.value;
+  loadReports();
+});
+
+let reportSearching;
+$('#report-search').addEventListener('input', (e) => {
+  state.reportSearch = e.target.value.trim();
+  clearTimeout(reportSearching);
+  reportSearching = setTimeout(loadReports, 250);
+});
+
+$('#report-admin-list').addEventListener('click', async (e) => {
+  const act = e.target.dataset.act;
+  const id = e.target.closest('.report-row')?.dataset.id;
+  if (!act || !id) return;
+
+  if (act === 'delete') {
+    const report = state.reports.find(r => r.id === id);
+    state.pending = { kind: 'report', id };
+    $('#confirm-title').textContent = 'Delete this report?';
+    $('#confirm-text').textContent =
+      `“${report?.headline ?? 'This report'}” will be gone for good. `
+      + 'To take it off the map without deleting it, use Hide instead.';
+    $('#confirm-dialog').showModal();
+    return;
+  }
+
+  const status = { approve: 'published', hide: 'under_review', takedown: 'removed' }[act];
+  if (!status) return;
+  await attempt(async () => {
+    await adminSetReportStatus(id, status);
+    toast(act === 'approve' ? 'Approved, and its flags cleared.' : `Now ${STATUS_WORD[status].toLowerCase()}.`);
+    await loadReports();
+  }, {});
+});
+
+// --- the ladder -------------------------------------------------------------
+function paintLevels() {
+  $('#levels-admin').innerHTML = `
+    <thead><tr><th scope="col">Level</th><th scope="col">Points needed</th></tr></thead>
+    <tbody>${state.levels.map(([level, points], i) => `
+      <tr>
+        <th scope="row">Level ${level}</th>
+        <td><input type="number" min="0" step="1" value="${points}"
+                   data-row="${i}" ${i === 0 ? 'disabled title="Level 1 is where everybody starts"' : ''} /></td>
+      </tr>`).join('')}</tbody>`;
+  $('#level-drop').disabled = state.levels.length <= 1;
+}
+
+async function loadLevels() {
+  state.levels = await contributorLadder();
+  paintLevels();
+}
+
+$('#levels-admin').addEventListener('input', (e) => {
+  const row = Number(e.target.dataset.row);
+  if (Number.isInteger(row)) state.levels[row][1] = Number(e.target.value);
+});
+
+$('#level-add').addEventListener('click', () => {
+  const [lastLevel, lastPoints] = state.levels[state.levels.length - 1] ?? [0, 0];
+  state.levels.push([lastLevel + 1, lastPoints + 100]);
+  paintLevels();
+});
+
+$('#level-drop').addEventListener('click', () => {
+  if (state.levels.length > 1) state.levels.pop();
+  paintLevels();
+});
+
+$('#levels-save').addEventListener('click', async () => {
+  await attempt(async () => {
+    const saved = await adminSetLevels(
+      state.levels.map(([level, min_points]) => ({ level, min_points })));
+    state.levels = saved.map(r => [Number(r.level), Number(r.min_points)]);
+    paintLevels();
+    toast('The ladder is saved, and every level recomputed with it.');
+  }, { onFail: loadLevels });     // a refused ladder must not stay on screen
+});
+
+// --- regions ----------------------------------------------------------------
+function paintRegions() {
+  const chosen = new Set(state.blocked.groups ?? []);
+  const q = state.regionSearch.toLowerCase();
+  const shown = state.regions.filter(r => !q || r.group_code.toLowerCase().includes(q));
+
+  $('#region-state').textContent = state.blocked.closed
+    ? `${state.blocked.closed} countries are closed to new reports.`
+    : 'Everywhere is open to new reports.';
+  $('#region-state').classList.toggle('is-closed', state.blocked.closed > 0);
+
+  $('#region-list').innerHTML = shown.map(r => `
+    <label class="region-row${chosen.has(r.group_code) ? ' is-on' : ''}">
+      <input type="checkbox" data-group="${esc(r.group_code)}" ${chosen.has(r.group_code) ? 'checked' : ''} />
+      <span class="rg-name">${esc(r.group_code)}</span>
+      <span class="rg-kind">${esc(r.kind)}</span>
+      <span class="rg-count">${r.countries}</span>
+    </label>`).join('') || '<p class="empty-note">No region matches that.</p>';
+
+  $('#region-countries').value = (state.blocked.countries ?? []).join(', ');
+}
+
+async function loadRegions() {
+  if (!state.regions.length) state.regions = await adminRegionCatalog();
+  state.blocked = await adminBlockedRegions() ?? { countries: [], groups: [], closed: 0 };
+  paintRegions();
+}
+
+let regionSearching;
+$('#region-search').addEventListener('input', (e) => {
+  state.regionSearch = e.target.value.trim();
+  clearTimeout(regionSearching);
+  regionSearching = setTimeout(paintRegions, 150);
+});
+
+$('#region-list').addEventListener('change', (e) => {
+  const group = e.target.dataset.group;
+  if (!group) return;
+  const groups = new Set(state.blocked.groups ?? []);
+  if (e.target.checked) groups.add(group); else groups.delete(group);
+  state.blocked.groups = [...groups];
+  e.target.closest('.region-row')?.classList.toggle('is-on', e.target.checked);
+});
+
+$('#regions-save').addEventListener('click', async () => {
+  const countries = $('#region-countries').value
+    .split(/[,\s]+/).map(c => c.trim().toUpperCase()).filter(Boolean);
+  await attempt(async () => {
+    const closed = await adminSetBlockedRegions(countries, state.blocked.groups ?? []);
+    state.blocked.countries = countries;
+    state.blocked.closed = closed;
+    paintRegions();
+    toast(closed ? `${closed} countries are now closed to new reports.`
+                 : 'Everywhere is open again.');
+  }, { onFail: loadRegions });
+});
+
+// --- settings ---------------------------------------------------------------
+function paintSettings() {
+  $('#settings-admin').innerHTML = `
+    <thead><tr><th scope="col">Setting</th><th scope="col">Value</th><th scope="col">What it does</th></tr></thead>
+    <tbody>${state.settings.map(s => `
+      <tr>
+        <th scope="row"><code class="set-key">${esc(s.key)}</code></th>
+        <td><input type="text" inputmode="decimal" value="${esc(s.value)}"
+                   data-key="${esc(s.key)}" size="8" /></td>
+        <td class="set-note">${esc(s.note ?? '')}</td>
+      </tr>`).join('')}</tbody>`;
+}
+
+async function loadSettings() {
+  state.settings = await adminSettings();
+  paintSettings();
+}
+
+// Saved when the field is left rather than on every keystroke: half a number
+// is a number, and 1 on the way to 14 would be applied and then applied again.
+$('#settings-admin').addEventListener('change', async (e) => {
+  const key = e.target.dataset.key;
+  if (!key) return;
+  const was = state.settings.find(s => s.key === key);
+  await attempt(async () => {
+    const now = await adminSetSetting(key, e.target.value);
+    if (was) was.value = now;
+    e.target.value = now;
+    toast(`${key} is now ${now}.`);
+  }, { onFail: () => { e.target.value = was?.value ?? ''; } });
+});
 
 // --- start ------------------------------------------------------------------
 await bootPage();

@@ -1318,6 +1318,291 @@ revoke all on function public.admin_required() from public, anon, authenticated;
 revoke all on function public.other_admins(uuid) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
+-- The rest of the admin console: reports, the ladder, the regions, the
+-- settings.
+--
+-- One rule throughout, the same as the member calls above: every function
+-- starts with admin_required(), so the page is never what decides. A browser
+-- can be edited; this cannot.
+--
+-- These are deliberately NOT a generic "run SQL from the page" tool. A table
+-- editor that can run anything is the Supabase dashboard, which exists, is
+-- behind a real login, and is not served to the public. What is here is the
+-- handful of things somebody running this site actually does, each with its
+-- own validation — a ladder that must stay ascending, a status that must be
+-- one of three, a setting that must be one of a known list.
+-- ---------------------------------------------------------------------------
+
+-- --- Reports ---------------------------------------------------------------
+--
+-- An admin sees every report, including the ones the map hides: aged out,
+-- flagged into review, or removed. And the reporter's nickname with it, which
+-- reports_feed deliberately withholds from everybody else — moderation is the
+-- one job that cannot be done without it, because the thing you are usually
+-- looking at is not one bad report but six from one account.
+create or replace function public.admin_reports(
+  p_filter text default 'flagged',
+  p_search text default null,
+  p_limit  int  default 100
+)
+returns table (
+  id uuid, category text, headline text, description text,
+  city text, country_code char(2), lat double precision, lng double precision,
+  happened_at timestamptz, created_at timestamptz,
+  status text, support_count int, flag_count int,
+  reporter_id uuid, reporter text, reasons text[], on_the_map boolean
+)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  return query
+    select r.id, r.category, r.headline, r.description,
+           r.city, r.country_code, r.lat, r.lng,
+           r.happened_at, r.created_at,
+           r.status, r.support_count, r.flag_count,
+           r.reporter_id,
+           coalesce(nullif(btrim(p.display_name), ''), '(deleted account)'),
+           coalesce((select array_agg(distinct f.reason order by f.reason)
+                       from public.report_flags f where f.report_id = r.id), '{}'),
+           (r.status = 'published' and r.happened_at > now() - public.report_window())
+      from public.reports r
+      left join public.profiles p on p.id = r.reporter_id
+     where case p_filter
+             -- Flagged means "flagged and still waiting on a decision". A
+             -- report already taken down has had one, and leaving it here
+             -- means a queue that never empties and so stops being read.
+             when 'flagged'      then r.flag_count > 0 and r.status <> 'removed'
+             when 'under_review' then r.status = 'under_review'
+             when 'removed'      then r.status = 'removed'
+             when 'published'    then r.status = 'published'
+             else true
+           end
+       and (p_search is null or btrim(p_search) = ''
+            or r.headline ilike '%' || btrim(p_search) || '%'
+            or r.city     ilike '%' || btrim(p_search) || '%'
+            or p.display_name ilike '%' || btrim(p_search) || '%')
+     order by r.flag_count desc, r.happened_at desc
+     limit least(greatest(coalesce(p_limit, 100), 1), 500);
+end;
+$$;
+
+-- Approve, hide, or take down. Three statuses and nothing else, because the
+-- check constraint on the column is the same three and a typo should fail here
+-- rather than there.
+--
+-- Approving CLEARS the flags. Leaving them would re-hide the report the moment
+-- auto_hide_flag_threshold is reached again by the same people who flagged it
+-- the first time, and an admin who looked at it and said it was fine has
+-- already answered that question.
+create or replace function public.admin_set_report_status(p_id uuid, p_status text)
+returns text language plpgsql security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  if p_status not in ('published', 'under_review', 'removed') then
+    raise exception 'no such status: %', p_status;
+  end if;
+  if p_status = 'published' then
+    delete from public.report_flags where report_id = p_id;
+  end if;
+  update public.reports set status = p_status where id = p_id;
+  if not found then raise exception 'no such report'; end if;
+  return p_status;
+end;
+$$;
+
+-- Gone for good, rather than hidden. For a report that should never have been
+-- filed — somebody's address, somebody's name — where "removed" still leaves
+-- it in the table.
+create or replace function public.admin_delete_report(p_id uuid)
+returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  delete from public.reports where id = p_id;
+  if not found then raise exception 'no such report'; end if;
+  return true;
+end;
+$$;
+
+-- --- The ladder ------------------------------------------------------------
+--
+-- Replaced whole rather than edited row by row. A ladder is only valid as a
+-- set — ascending, starting at level 1, no two rungs at the same height — and
+-- editing it one row at a time means passing through states that are none of
+-- those. The page sends the table it wants; this takes it or refuses it.
+create or replace function public.admin_set_levels(p_rows jsonb)
+returns table (level int, min_points int)
+language plpgsql security definer set search_path = public as $$
+declare
+  wanted record;
+  seen   int := -1;
+  count_ int := 0;
+begin
+  perform public.admin_required();
+
+  if jsonb_typeof(p_rows) <> 'array' or jsonb_array_length(p_rows) = 0 then
+    raise exception 'the ladder needs at least one rung';
+  end if;
+
+  for wanted in
+    select (row ->> 'level')::int as lv, (row ->> 'min_points')::int as pts
+      from jsonb_array_elements(p_rows) as row
+     order by (row ->> 'level')::int
+  loop
+    count_ := count_ + 1;
+    if count_ = 1 and wanted.lv <> 1 then
+      raise exception 'the ladder has to start at level 1';
+    end if;
+    if count_ = 1 and wanted.pts <> 0 then
+      raise exception 'level 1 is where everybody starts, so it is 0 points';
+    end if;
+    if wanted.lv < 1 or wanted.lv > 100 then
+      raise exception 'level % is outside 1..100', wanted.lv;
+    end if;
+    if wanted.pts <= seen and count_ > 1 then
+      raise exception 'level % asks for % points, which is not more than the rung below it',
+        wanted.lv, wanted.pts;
+    end if;
+    seen := wanted.pts;
+  end loop;
+
+  delete from public.contributor_levels;
+  insert into public.contributor_levels (level, min_points)
+  select (row ->> 'level')::int, (row ->> 'min_points')::int
+    from jsonb_array_elements(p_rows) as row;
+
+  -- A rung that no longer exists cannot be somebody's given level.
+  update public.profiles p set level_override = null
+   where p.level_override is not null
+     and not exists (select 1 from public.contributor_levels l
+                      where l.level = p.level_override);
+
+  return query select l.level, l.min_points
+                 from public.contributor_levels l order by l.level;
+end;
+$$;
+
+-- --- Regions ---------------------------------------------------------------
+--
+-- Which countries are closed to NEW reports. Reading is never affected:
+-- everything already on the map stays visible to everyone, everywhere.
+create or replace function public.admin_region_catalog()
+returns table (group_code text, kind text, countries int, members text)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  return query select c.group_code, c.kind, c.countries, c.members
+                 from public.region_catalog c order by c.kind, c.group_code;
+end;
+$$;
+
+create or replace function public.admin_blocked_regions()
+returns table (countries text[], groups text[], closed int)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  return query
+    select coalesce(array(select jsonb_array_elements_text(
+             coalesce(s.value->'countries', '[]'::jsonb))), '{}')::text[],
+           coalesce(array(select jsonb_array_elements_text(
+             coalesce(s.value->'groups', '[]'::jsonb))), '{}')::text[],
+           coalesce(array_length(public.blocked_countries(), 1), 0)
+      from public.app_settings s where s.key = 'blocked_regions';
+end;
+$$;
+
+create or replace function public.admin_set_blocked_regions(
+  p_countries text[], p_groups text[]
+)
+returns int language plpgsql security definer set search_path = public as $$
+declare unknown text;
+begin
+  perform public.admin_required();
+
+  -- A group handle that matches nothing closes nothing, silently, and the
+  -- person who typed it believes a country is shut when it is open. Refused
+  -- with the name they used, so a typo reads as a typo.
+  select g into unknown from unnest(coalesce(p_groups, '{}')) as g
+   where g not in (select group_code from public.country_groups) limit 1;
+  if unknown is not null then
+    raise exception 'there is no region called % — see the list beside this', unknown;
+  end if;
+
+  insert into public.app_settings (key, value, note)
+  values ('blocked_regions',
+          jsonb_build_object('countries', to_jsonb(coalesce(p_countries, '{}')),
+                             'groups',    to_jsonb(coalesce(p_groups, '{}'))),
+          'Where new reports are refused.')
+  on conflict (key) do update set value = excluded.value;
+
+  return coalesce(array_length(public.blocked_countries(), 1), 0);
+end;
+$$;
+
+-- --- Settings --------------------------------------------------------------
+--
+-- The handful of numbers that change how the site behaves, by name, with what
+-- they are for. A known list rather than the whole table: blocked_regions is
+-- JSON and has its own screen, and a free-text editor over every row is a way
+-- to put a word where an integer goes and find out at the next refresh.
+create or replace function public.admin_settings()
+returns table (key text, value text, note text)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  return query
+    select s.key, s.value #>> '{}', s.note
+      from public.app_settings s
+     where s.key in ('report_window_days', 'public_sample_limit',
+                     'public_detail_max_span', 'auto_hide_flag_threshold',
+                     'points_per_report', 'points_per_confirmation',
+                     'points_per_given', 'report_move_window_hours')
+     order by s.key;
+end;
+$$;
+
+create or replace function public.admin_set_setting(p_key text, p_value text)
+returns text language plpgsql security definer set search_path = public as $$
+declare cleaned text := btrim(coalesce(p_value, ''));
+begin
+  perform public.admin_required();
+  if p_key not in ('report_window_days', 'public_sample_limit',
+                   'public_detail_max_span', 'auto_hide_flag_threshold',
+                   'points_per_report', 'points_per_confirmation',
+                   'points_per_given', 'report_move_window_hours') then
+    raise exception 'that setting is not editable from here: %', p_key;
+  end if;
+  -- Every one of these is a number, and every one of them is read with ::int
+  -- or ::numeric somewhere. A word here does not fail now, it fails on the
+  -- next read, in a function nobody is watching.
+  if cleaned !~ '^[0-9]+(\.[0-9]+)?$' then
+    raise exception '% has to be a number, not %', p_key, coalesce(p_value, 'nothing');
+  end if;
+  update public.app_settings set value = to_jsonb(cleaned::numeric) where key = p_key;
+  if not found then raise exception 'no such setting'; end if;
+  return cleaned;
+end;
+$$;
+
+revoke all on function public.admin_reports(text, text, int) from public, anon;
+revoke all on function public.admin_set_report_status(uuid, text) from public, anon;
+revoke all on function public.admin_delete_report(uuid) from public, anon;
+revoke all on function public.admin_set_levels(jsonb) from public, anon;
+revoke all on function public.admin_region_catalog() from public, anon;
+revoke all on function public.admin_blocked_regions() from public, anon;
+revoke all on function public.admin_set_blocked_regions(text[], text[]) from public, anon;
+revoke all on function public.admin_settings() from public, anon;
+revoke all on function public.admin_set_setting(text, text) from public, anon;
+grant execute on function public.admin_reports(text, text, int) to authenticated;
+grant execute on function public.admin_set_report_status(uuid, text) to authenticated;
+grant execute on function public.admin_delete_report(uuid) to authenticated;
+grant execute on function public.admin_set_levels(jsonb) to authenticated;
+grant execute on function public.admin_region_catalog() to authenticated;
+grant execute on function public.admin_blocked_regions() to authenticated;
+grant execute on function public.admin_set_blocked_regions(text[], text[]) to authenticated;
+grant execute on function public.admin_settings() to authenticated;
+grant execute on function public.admin_set_setting(text, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Granting a badge, by whatever you happen to know about the person.
 --
 -- A nickname, an email address, or the id itself — because which of the three

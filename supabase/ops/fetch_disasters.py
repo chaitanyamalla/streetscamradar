@@ -213,7 +213,7 @@ def countries_of(props):
 
 
 def severity_numbers(props):
-    """Magnitude and depth, where GDACS measured them.
+    """GDACS's measurement: its own words, and the two numbers worth having.
 
     severitydata arrives as a Python-repr string like
     {'severity': 5.0, 'severitytext': 'Magnitude 5M, Depth:157.801km', ...}
@@ -229,7 +229,7 @@ def severity_numbers(props):
         except json.JSONDecodeError:
             raw = None
     if not isinstance(raw, dict):
-        return None, None
+        return None, None, None
 
     magnitude = None
     if str(raw.get("severityunit") or "").strip().upper() == "M":
@@ -238,14 +238,22 @@ def severity_numbers(props):
         except (TypeError, ValueError):
             magnitude = None
 
+    text = str(raw.get("severitytext") or "").strip()
+
     depth = None
-    match = re.search(r"Depth:\s*([0-9.]+)\s*km", str(raw.get("severitytext") or ""))
+    match = re.search(r"Depth:\s*([0-9.]+)\s*km", text)
     if match:
         try:
             depth = round(float(match.group(1)), 1)
         except ValueError:
             depth = None
-    return magnitude, depth
+
+    # The words themselves, kept. They are the only line in a popup that is a
+    # measurement of the event rather than a sentence of ours about the map, and
+    # what they say differs by kind in a way no wording of ours could cover.
+    # Empty for the kinds GDACS does not measure, and that is fine: the popup
+    # then has one line fewer rather than a line saying nothing.
+    return magnitude, depth, (text[:160] or None)
 
 
 def point_of(feature):
@@ -346,7 +354,7 @@ def rows_from(payload, now=None):
                 and str(props.get("iscurrent") or "true").strip().lower() == "false":
             continue
 
-        magnitude, depth = severity_numbers(props)
+        magnitude, depth, measure = severity_numbers(props)
 
         name = str(props.get("name") or props.get("description") or "").strip()
         if not name:
@@ -383,7 +391,7 @@ def rows_from(payload, now=None):
                 "from_date": as_timestamp(props.get("fromdate")),
                 "to_date": to_date,
                 "url": url, "lat": lat, "lng": lng,
-                "magnitude": magnitude, "depth_km": depth,
+                "magnitude": magnitude, "depth_km": depth, "measure": measure,
             }
 
     # An event GDACS lists but names no country for cannot answer the only
@@ -407,7 +415,8 @@ def sql_num(value):
 
 def emit_sql(rows):
     columns = ("event_id", "country_code", "kind", "severity", "name",
-               "from_date", "to_date", "url", "lat", "lng", "magnitude", "depth_km")
+               "from_date", "to_date", "url", "lat", "lng", "magnitude", "depth_km",
+               "measure")
     print(f"-- {len(rows)} country alerts from {SOURCE}")
     print("begin;")
 
@@ -417,7 +426,7 @@ def emit_sql(rows):
             sql_str(r["severity"]), sql_str(r["name"]),
             sql_str(r["from_date"]), sql_str(r["to_date"]), sql_str(r["url"]),
             sql_num(r["lat"]), sql_num(r["lng"]),
-            sql_num(r["magnitude"]), sql_num(r["depth_km"]))
+            sql_num(r["magnitude"]), sql_num(r["depth_km"]), sql_str(r["measure"]))
         for r in rows
     ]
     for start in range(0, len(values), INSERT_BATCH):
@@ -429,6 +438,7 @@ def emit_sql(rows):
               "from_date = excluded.from_date, to_date = excluded.to_date, "
               "url = excluded.url, lat = excluded.lat, lng = excluded.lng, "
               "magnitude = excluded.magnitude, depth_km = excluded.depth_km, "
+              "measure = excluded.measure, "
               "refreshed_at = now();")
 
     # GDACS decides when something is over. Anything it stopped listing goes,

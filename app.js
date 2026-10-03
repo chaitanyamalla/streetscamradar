@@ -24,7 +24,7 @@ import { preferredTheme, currentTheme, applyTheme, toggleTheme, chooseTheme,
          themeChoice, onThemeChange, followSystem } from './js/theme.js';
 import { createMap, addLayers, setMapTheme, setReports, setDensity, boundsOf, flyToPlace,
          registerCategoryIcons, registerSafetyIcons, setSafetyPlaces, setSafetyVisible,
-         setHazards, setDisasters, setWeather, maplibregl } from './js/map.js';
+         setHazards, setDisasters, setWeather, startPulse, maplibregl } from './js/map.js';
 import { quakesIn, inBounds, quakeTone, hazardLabel, isLive, hasEnded,
          isUpcoming } from './js/hazards.js';
 import { hazardSignSVG } from './js/hazard-signs.js';
@@ -98,8 +98,14 @@ let openPopup = null;   // only one info window at a time
  * Called on first load and again after every basemap swap, because setStyle
  * throws all of it away — sources, layers and the images the layers name.
  */
+// The ring around the red alerts. A style swap throws its layers away, so the
+// loop writing to them is stopped before the new ones are built.
+let pulse = null;
+
 function buildMapLayers() {
+  pulse?.stop();
   addLayers(map);
+  pulse = startPulse(map);
   layersReady = true;
   if (state.categories.length) registerCategoryIcons(map, state.categories);
   registerSafetyIcons(map);
@@ -795,6 +801,20 @@ function countWeatherLegend() {
 }
 
 /**
+ * Tell the ring whether there is anything red to ring.
+ *
+ * It animates frame by frame, and a loop waking sixty times a second to move a
+ * circle nobody can see is a flat battery on a phone in a pocket. The page knows
+ * what it just drew, so it says so, and on the ordinary day when nothing is red
+ * anywhere the loop never starts.
+ */
+function tellPulse() {
+  const red = (rows) => rows?.some(r => r.severity === 'severe'
+    && !r.ended && !r.upcoming) ?? false;
+  pulse?.setActive(red(state.disasterMarkers) || red(state.weatherMarkers));
+}
+
+/**
  * The weather warnings that came with a position, drawn.
  *
  * Every country at once, not just the one in view: these are map markers, and a
@@ -846,6 +866,7 @@ function paintWeatherMarkers() {
   }
   state.weatherMarkers = fanOut([...byPoint.values()]);
   setWeather(map, state.weatherMarkers);
+  tellPulse();
   countWeatherLegend();
 }
 
@@ -968,6 +989,7 @@ function paintDisasterMarkers() {
     .map(row => ({ ...row, ended: hasEnded(row) }));
   state.disasterMarkers = rows.filter(r => state.layers[r.kind]);
   setDisasters(map, state.disasterMarkers);
+  tellPulse();
 
   const bounds = boundsOf(map);
   // The same words for every row, because they answer the same question about

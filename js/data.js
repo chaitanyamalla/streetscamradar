@@ -338,7 +338,8 @@ export function fetchDisasters() {
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
   disasterCache = supabase
     .from('disaster_alerts')
-    .select('event_id,country_code,kind,severity,name,from_date,to_date,url,lat,lng,magnitude,depth_km')
+    .select('event_id,country_code,kind,severity,name,from_date,to_date,url,lat,lng,'
+            + 'magnitude,depth_km,measure')
     .or(`to_date.is.null,to_date.gte.${weekAgo}`)
     .then(({ data, error }) => {
       if (error) throw error;

@@ -568,21 +568,19 @@ export function quakePopupHTML(props) {
 /**
  * A GDACS event, opened from its marker.
  *
- * The important line here is the one about the position. A marker implies "it
- * happened here", and for a volcano or a wildfire that is true. For a flood or
- * a flood GDACS gives the centre of the area affected, which can be tens of
- * kilometres from any water and is a region rather than a spot; for a cyclone
- * it is where the storm was last placed, which by definition has moved. Saying
- * so costs one line and is the difference between a marker that informs and a
- * marker that misleads.
+ * Four things, and only one of them is ours: what kind of event it is, GDACS's
+ * name for it, GDACS's grading, and GDACS's own MEASUREMENT — "Magnitude 5.2M,
+ * Depth:10km", "Tropical storm (maximum wind speed of 120 km/h)". That last one
+ * was being thrown away at the fetcher, which left the popup carrying three
+ * lines of our prose about what a marker position means and nothing at all
+ * about the event.
+ *
+ * What the position means still matters — a volcano is where it is, a cyclone
+ * has moved since, a flood is a centroid that can sit in open water — but it is
+ * the same sentence on every marker of that kind. It is said once in the
+ * Disaster update panel now, where the markers are explained, instead of on
+ * every single one of them.
  */
-const PLACEMENT = {
-  volcano: 'hazard.place.exact',
-  wildfire: 'hazard.place.exact',
-  cyclone: 'hazard.place.moving',
-  flood: 'hazard.place.area',
-};
-
 export function disasterPopupHTML(props) {
   const kind = String(props.kind ?? 'flood');
 
@@ -615,7 +613,7 @@ export function disasterPopupHTML(props) {
       </div>
     </div>
     ${gradeLine(props.severity)}
-    <p class="popup-fine">${esc(t(PLACEMENT[kind] ?? 'hazard.place.area'))}</p>
+    ${props.measure ? `<p class="popup-measure">${esc(props.measure)}</p>` : ''}
     ${props.url ? `<div class="popup-actions">
       <a class="popup-action is-primary" href="${esc(props.url)}"
          target="_blank" rel="noopener noreferrer">${esc(t('hazard.official'))}</a>

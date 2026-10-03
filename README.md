@@ -621,12 +621,24 @@ admin cannot remove themselves here (close your own account from your profile,
 like anybody else). Both would leave a site nobody can administer, with the SQL
 editor as the only way back.
 
-**The first admin is made in the SQL editor**, because there is nowhere else it
-can be done:
+**Making somebody an admin.** Normally on the Members screen: find them by
+nickname or email, read their address, level, report count and join date, and
+set the role from a dropdown. That identifies a person far better than any
+string typed into a file.
+
+**The first one** has to come from outside, because the page refuses anybody
+who is not already an admin. `supabase/ops/make_admin.sql` takes a nickname, an
+email address or a user id — whichever you have — and refuses an ambiguous
+match with the candidates named rather than guessing. Which one you use depends
+on where you run it: a nickname is safe in the Database workflow (its logs are
+public, and nicknames are already on the contributors report), an email is not
+and belongs in the Supabase SQL editor, and a user id is fine either way.
+
+In the SQL editor directly:
 
 ```sql
 update public.profiles set role = 'admin'
- where id = (select id from auth.users where email = 'you@example.com');
+ where id = public.find_member('you@example.com');
 ```
 
 **There is no "add member" button, and there cannot be one.** Creating an

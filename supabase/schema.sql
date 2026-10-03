@@ -1176,7 +1176,12 @@ begin
   return query
     select p.id,
            p.display_name,
-           u.email,
+           -- Cast, because auth.users.email is varchar(255) and this function
+           -- declares text. plpgsql will not widen one to the other on its own:
+           -- it raises "structure of query does not match function result type",
+           -- which is how the Members screen came back empty on the live site
+           -- while every local test passed against a shim that said text.
+           u.email::text,
            p.role,
            public.member_level(p.id),
            p.level_override,

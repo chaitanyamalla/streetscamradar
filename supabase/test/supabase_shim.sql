@@ -4,7 +4,13 @@ create extension if not exists pgcrypto;
 create schema if not exists auth;
 create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),
-  email text,
+  -- varchar(255), NOT text, because that is what Supabase's auth.users has.
+  -- The difference is not cosmetic: a plpgsql function that declares an OUT
+  -- column as `text` and returns this one fails with "structure of query does
+  -- not match function result type" — on the real database only. A shim that
+  -- says `text` here makes every such function pass locally and fail live,
+  -- which is exactly what happened to admin_members.
+  email character varying(255),
   raw_user_meta_data jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );

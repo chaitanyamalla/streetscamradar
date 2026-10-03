@@ -781,6 +781,30 @@ create trigger flags_recount
   for each row execute function public.recount_flags();
 
 -- ---------------------------------------------------------------------------
+-- How far back a reader asked to look.
+--
+-- The page has a row of chips — today, 2 days, 3 days, 5 days, the whole
+-- window — and for the two zoom levels where a signed-out visitor gets counts
+-- rather than rows, the filtering has to happen here: a density circle is a
+-- number the database computed, and there is nothing in the browser left to
+-- filter.
+--
+-- Clamped at both ends rather than trusted. A request for 0 days would empty
+-- the map and a request for 400 would ask for rows the window has already
+-- retired, so anything outside 1 day .. the window is the window. Null means
+-- the whole window, which is what every caller that has not been updated
+-- sends.
+create or replace function public.report_age_limit(p_days int)
+returns interval language sql stable set search_path = public as $$
+  select case
+           when p_days is null then public.report_window()
+           when make_interval(days => greatest(p_days, 1)) > public.report_window()
+             then public.report_window()
+           else make_interval(days => greatest(p_days, 1))
+         end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- The signed-out view of the world.
 --
 -- Zoomed out -> counts only, bucketed into a coarse grid. No text, no pin.
@@ -790,10 +814,13 @@ create trigger flags_recount
 -- The return type changes with severity gone, and Postgres will not replace a
 -- function's signature in place.
 drop function if exists public.public_area_summary(double precision, double precision, double precision, double precision, int);
+drop function if exists public.public_area_summary(double precision, double precision, double precision, double precision, int, int);
 create or replace function public.public_area_summary(
   min_lat double precision, min_lng double precision,
   max_lat double precision, max_lng double precision,
-  cells   int default 12
+  cells   int default 12,
+  -- How far back the reader's chip is set. Null is the whole window.
+  max_age_days int default null
 )
 returns table (lat double precision, lng double precision, total bigint, confirmed bigint)
 language sql stable security definer set search_path = public as $$
@@ -842,7 +869,7 @@ language sql stable security definer set search_path = public as $$
          count(*) filter (where r.support_count > 0)
     from public.reports r, frame f
    where r.status = 'published'
-     and r.happened_at > now() - public.report_window()
+     and r.happened_at > now() - public.report_age_limit(max_age_days)
      and r.lat between f.qy0 and f.qy1
      and r.lng between f.qx0 and f.qx1
    group by 1, 2;
@@ -855,9 +882,14 @@ $$;
 -- re-run of this file silently took the text away again until that script was
 -- run after it. One definition, here.
 drop function if exists public.public_sample_reports(double precision, double precision, double precision, double precision);
+drop function if exists public.public_sample_reports(double precision, double precision, double precision, double precision, int);
 create or replace function public.public_sample_reports(
   min_lat double precision, min_lng double precision,
-  max_lat double precision, max_lng double precision
+  max_lat double precision, max_lng double precision,
+  -- As above. The sample is capped at five rows, so without this a reader who
+  -- asked for today would be shown five reports from across the week and told
+  -- the rest were hidden.
+  max_age_days int default null
 )
 returns table (
   id uuid, category text, impacts text[], headline text, description text,
@@ -876,7 +908,7 @@ language sql stable security definer set search_path = public as $$
            r.happened_at, r.support_count
       from public.reports r, bounds b
      where r.status = 'published'
-       and r.happened_at > now() - public.report_window()
+       and r.happened_at > now() - public.report_age_limit(max_age_days)
        and r.lat between b.y0 and b.y1
        and r.lng between b.x0 and b.x1
        -- Individual reports only once the viewer has zoomed in far enough that
@@ -893,10 +925,14 @@ language sql stable security definer set search_path = public as $$
    limit public.setting_int('public_sample_limit', 5);
 $$;
 
-revoke all on function public.public_area_summary(double precision, double precision, double precision, double precision, int) from public;
-revoke all on function public.public_sample_reports(double precision, double precision, double precision, double precision) from public;
-grant execute on function public.public_area_summary(double precision, double precision, double precision, double precision, int) to anon, authenticated;
-grant execute on function public.public_sample_reports(double precision, double precision, double precision, double precision) to anon, authenticated;
+revoke all on function public.public_area_summary(double precision, double precision, double precision, double precision, int, int) from public;
+revoke all on function public.public_sample_reports(double precision, double precision, double precision, double precision, int) from public;
+grant execute on function public.public_area_summary(double precision, double precision, double precision, double precision, int, int) to anon, authenticated;
+grant execute on function public.public_sample_reports(double precision, double precision, double precision, double precision, int) to anon, authenticated;
+-- report_age_limit is read by both of those while they run as the definer, so
+-- it needs no grant of its own; given one anyway, because a reader asking the
+-- database what its own window is is not a secret.
+grant execute on function public.report_age_limit(int) to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Police stations and hospitals, stored rather than fetched live.

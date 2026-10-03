@@ -552,6 +552,24 @@ em { font-style:italic; }
 .count-pill { flex:none; min-width:30px; padding:5px 10px; border-radius:100px;
   background:var(--pin); color:var(--on-accent); text-align:center;
   font:600 12px 'DM Mono',monospace; }
+/* How far back. Wraps rather than scrolls, which was the first attempt and was
+   wrong: five chips do not fit across a 314px card in any language, so the
+   widest one — the one chosen when the map opens — sat off the right edge
+   where nobody would find it. Seeing all five answers at once is the entire
+   reason this is a row of chips and not a dropdown, so the second line is
+   worth the 24px it costs the list. */
+.age-bar { display:flex; flex-wrap:wrap; gap:6px; padding:0 14px 10px; }
+.age-chip { flex:none; border:1px solid var(--line-strong); border-radius:100px;
+  background:var(--surface); padding:4px 10px; font-size:10.5px; color:var(--ink-2);
+  white-space:nowrap; }
+.age-chip:hover { border-color:var(--brand); }
+/* The chosen one is filled rather than merely un-dimmed. The category chips
+   above dim what is OFF, which works when several are on at once; exactly one
+   of these is ever on, and dimming four to point at the fifth reads as four
+   disabled controls. */
+.age-chip.is-on { border-color:var(--brand-fill); background:var(--brand-fill);
+  color:var(--on-accent); font-weight:700; }
+
 .report-list { overflow:auto; }
 .report-entry { display:flex; gap:10px; padding:11px 14px; border-top:1px solid var(--line);
   cursor:pointer; }
@@ -998,6 +1016,8 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   .filter-row { min-height:36px; font-size:13px; }
   .filter-row input { width:17px; height:17px; }
   .cat-chip { padding:8px 12px 8px 9px; font-size:12px; }
+  /* Thumb-sized on a phone, like every other chip here. */
+  .age-chip { padding:8px 13px; font-size:12px; }
   .chip-action { padding:6px 12px; font-size:11.5px; }
   .close-button { width:44px; height:44px; }
 

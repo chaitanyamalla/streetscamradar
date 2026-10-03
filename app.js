@@ -7,6 +7,7 @@
 // not this file's.
 // ---------------------------------------------------------------------------
 import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS,
+         REPORT_AGE_CHIPS,
          REPORT_MOVE_WINDOW_HOURS, SAFETY_MIN_ZOOM, EMERGENCY_MIN_ZOOM,
          SUGGEST_MIN_CHARS, SUGGEST_DEBOUNCE_MS, REPORT_BOUNDS,
          WEATHER_COUNTRIES } from './js/config.js';
@@ -30,6 +31,7 @@ import { quakesIn, inBounds, quakeTone, hazardLabel, isLive, hasEnded,
 import { hazardSignSVG } from './js/hazard-signs.js';
 import { esc, toast, liftToast, renderCategoryFilters, renderReportList, popupHTML, safetyPopupHTML,
          setGateNote, renderProfileReports, renderProfileStats, STAT_TITLE_KEYS,
+         renderAgeBar, reportScopeLine,
          categoryLabel, advisoryDialogHTML, quakePopupHTML, disasterPopupHTML,
          weatherDialogHTML, weatherPopupHTML } from './js/ui.js';
 import { countryName } from './js/i18n.js';
@@ -48,6 +50,12 @@ const state = {
   supported: new Set(),
   picking: false,
   safetyOn: true,
+  // How far back the chips above the report list are set, in days. The widest
+  // chip to begin with, deliberately: a map that opens already hiding four of
+  // its seven days looks like a quiet city rather than a filtered one, and
+  // nothing on screen would say which it was. Not remembered between visits
+  // for the same reason.
+  ageDays: REPORT_WINDOW_DAYS,
   profile: null,      // display_name and home area, read once at sign-in
   safetyPlaces: [],   // what the safety layer last loaded, for the country lookup
   advisories: null,   // country_code -> row, read once per session
@@ -505,7 +513,8 @@ async function refresh() {
   if (!layersReady || !isConfigured()) return;
   const ticket = ++inFlight;
   try {
-    const result = await fetchForBounds(boundsOf(map), { signedIn: signedIn() });
+    const result = await fetchForBounds(boundsOf(map),
+      { signedIn: signedIn(), ageDays: state.ageDays });
     if (ticket !== inFlight) return;         // a newer request already won
     state.lastFetch = result;
 
@@ -520,8 +529,28 @@ async function refresh() {
   }
 }
 
-const passesFilter = (r) =>
+const passesCategory = (r) =>
   state.activeCategories.size === 0 || state.activeCategories.has(r.category);
+
+/**
+ * Inside the window the chips are set to.
+ *
+ * Applied here as well as in the fetch, and both are needed. The fetch is what
+ * narrows the counts a signed-out visitor sees, which only the database can
+ * do; this is what makes a chip respond the instant it is pressed, on rows the
+ * page already has, instead of after a round trip.
+ *
+ * Counted back from now rather than from midnight. "Today" at nine in the
+ * morning would otherwise mean nine hours, and a scam at eleven last night
+ * would be filed under a day the reader cannot see any more.
+ */
+const passesAge = (r) => {
+  if (state.ageDays >= REPORT_WINDOW_DAYS) return true;
+  const when = new Date(r.happened_at).getTime();
+  return Number.isFinite(when) && when > Date.now() - state.ageDays * 86400000;
+};
+
+const passesFilter = (r) => passesCategory(r) && passesAge(r);
 
 // Hospitals are not gated by sign-in or the report window — they are public
 // OSM data, the same for everyone, refreshed independently of the report fetch
@@ -1298,11 +1327,13 @@ function draw() {
   $('#reports-count').textContent = mode === 'summary' ? totalCells : visible.length;
   $('#reports-title').textContent = t(mode === 'summary'
     ? 'reports.title.region' : 'reports.title.here');
-  $('#reports-scope').textContent = t(mode === 'member'
-    ? 'reports.scope.member' : 'reports.scope.public', { days: REPORT_WINDOW_DAYS });
+  $('#reports-scope').textContent = reportScopeLine(
+    { mode, ageDays: state.ageDays, windowDays: REPORT_WINDOW_DAYS });
+  renderAgeBar($('#age-bar'), REPORT_AGE_CHIPS, state.ageDays, REPORT_WINDOW_DAYS);
 
   renderReportList($('#report-list'), visible, {
     categories: state.categories, mode, supported: state.supported, signedIn: signedIn(),
+    narrowed: state.ageDays < REPORT_WINDOW_DAYS,
   });
   setGateNote($('#gate-note'), { mode, shown: visible.length, hiddenCount, signedIn: signedIn() });
 
@@ -1772,6 +1803,41 @@ function wireUI() {
     state.activeCategories = new Set(state.categories.map(c => c.slug));
     renderCategoryFilters($('#category-filters'), state.categories, state.activeCategories);
     draw();
+  });
+
+  // --- how far back
+  //
+  // Two things happen on a press and they are not the same thing twice. draw()
+  // repaints from rows the page already has, so the chip answers immediately.
+  // refresh() re-asks the database, which is the only way the counts in the
+  // density circles — added up there, not here — can follow the chip at all.
+  function chooseAge(days) {
+    if (!days || days === state.ageDays) return;
+    state.ageDays = days;
+    draw();
+    refresh();
+  }
+
+  $('#age-bar').addEventListener('click', e => {
+    const chip = e.target.closest('.age-chip');
+    if (chip) chooseAge(Number(chip.dataset.age));
+  });
+
+  // Arrow keys move along the row, which is what a radiogroup promises and
+  // what somebody who reached it by keyboard will try. Home and End because
+  // "everything" and "today" are the two ends people actually want.
+  $('#age-bar').addEventListener('keydown', e => {
+    const keys = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 };
+    const here = REPORT_AGE_CHIPS.indexOf(state.ageDays);
+    let next = null;
+    if (e.key in keys) next = here + keys[e.key];
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = REPORT_AGE_CHIPS.length - 1;
+    if (next === null) return;
+    e.preventDefault();
+    const days = REPORT_AGE_CHIPS[Math.min(Math.max(next, 0), REPORT_AGE_CHIPS.length - 1)];
+    chooseAge(days);
+    $(`.age-chip[data-age="${days}"]`)?.focus();
   });
 
   // --- report list actions

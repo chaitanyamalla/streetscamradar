@@ -383,6 +383,15 @@
             </div>
             <span class="count-pill" id="reports-count">0</span>
           </div>
+
+          <!-- How far back to look. A radiogroup rather than a row of buttons,
+               because that is what it is: exactly one is chosen, and arrow keys
+               should move between them the way they do in every other one.
+               Filled by app.js from REPORT_AGE_CHIPS so the widest chip is
+               always the window itself. -->
+          <div class="age-bar" id="age-bar" role="radiogroup"
+               data-i18n-aria="reports.when.label" aria-label="How far back"></div>
+
           <div id="report-list" class="report-list"></div>
           <div id="gate-note" class="gate-note" hidden></div>
         </aside>

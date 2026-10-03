@@ -57,6 +57,19 @@ export const PUBLIC_SAMPLE_LIMIT = 5;
 // or that would never appear on the map.
 export const REPORT_WINDOW_DAYS = 7;
 
+// How far back the chips above the report list can look, in days.
+//
+// Why these five and not a slider. A slider over a seven-day window gives
+// somebody 168 positions to choose between for a question that has about five
+// useful answers, and no position a second person could describe. These are
+// the answers: what happened today, has it carried over from yesterday, the
+// long weekend, the working week, everything we hold.
+//
+// The last one is the window itself rather than a number of its own, so
+// widening the window in app_settings widens the chip with it instead of
+// leaving a chip that quietly shows less than "all".
+export const REPORT_AGE_CHIPS = [1, 2, 3, 5, REPORT_WINDOW_DAYS];
+
 // How long after filing a report its author may still move it. Mirrors
 // app_settings.report_move_window_hours. Somebody who mis-tapped the map
 // should be able to fix it; a report still movable a week later, after people

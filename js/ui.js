@@ -143,13 +143,67 @@ export function renderCategoryFilters(host, categories, activeSet) {
     </button>`).join('');
 }
 
-export function renderReportList(host, reports, { categories, mode, supported, signedIn }) {
+/**
+ * How far back to look, as one chip per answer.
+ *
+ * The labels are not "1 day", "2 days", "3 days": the first one is "Today",
+ * because a day counted back from right now is what a person means by today
+ * and "1 day" reads like a duration rather than a choice. The widest is named
+ * for what it is — "All 7 days" — so the chip that shows everything says so
+ * instead of looking like one more step on the ladder.
+ */
+export function renderAgeBar(host, chips, chosen, windowDays) {
+  // Built once, then only ever updated. It would be shorter to rewrite
+  // innerHTML every time, and that is what this did first — but the bar is
+  // repainted on every pan and every refetch, and rewriting it throws away the
+  // focused element. The cost was a keyboard: an arrow key moved the chip, the
+  // refetch landed a moment later, and focus was on the body, so the next
+  // arrow key went nowhere. Nothing a mouse would ever notice.
+  const signature = `${chips.join(',')}|${windowDays}|${currentLanguage()}`;
+  if (host.dataset.chips !== signature) {
+    host.dataset.chips = signature;
+    host.innerHTML = chips.map(days => {
+      const label = days === 1 ? t('reports.when.today')
+        : days >= windowDays ? t('reports.when.all', { n: windowDays })
+        : plural('reports.when.days', days);
+      return `<button type="button" class="age-chip" role="radio"
+                      data-age="${days}">${esc(label)}</button>`;
+    }).join('');
+  }
+  for (const chip of host.querySelectorAll('.age-chip')) {
+    const on = Number(chip.dataset.age) === chosen;
+    chip.classList.toggle('is-on', on);
+    chip.setAttribute('aria-checked', String(on));
+    chip.tabIndex = on ? 0 : -1;
+  }
+}
+
+/**
+ * The line above the list: how far back, and whose view of it.
+ *
+ * Both halves in one string rather than concatenated, because the separator
+ * and the order of the two are a language's business, not ours.
+ */
+export function reportScopeLine({ mode, ageDays, windowDays }) {
+  const when = ageDays === 1
+    ? t('reports.when.today')
+    : plural('reports.window.days', Math.min(ageDays, windowDays));
+  return t(mode === 'member' ? 'reports.scope.member' : 'reports.scope.public', { when });
+}
+
+export function renderReportList(host, reports, { categories, mode, supported, signedIn,
+                                                  narrowed = false }) {
   const byslug = new Map(categories.map(c => [c.slug, c]));
 
   if (!reports.length) {
-    host.innerHTML = `<p class="empty-note">${esc(
-      t(mode === 'summary' ? 'reports.empty.summary' : 'reports.empty.here')
-    )}</p>`;
+    // "Nothing reported here in the last 7 days" is the wrong sentence when
+    // the reader has just narrowed it to today: the right answer is that the
+    // window is narrow, not that the place is quiet, and those two readings
+    // lead somewhere different.
+    const key = mode === 'summary' ? 'reports.empty.summary'
+      : narrowed ? 'reports.empty.narrowed'
+      : 'reports.empty.here';
+    host.innerHTML = `<p class="empty-note">${esc(t(key))}</p>`;
     return;
   }
 

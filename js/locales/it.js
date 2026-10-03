@@ -20,8 +20,9 @@ export default {
   'header.language': 'Lingua',
   'header.darkMode': 'Modalità scura',
 
-  'intro.heading': 'Pianifica il viaggio,<br /><em>strada per strada.</em>',
-  'intro.copy': 'Truffe segnalate dai viaggiatori, avvisi ufficiali di viaggio, allerte meteo e l’ospedale più vicino — su un’unica mappa.',
+  'intro.heading': 'Conoscere le truffe<br /><em>prima di arrivare.</em>',
+  'intro.copy': 'Truffe di strada segnalate dai viaggiatori e dai residenti a cui sono capitate — con i consigli di viaggio ufficiali, le allerte meteo e l’ospedale più vicino sulla stessa mappa.',
+  'intro.who': 'Consultarla è gratis, in tutto il mondo. I membri vedono ogni segnalazione di una zona e possono aggiungere le proprie.',
   'intro.search.label': 'Cerca una città, un paese, un CAP o un indirizzo',
   'intro.search.placeholder': 'Prova Lisbona, 10115 Berlino o Khao San Road',
   'intro.search.go': 'Cerca',

@@ -225,6 +225,10 @@ em { font-style:italic; }
   font-style:italic; letter-spacing:-.02em; color:var(--brand); }
 .intro-copy { max-width:290px; margin:9px 0 0; color:var(--ink-soft);
   font-size:13px; line-height:1.55; text-wrap:pretty; }
+/* Quieter than the line above it: what the site is comes first, what it costs
+   comes second, and two paragraphs at the same weight read as one long one. */
+.intro-who { max-width:290px; margin:8px 0 0; color:var(--muted);
+  font-size:12px; line-height:1.5; text-wrap:pretty; }
 
 .place-search { display:flex; align-items:center; gap:8px; margin-top:14px;
   padding:6px 6px 6px 12px; background:var(--surface);
@@ -1019,7 +1023,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
     border:0; border-radius:0; background:none; backdrop-filter:none;
     -webkit-backdrop-filter:none; box-shadow:none; }
   .map-intro h1 { font-size:28px; }
-  .intro-copy { max-width:none; }
+  .intro-copy, .intro-who { max-width:none; }
   /* The map is the product on a phone: give it the room that headings,
      intro copy and the explainer sections were using, and put the zoom
      controls on top of it rather than in a row of their own. */

@@ -24,8 +24,9 @@ export default {
   'header.darkMode': 'Donkere modus',
 
   // --- intro ---------------------------------------------------------------
-  'intro.heading': 'Plan je reis,<br /><em>straat voor straat.</em>',
-  'intro.copy': 'Door reizigers gemelde oplichting, officieel reisadvies, weerwaarschuwingen en het dichtstbijzijnde ziekenhuis — op één kaart.',
+  'intro.heading': 'Ken de trucs<br /><em>voordat je aankomt.</em>',
+  'intro.copy': 'Straatoplichting, gemeld door de reizigers en bewoners die het overkwam — met officieel reisadvies, waarschuwingen voor zwaar weer en het dichtstbijzijnde ziekenhuis op dezelfde kaart.',
+  'intro.who': 'Overal ter wereld gratis te bekijken. Leden zien elke melding in een gebied en kunnen die van henzelf toevoegen.',
   'intro.search.label': 'Zoek een stad, dorp, postcode of adres',
   'intro.search.placeholder': 'Probeer Lissabon, 10115 Berlijn of Khao San Road',
   'intro.search.go': 'Zoeken',

@@ -20,8 +20,9 @@ export default {
   'header.language': 'Langue',
   'header.darkMode': 'Mode sombre',
 
-  'intro.heading': 'Préparer le voyage,<br /><em>rue par rue.</em>',
-  'intro.copy': 'Arnaques signalées par des voyageurs, conseils aux voyageurs officiels, vigilance météo et l’hôpital le plus proche — sur une seule carte.',
+  'intro.heading': 'Connaître les arnaques<br /><em>avant d’arriver.</em>',
+  'intro.copy': 'Des arnaques de rue signalées par les voyageurs et les habitants à qui elles sont arrivées — avec les conseils aux voyageurs officiels, les alertes météo et l’hôpital le plus proche sur la même carte.',
+  'intro.who': 'Consultation gratuite, partout dans le monde. Les membres voient tous les signalements d’une zone et peuvent ajouter les leurs.',
   'intro.search.label': 'Chercher une ville, un village, un code postal ou une adresse',
   'intro.search.placeholder': 'Essayez Lisbonne, 10115 Berlin ou Khao San Road',
   'intro.search.go': 'Chercher',

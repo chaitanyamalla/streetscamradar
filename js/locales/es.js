@@ -20,8 +20,9 @@ export default {
   'header.language': 'Idioma',
   'header.darkMode': 'Modo oscuro',
 
-  'intro.heading': 'Planea tu viaje,<br /><em>calle por calle.</em>',
-  'intro.copy': 'Estafas reportadas por viajeros, avisos oficiales de viaje, alertas meteorológicas y el hospital más cercano, en un solo mapa.',
+  'intro.heading': 'Conoce las estafas<br /><em>antes de llegar.</em>',
+  'intro.copy': 'Estafas callejeras denunciadas por los viajeros y vecinos a quienes les pasaron — con avisos oficiales de viaje, alertas de mal tiempo y el hospital más cercano en el mismo mapa.',
+  'intro.who': 'Consultarlo es gratis, en cualquier parte del mundo. Los miembros ven todas las denuncias de una zona y pueden añadir las suyas.',
   'intro.search.label': 'Busca una ciudad, pueblo, código postal o dirección',
   'intro.search.placeholder': 'Prueba con Lisboa, 10115 Berlín o Khao San Road',
   'intro.search.go': 'Buscar',

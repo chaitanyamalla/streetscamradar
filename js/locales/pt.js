@@ -25,8 +25,9 @@ export default {
   'header.darkMode': 'Modo escuro',
 
   // --- intro ---------------------------------------------------------------
-  'intro.heading': 'Planear a viagem,<br /><em>rua a rua.</em>',
-  'intro.copy': 'Burlas relatadas por viajantes, conselhos oficiais de viagem, avisos meteorológicos e o hospital mais próximo — num só mapa.',
+  'intro.heading': 'Conhecer as burlas<br /><em>antes de chegar.</em>',
+  'intro.copy': 'Burlas de rua relatadas pelos viajantes e residentes a quem aconteceram — com conselhos oficiais de viagem, avisos de mau tempo e o hospital mais próximo no mesmo mapa.',
+  'intro.who': 'Consultar é grátis, em qualquer parte do mundo. Os membros veem todos os relatos de uma zona e podem acrescentar os seus.',
   'intro.search.label': 'Pesquise uma cidade, vila, código postal ou morada',
   'intro.search.placeholder': 'Experimente Lisboa, 10115 Berlim ou Khao San Road',
   'intro.search.go': 'Pesquisar',

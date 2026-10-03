@@ -20,8 +20,9 @@ export default {
   'header.language': 'Jazyk',
   'header.darkMode': 'Tmavý režim',
 
-  'intro.heading': 'Naplánovat cestu,<br /><em>ulici po ulici.</em>',
-  'intro.copy': 'Podvody hlášené cestovateli, oficiální cestovní doporučení, výstrahy počasí a nejbližší nemocnice — na jedné mapě.',
+  'intro.heading': 'Znát podvody<br /><em>dřív, než dorazíte.</em>',
+  'intro.copy': 'Pouliční podvody nahlášené cestovateli a místními, kterým se staly — spolu s oficiálními cestovními doporučeními, výstrahami před počasím a nejbližší nemocnicí na jedné mapě.',
+  'intro.who': 'Prohlížení je zdarma, kdekoli na světě. Členové vidí každé hlášení v okolí a mohou přidat vlastní.',
   'intro.search.label': 'Hledat město, obec, PSČ nebo adresu',
   'intro.search.placeholder': 'Zkuste Lisabon, 10115 Berlín nebo Khao San Road',
   'intro.search.go': 'Hledat',

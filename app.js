@@ -173,7 +173,6 @@ async function init() {
         console.error(err);      // the email initial is a fine fallback
       }
     }
-    paintAdminLink();
   });
 
   if (isConfigured()) {
@@ -242,20 +241,6 @@ async function adoptAccountLanguage() {
   const wanted = state.profile?.locale;
   if (!wanted || !isSupported(wanted) || wanted === currentLanguage()) return;
   await setLanguage(wanted);
-}
-
-/**
- * The Admin link, for the people it leads anywhere.
- *
- * Read from the profile row that is fetched on sign-in anyway, so it costs no
- * round trip of its own. It is not a permission check and is not trying to be:
- * admin.html refuses anybody who is not an admin, and so does every call it
- * makes. This only decides whether a link to that page is worth a slot in
- * everybody else's header.
- */
-function paintAdminLink() {
-  const link = $('#nav-admin');
-  if (link) link.hidden = state.profile?.role !== 'admin';
 }
 
 /**

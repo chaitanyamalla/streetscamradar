@@ -20,8 +20,9 @@ export default {
   'header.language': 'Język',
   'header.darkMode': 'Tryb ciemny',
 
-  'intro.heading': 'Zaplanuj podróż,<br /><em>ulica po ulicy.</em>',
-  'intro.copy': 'Oszustwa zgłaszane przez podróżnych, oficjalne komunikaty dla podróżujących, ostrzeżenia pogodowe i najbliższy szpital — na jednej mapie.',
+  'intro.heading': 'Poznaj oszustwa,<br /><em>zanim dotrzesz.</em>',
+  'intro.copy': 'Uliczne oszustwa zgłaszane przez podróżnych i mieszkańców, którym się przytrafiły — razem z oficjalnymi poradami dla podróżnych, ostrzeżeniami pogodowymi i najbliższym szpitalem na tej samej mapie.',
+  'intro.who': 'Przeglądanie jest bezpłatne, w każdym miejscu na świecie. Członkowie widzą każde zgłoszenie w okolicy i mogą dodać własne.',
   'intro.search.label': 'Szukaj miasta, miejscowości, kodu pocztowego lub adresu',
   'intro.search.placeholder': 'Spróbuj Lizbona, 10115 Berlin albo Khao San Road',
   'intro.search.go': 'Szukaj',

@@ -1027,6 +1027,11 @@ create index if not exists profiles_display_name_idx
 -- One call rather than four, and SECURITY DEFINER because it reads other
 -- people's support rows to count what yours received.
 -- ---------------------------------------------------------------------------
+-- The output columns changed — role and given_level were added — and Postgres
+-- will not replace a function's return type in place. Dropped first, which on
+-- a live database is the difference between a schema that applies and one that
+-- stops here.
+drop function if exists public.my_standing();
 create or replace function public.my_standing()
 returns table (
   points int, level int, level_floor int,
@@ -1114,6 +1119,7 @@ grant execute on function public.contributors_board(int) to authenticated;
 -- is that it joins names to addresses. supabase/ops/contributors.sql is the
 -- version that is safe to run there.
 -- ---------------------------------------------------------------------------
+drop view if exists public.admin_contributors;
 create or replace view public.admin_contributors as
   select p.id,
          p.display_name,
@@ -1367,6 +1373,7 @@ begin
 end;
 $$;
 
+drop function if exists public.grant_badge(text, text, text, boolean);
 create or replace function public.grant_badge(
   p_who   text,
   p_badge text,

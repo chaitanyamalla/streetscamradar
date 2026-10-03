@@ -284,6 +284,25 @@ check(all(len(c) == 2 and c.isupper() for c in fw.COUNTRIES.values()),
       "every country is a two-letter code the page can match on")
 
 # --- report -----------------------------------------------------------------
+# --- the SQL's own shape ---------------------------------------------------
+# The sibling generator shipped an INSERT with thirteen column names and twelve
+# values, and every assertion in its file passed because they all look at what a
+# row CONTAINS and none of them counted. Postgres caught it on the first live
+# run. This counts.
+buffer = io.StringIO()
+with redirect_stdout(buffer):
+    fw.emit_sql([{"warning_id": "z", "country_code": "EE", "kind": "wind",
+                  "severity": "severe", "areas": "Gulf", "from_date": None,
+                  "to_date": None, "source": "Riigi Ilmateenistus", "url": None,
+                  "lat": 59.2, "lng": 23.0, "place_kind": "area"}])
+sql = buffer.getvalue()
+line = next(l for l in sql.split('\n') if l.startswith('insert into public.weather_warnings'))
+names = line[line.index('(') + 1:line.rindex(')')].split(',')
+row = next(l for l in sql.split('\n') if l.strip().startswith('(') and 'now()' in l)
+slots = row.count(',') + 1
+check(len(names) == slots,
+      f"every column named in the INSERT has a value ({len(names)} names, {slots} values)")
+
 failed = [label for ok, label in results if not ok]
 for ok, label in results:
     print(("  ok    " if ok else "  FAIL  ") + label)

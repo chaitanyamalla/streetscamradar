@@ -421,7 +421,7 @@ def emit_sql(rows):
     print("begin;")
 
     values = [
-        "  ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, now())".format(
+        "  ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, now())".format(
             sql_str(r["event_id"]), sql_str(r["country_code"]), sql_str(r["kind"]),
             sql_str(r["severity"]), sql_str(r["name"]),
             sql_str(r["from_date"]), sql_str(r["to_date"]), sql_str(r["url"]),

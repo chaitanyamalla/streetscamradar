@@ -355,6 +355,27 @@ check("interval" not in sql,
       "the delete uses the transaction clock rather than a tuned interval")
 
 # --- report -----------------------------------------------------------------
+# --- the SQL's own shape ---------------------------------------------------
+# The bug this is here for: `measure` was added to the column list and not to
+# the values tuple, so every INSERT had thirteen names and twelve values. Every
+# assertion in this file passed, because they all look at what a row CONTAINS;
+# none of them counted. Postgres caught it on the first live run — "INSERT has
+# more target columns than expressions" — which is a workflow failure and a
+# refresh skipped for something a string length would have caught here.
+buffer = io.StringIO()
+with redirect_stdout(buffer):
+    fd.emit_sql(fd.rows_from(payload(filler(40) + [event()])))
+sql = buffer.getvalue()
+line = next(l for l in sql.split('\n') if l.startswith('insert into public.disaster_alerts'))
+names = line[line.index('(') + 1:line.rindex(')')].split(',')
+row = next(l for l in sql.split('\n') if l.strip().startswith('(') and 'now()' in l)
+# Commas inside a quoted name would miscount, so the values are counted by the
+# placeholders the format string produced rather than by splitting on commas.
+slots = row.count(',') + 1
+check(len(names) == slots,
+      f"every column named in the INSERT has a value ({len(names)} names, {slots} values)")
+check('measure' in line, 'and measure is one of them')
+
 failed = [label for ok, label in results if not ok]
 for ok, label in results:
     print(("  ok    " if ok else "  FAIL  ") + label)

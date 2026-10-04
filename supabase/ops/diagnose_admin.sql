@@ -21,11 +21,11 @@ select set_config('request.jwt.claim.sub',
        as speaking_as_the_first_admin;
 
 select count(*) as members_the_admin_screen_can_see
-  from public.admin_members(null, 100);
+  from public.admin_members(null, null, null, null, 100);
 
 select coalesce(nullif(btrim(m.display_name), ''), '(no nickname)') as goes_by,
        m.role, m.level, m.points, m.reports
-  from public.admin_members(null, 100) m
+  from public.admin_members(null, null, null, null, 100) m
  order by m.points desc;
 
 -- The other four screens, each called once. A count rather than the rows: what
@@ -39,3 +39,11 @@ union all
 select 'levels',   count(*) from public.contributor_levels;
 
 select set_config('request.jwt.claim.sub', '', false) = '' as claim_dropped;
+
+-- The filters the Members screen now offers, each exercised once. Counts only.
+select 'by role: admin' as filter, count(*) as rows_it_returns
+  from public.admin_members(null, 'admin', null, null, 100)
+union all
+select 'by level 1', count(*) from public.admin_members(null, null, 1, null, 100)
+union all
+select 'countries to pick from', count(*) from public.admin_member_countries();

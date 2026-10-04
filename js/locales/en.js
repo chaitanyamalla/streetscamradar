@@ -74,6 +74,7 @@ export default {
   'reports.empty.narrowed': 'Nothing here in that window. Try a wider one.',
   'reports.confirm': 'I saw this too',
   'reports.confirmed': '✓ Confirmed',
+  'reports.showOnMap': 'Show on map',
   'reports.flag': 'Flag',
   'reports.withdraw': 'Withdraw',
   'reports.withdrawMine': 'Withdraw my report',

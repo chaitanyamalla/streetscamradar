@@ -67,6 +67,7 @@ export default {
   'reports.empty.narrowed': 'V tomto období tu nic není. Zkuste delší období.',
   'reports.confirm': 'Stalo se to i mně',
   'reports.confirmed': '✓ Potvrzeno',
+  'reports.showOnMap': 'Ukázat na mapě',
   'reports.flag': 'Nahlásit',
   'reports.withdraw': 'Stáhnout',
   'reports.withdrawMine': 'Stáhnout mé hlášení',

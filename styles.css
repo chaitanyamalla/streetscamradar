@@ -596,20 +596,41 @@ em { font-style:italic; }
   color:var(--muted); font-size:10px; letter-spacing:.02em; }
 
 .report-list { overflow:auto; }
-.report-entry { display:flex; gap:10px; padding:11px 14px; border-top:1px solid var(--line);
-  cursor:pointer; }
-.report-entry:hover { background:var(--paper); }
+/* Each entry is a <details>, so the padding belongs to the summary and the
+   body rather than to the entry: a closed one has to stop at the end of its
+   one line, and an entry that kept its own padding would leave a band of empty
+   card underneath it. */
+.report-entry { display:block; border-top:1px solid var(--line); }
+.report-head { display:flex; align-items:flex-start; gap:10px; padding:11px 14px;
+  cursor:pointer; list-style:none; }
+/* Our own caret is drawn on the right, so the browser's marker goes. Both
+   spellings: ::marker is the standard and Safari still wants the -webkit one. */
+.report-head::marker, .report-head::-webkit-details-marker { display:none; content:''; }
+.report-head:hover { background:var(--paper); }
+.report-entry[open] .report-head { padding-bottom:4px; }
+.report-head:focus-visible { outline:2px solid var(--brand-lift); outline-offset:-2px; }
+/* Lined up under the headline rather than under the glyph: the body belongs to
+   the words, and an action chip sitting under the icon reads as part of it. */
+.report-body { padding:0 14px 11px 52px; }
+.report-caret { flex:none; margin-top:2px; color:var(--muted); font-size:11px;
+  transition:transform .18s ease; }
+.report-entry[open] .report-caret { transform:rotate(180deg); }
 .report-glyph { flex:none; width:28px; height:28px; border-radius:50%; display:grid;
   place-items:center; font-size:14px; background:var(--tint-warm); border:1px solid var(--tint-warm-line); }
-.report-copy { min-width:0; flex:1; }
+.report-copy { display:block; min-width:0; flex:1; }
 .report-copy b { display:block; font-size:12.5px; line-height:1.35; text-wrap:pretty; }
 .report-meta { display:block; margin-top:3px; color:var(--muted); font-size:11px; }
 
 /* Confirmations are what raise a report now, so they are what the entry
-   shows: a left edge that deepens, and the count spelled out. */
-.report-entry.is-confirmed { border-left:3px solid var(--pin); padding-left:11px; }
+   shows: a left edge that deepens, and the count spelled out. The padding
+   compensating for the border sits on the two children that carry padding. */
+.report-entry.is-confirmed { border-left:3px solid var(--pin); }
 .report-entry.is-confirmed-many { border-left:3px solid var(--pin-deep);
-  padding-left:11px; background:var(--tint-row); }
+  background:var(--tint-row); }
+.report-entry.is-confirmed .report-head,
+.report-entry.is-confirmed-many .report-head { padding-left:11px; }
+.report-entry.is-confirmed .report-body,
+.report-entry.is-confirmed-many .report-body { padding-left:49px; }
 .confirm-badge { display:inline-block; margin-top:6px; padding:2px 8px;
   border-radius:100px; background:var(--tint-warm); border:1px solid var(--tint-warm-line);
   color:var(--pin-deep); font-size:10.5px; font-weight:700; }
@@ -622,7 +643,7 @@ em { font-style:italic; }
 .impact-tag.is-money   { border-color:var(--tint-money-line); background:var(--tint-money); }
 .impact-tag.is-harm    { border-color:var(--tint-harm-line); background:var(--tint-harm); }
 .impact-tag.is-threats { border-color:var(--tint-threats-line); background:var(--tint-threats); }
-.report-actions { display:flex; align-items:center; gap:10px; margin-top:7px; }
+.report-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:7px; }
 .chip-action { border:1px solid var(--line-strong); border-radius:100px; background:none;
   padding:3px 9px; font-size:10.5px; font-weight:700; color:var(--ink-soft); }
 .chip-action:hover { border-color:var(--brand); color:var(--brand); }

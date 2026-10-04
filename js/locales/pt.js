@@ -75,6 +75,7 @@ export default {
   'reports.empty.narrowed': 'Nada aqui nesse período. Tente um período maior.',
   'reports.confirm': 'Também vi isto',
   'reports.confirmed': '✓ Confirmado',
+  'reports.showOnMap': 'Ver no mapa',
   'reports.flag': 'Sinalizar',
   'reports.withdraw': 'Retirar',
   'reports.withdrawMine': 'Retirar o meu relato',

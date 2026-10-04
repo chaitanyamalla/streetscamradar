@@ -66,6 +66,7 @@ export default {
   'reports.empty.narrowed': 'Rien ici sur cette période. Essayez une période plus large.',
   'reports.confirm': "Ça m'est arrivé aussi",
   'reports.confirmed': '✓ Confirmé',
+  'reports.showOnMap': 'Voir sur la carte',
   'reports.flag': 'Signaler',
   'reports.withdraw': 'Retirer',
   'reports.withdrawMine': 'Retirer mon signalement',

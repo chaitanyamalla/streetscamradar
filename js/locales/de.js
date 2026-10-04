@@ -66,6 +66,7 @@ export default {
   'reports.empty.narrowed': 'In diesem Zeitraum wurde hier nichts gemeldet. Versuche einen größeren.',
   'reports.confirm': 'Habe ich auch erlebt',
   'reports.confirmed': '✓ Bestätigt',
+  'reports.showOnMap': 'Auf der Karte zeigen',
   'reports.flag': 'Melden',
   'reports.withdraw': 'Zurückziehen',
   'reports.withdrawMine': 'Meine Meldung zurückziehen',

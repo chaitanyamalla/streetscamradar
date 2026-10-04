@@ -225,6 +225,24 @@ em { font-style:italic; }
   font-style:italic; letter-spacing:-.02em; color:var(--brand); }
 .intro-copy { max-width:290px; margin:9px 0 0; color:var(--ink-soft);
   font-size:13px; line-height:1.55; text-wrap:pretty; }
+/* Folded away where there is a pointer to unfold it with, and only there.
+   On a touch screen hover never happens, so the text would simply be gone —
+   and a phone lays the filter panel out below the map anyway, so there is
+   nothing for the card to be on top of. grid-template-rows animates to and
+   from `auto`, which height cannot. */
+@media (hover: hover) and (min-width: 861px) {
+  .intro-more { display:grid; grid-template-rows:0fr; opacity:0;
+    transition:grid-template-rows .22s ease, opacity .18s ease; }
+  /* ONE child, and min-height:0 on it. Two things had to be right here and
+     each cost a run of the test: grid-template-rows:0fr defines one row, so a
+     second child landed in an implicit auto-sized one and never collapsed;
+     and a grid item's automatic minimum size is its own content, so the track
+     went to zero while the item refused to follow. Hence the wrapper div and
+     the min-height. */
+  .intro-more > * { overflow:hidden; min-height:0; }
+  .map-intro:hover .intro-more,
+  .map-intro:focus-within .intro-more { grid-template-rows:1fr; opacity:1; }
+}
 /* Quieter than the line above it: what the site is comes first, what it costs
    comes second, and two paragraphs at the same weight read as one long one. */
 .intro-who { max-width:290px; margin:8px 0 0; color:var(--muted);
@@ -519,7 +537,14 @@ em { font-style:italic; }
 .fr-note { color:var(--muted); font-size:10.5px; line-height:1.35; }
 .filter-row input { accent-color:var(--brand); width:14px; height:14px; flex:none; }
 .filter-row b { margin-left:auto; color:var(--muted); font:500 10px 'DM Mono',monospace; }
-.category-section { border-top:1px solid var(--line); max-height:168px; overflow:auto; }
+/* The scroll belongs to the panel, not to the scam chips. Its height is what
+   is left of the map once the header, the reports card and a margin have had
+   theirs, which is why it is a viewport sum rather than a number: on a laptop
+   the panel used to run off the top of the screen the moment Disaster update
+   was opened. */
+.panel-scroll { max-height:min(420px, calc(100vh - 330px)); overflow-y:auto;
+  overscroll-behavior:contain; }
+.category-section { border-top:1px solid var(--line); }
 /* One line, no heading, and as little padding as a row can have and still be
    a comfortable tap target. It used to be a section title plus a row plus a
    status line underneath — three lines and 24px of padding for one switch,
@@ -973,6 +998,18 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
    instrument rather than as another sentence of ours. */
 .popup-measure { margin:7px 0 0; color:var(--ink-2); font:12px/1.5 'DM Mono',monospace; }
 
+/* The age, which is the one thing in this line that changes what the report
+   means. Bigger than the street name beside it, and in the ink colour rather
+   than the muted one. */
+.popup-age { font:700 12px 'DM Mono',monospace; color:var(--ink-2);
+  letter-spacing:-.01em; }
+/* And tinted once it is nearly out of the window — the warm tint the rest of
+   the site uses for a report, not a red one: an old report is not a worse
+   report, it is one whose moment has nearly passed. */
+.popup-age.is-fading { padding:2px 8px; border-radius:100px;
+  background:var(--tint-warm); border:1px solid var(--tint-warm-line);
+  color:var(--pin-deep); }
+
 .popup-meta { margin:10px 0 0; padding-top:9px; border-top:1px solid var(--line);
   color:var(--muted); font:10px/1.5 'DM Mono',monospace; }
 
@@ -1089,6 +1126,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   .popup-glyph { width:30px; height:30px; font-size:14px; }
   .popup-body { margin-top:8px; font-size:11.5px; line-height:1.5; }
   .popup-meta { margin-top:8px; padding-top:7px; font-size:10.5px; }
+  .popup-age { font-size:12px; }
   .popup-actions { margin-top:9px; gap:6px; }
   .popup-action { padding:6px 10px; font-size:11px; }
   .impact-tag { font-size:10px; }
@@ -1217,12 +1255,23 @@ body.page { min-height:100vh; background:var(--paper); }
    A card per member rather than a table with ten columns. A table is tidier on
    a desktop and unusable on anything narrower, and the controls here are
    selects and checkboxes that a table cell makes cramped at any width. */
+/* Wider than the reference page, because this one is a working surface rather
+   than something to read: a member row carries a name, an address, four
+   numbers, a role, a level and four badges, and squeezing that into a reading
+   measure is what made it three stacked blocks. */
 .admin-page { max-width:860px; }
+@media (min-width: 1120px) { .admin-page { max-width:1180px; } }
 .admin-gate { padding:18px 20px; border:1px solid var(--line); border-radius:var(--radius);
   background:var(--surface); }
 .admin-gate p { margin:0 0 12px; color:var(--ink-2); font-size:14px; line-height:1.6; }
 
 .admin-toolbar { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+/* Wraps rather than scrolls: five controls on one line is a line nobody can
+   read on a laptop, and a filter you cannot see is a filter you forget is on
+   — which is the whole reason the count beside them says "matching". */
+.admin-filters { flex-wrap:wrap; }
+.admin-filters input[type="search"] { flex:1 1 220px; }
+.admin-filters .admin-count { margin-left:auto; }
 .admin-toolbar input[type="search"] { flex:1; min-width:0; padding:10px 13px;
   border:1px solid var(--line-strong); border-radius:var(--radius);
   background:var(--surface); color:var(--ink); font:inherit; font-size:14px; }
@@ -1241,6 +1290,10 @@ body.page { min-height:100vh; background:var(--paper); }
 .ar-mail { margin:2px 0 0; color:var(--ink-2); font:12px 'DM Mono',monospace;
   overflow:hidden; text-overflow:ellipsis; }
 .ar-meta { margin:4px 0 0; color:var(--muted); font-size:11.5px; }
+.ar-where { margin:5px 0 0; color:var(--muted); font-size:11px;
+  display:flex; flex-wrap:wrap; align-items:center; gap:4px; }
+.ar-cc { padding:1px 6px; border-radius:5px; background:var(--paper);
+  border:1px solid var(--line); font:600 10px 'DM Mono',monospace; color:var(--ink-2); }
 
 .ar-controls { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; }
 .ar-field { display:flex; flex-direction:column; gap:4px; }

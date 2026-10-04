@@ -1161,14 +1161,21 @@ begin
 end;
 $$;
 
+-- The signature gains three filters, and a function's argument list cannot be
+-- changed in place any more than its return type can.
+drop function if exists public.admin_members(text, int);
 create or replace function public.admin_members(
-  p_search text default null,
-  p_limit  int  default 100
+  p_search  text default null,
+  p_role    text default null,
+  p_level   int  default null,
+  p_country text default null,
+  p_limit   int  default 100
 )
 returns table (
   id uuid, display_name text, email text, role text,
   level int, level_override int, points int,
-  reports int, badges text[], listed boolean, created_at timestamptz
+  reports int, badges text[], countries text[],
+  listed boolean, created_at timestamptz
 )
 language plpgsql stable security definer set search_path = public as $$
 begin
@@ -1190,14 +1197,27 @@ begin
              where r.reporter_id = p.id and r.status = 'published'),
            coalesce((select array_agg(b.badge order by b.granted_at)
                        from public.contributor_badges b where b.profile_id = p.id), '{}'),
+           -- Where their reports come from, which is the only sense in which a
+           -- member has a region at all: a profile has no country on it, and
+           -- asking one for their nationality would be a question this site has
+           -- no business asking. What an admin wants is "who is reporting in
+           -- Thailand", and this answers that.
+           coalesce((select array_agg(distinct r.country_code::text order by r.country_code::text)
+                       from public.reports r
+                      where r.reporter_id = p.id and r.country_code is not null), '{}'),
            p.listed,
            p.created_at
       from public.profiles p
       left join auth.users u on u.id = p.id
-     where p_search is null
-        or btrim(p_search) = ''
-        or p.display_name ilike '%' || btrim(p_search) || '%'
-        or u.email        ilike '%' || btrim(p_search) || '%'
+     where (p_search is null or btrim(p_search) = ''
+            or p.display_name ilike '%' || btrim(p_search) || '%'
+            or u.email        ilike '%' || btrim(p_search) || '%')
+       and (p_role is null or btrim(p_role) = '' or p.role = btrim(p_role))
+       and (p_level is null or public.member_level(p.id) = p_level)
+       and (p_country is null or btrim(p_country) = ''
+            or exists (select 1 from public.reports r
+                        where r.reporter_id = p.id
+                          and upper(r.country_code::text) = upper(btrim(p_country))))
      order by public.contribution_points(p.id) desc, p.created_at
      limit least(greatest(coalesce(p_limit, 100), 1), 500);
 end;
@@ -1211,6 +1231,25 @@ returns int language sql stable security definer set search_path = public as $$
   select count(*)::int from public.profiles p
    where p.role = 'admin' and p.id is distinct from p_except;
 $$;
+
+-- The countries members have actually reported in, for the filter beside the
+-- list. A dropdown of what is there beats a two-letter code typed from memory,
+-- which is wrong silently.
+create or replace function public.admin_member_countries()
+returns table (country_code text, members int)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  return query
+    select upper(r.country_code::text), count(distinct r.reporter_id)::int
+      from public.reports r
+     where r.country_code is not null and r.reporter_id is not null
+     group by 1 order by 2 desc, 1;
+end;
+$$;
+
+revoke all on function public.admin_member_countries() from public, anon;
+grant execute on function public.admin_member_countries() to authenticated;
 
 create or replace function public.admin_set_role(p_id uuid, p_role text)
 returns text language plpgsql security definer set search_path = public as $$
@@ -1305,13 +1344,13 @@ $$;
 -- These are reachable from a browser, by a signed-in member, and every one of
 -- them refuses anybody who is not an admin. That refusal is the whole of the
 -- security — the page hiding its own buttons is only good manners.
-revoke all on function public.admin_members(text, int) from public, anon;
+revoke all on function public.admin_members(text, text, int, text, int) from public, anon;
 revoke all on function public.admin_set_role(uuid, text) from public, anon;
 revoke all on function public.admin_set_level(uuid, int) from public, anon;
 revoke all on function public.admin_set_badge(uuid, text, boolean, text) from public, anon;
 revoke all on function public.admin_set_listed(uuid, boolean) from public, anon;
 revoke all on function public.admin_remove_member(uuid) from public, anon;
-grant execute on function public.admin_members(text, int) to authenticated;
+grant execute on function public.admin_members(text, text, int, text, int) to authenticated;
 grant execute on function public.admin_set_role(uuid, text) to authenticated;
 grant execute on function public.admin_set_level(uuid, int) to authenticated;
 grant execute on function public.admin_set_badge(uuid, text, boolean, text) to authenticated;

@@ -134,7 +134,8 @@ em { font-style:italic; }
 /* German says "letzte 7 Tage · öffentliche Ansicht" where English says "last 7
    days · public view", and at the tracking above that took two lines and
    pushed the heading down. Smaller and tighter here only. */
-.reports-head .eyebrow { margin-bottom:4px; font-size:9px; letter-spacing:.09em; }
+.reports-head .eyebrow { display:block; margin-bottom:4px; font-size:9px;
+  letter-spacing:.09em; }
 .muted-note { margin:0; color:var(--muted); font-size:12px; }
 
 /* --- Buttons ------------------------------------------------------------- */
@@ -558,9 +559,28 @@ em { font-style:italic; }
   display:flex; flex-direction:column; max-height:min(430px, calc(100% - 140px));
   background:var(--surface); border:1px solid var(--line-strong);
   border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+/* The card is a <details>, and two engines disagree about what its children
+   are: Chromium 131 and up wrap everything below the summary in
+   ::details-content, which becomes the flex item, while older ones make the
+   children themselves the items. .reports-body is the one child either way,
+   and the rule below passes the column through the wrapper where there is
+   one. An engine that does not know ::details-content drops that rule as
+   invalid and the body is already the flex item, which is the same answer.
+   Without this the list stops shrinking and scrolls the card off the map. */
+.reports-card::details-content { display:flex; flex-direction:column; min-height:0; }
+.reports-body { display:flex; flex-direction:column; flex:1; min-height:0; }
 .reports-head { display:flex; align-items:center; justify-content:space-between;
-  gap:10px; padding:12px 14px 9px; }
+  gap:10px; padding:12px 14px 9px; cursor:pointer; list-style:none; }
+.reports-head::marker, .reports-head::-webkit-details-marker { display:none; content:''; }
+.reports-head:hover .reports-head-text h2 { color:var(--brand); }
+.reports-head:focus-visible { outline:2px solid var(--brand-lift); outline-offset:-2px; }
+.reports-head-text { min-width:0; flex:1; }
 .reports-head h2 { margin:0; font-size:16px; line-height:1.2; }
+.reports-chevron { flex:none; }
+.reports-card[open] .reports-chevron { transform:rotate(180deg); }
+/* Closed, the head is the whole card, so the padding that was there to sit
+   above the slider is not wanted. */
+.reports-card:not([open]) .reports-head { padding-bottom:12px; }
 .count-pill { flex:none; min-width:30px; padding:5px 10px; border-radius:100px;
   background:var(--pin); color:var(--on-accent); text-align:center;
   font:600 12px 'DM Mono',monospace; }
@@ -1083,6 +1103,13 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   .reports-card { position:static; order:4; width:auto; margin:0 var(--gutter);
     max-height:none; }
   .report-list { max-height:360px; }
+  /* No collapsing on a phone. The card is in normal flow below the map here
+     and covers nothing, so there is nothing to put away — and a head that
+     looked tappable but did nothing would be worse than no head at all.
+     app.js holds it open; these two take away the invitation to close it. */
+  .reports-head { cursor:default; }
+  .reports-chevron { display:none; }
+  .reports-head:hover .reports-head-text h2 { color:inherit; }
   .map-attribution { position:static; order:5; margin:0 var(--gutter);
     padding:0; background:none; font-size:10.5px; line-height:1.55; }
 

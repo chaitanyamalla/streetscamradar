@@ -1826,6 +1826,29 @@ function wireUI() {
   filterPanel.addEventListener('toggle', () =>
     writeSetting(FILTERS_OPEN, String(filterPanel.open)));
 
+  // The reports card, same idea and one difference: it only closes on a wide
+  // screen. There it floats over the bottom-right of the map and is the
+  // biggest thing covering it, so being able to put it away is the point. On a
+  // phone it sits in normal flow below the map and covers nothing, so there is
+  // nothing to put away — and a head that invited a tap and then hid the list
+  // would be taking something away rather than giving it. So it is held open
+  // below the breakpoint, the choice made above the breakpoint is remembered,
+  // and crossing the breakpoint puts that choice back rather than losing it.
+  const reportsCard = $('#reports-card');
+  const REPORTS_OPEN = 'ssr.reports.open';
+  const wide = window.matchMedia('(min-width: 901px)');
+  const applyReportsWidth = () => {
+    reportsCard.open = wide.matches ? readSetting(REPORTS_OPEN) !== 'false' : true;
+  };
+  applyReportsWidth();
+  wide.addEventListener('change', applyReportsWidth);
+  reportsCard.addEventListener('toggle', () => {
+    // Only a choice made where closing is possible is a choice. The forced
+    // open above would otherwise write 'true' over what somebody had set on
+    // their laptop the moment they turned their phone sideways.
+    if (wide.matches) writeSetting(REPORTS_OPEN, String(reportsCard.open));
+  });
+
   $('#safety-toggle').addEventListener('change', e => {
     state.safetyOn = e.target.checked;
     setSafetyVisible(map, state.safetyOn);

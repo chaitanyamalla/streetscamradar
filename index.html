@@ -387,14 +387,29 @@
           </div>
         </details>
 
-        <aside class="reports-card" data-i18n-aria="reports.label" aria-label="Reports in view">
-          <div class="reports-head">
-            <div>
-              <p class="eyebrow" id="reports-scope">Last 7 days · in view</p>
+        <!-- Openable and closable, like the filter panel opposite it. On a
+             laptop this card floats over the bottom-right of the map and is
+             the biggest thing covering it, and a reader who wants to look at
+             the map rather than the list had no way to put it away.
+             A <details>, so Enter and Space work and a screen reader is told
+             it expands — and the same element the filter panel uses, so the
+             two corners of the map behave the same way.
+             Closed, the head still carries the count, which is the one thing
+             worth knowing without opening it.
+             On a phone none of this applies: the card is in normal flow below
+             the map, it covers nothing, and it is forced open in app.js. -->
+        <details class="reports-card" id="reports-card" open
+                 data-i18n-aria="reports.label" aria-label="Reports in view">
+          <summary class="reports-head">
+            <span class="reports-head-text">
+              <span class="eyebrow" id="reports-scope">Last 7 days · in view</span>
               <h2 id="reports-title" data-i18n="reports.title.here">Reports here</h2>
-            </div>
+            </span>
             <span class="count-pill" id="reports-count">0</span>
-          </div>
+            <span class="panel-chevron reports-chevron" aria-hidden="true">⌄</span>
+          </summary>
+
+          <div class="reports-body">
 
           <!-- How far back to look.
                A slider, snapped to whole days. The first version was five
@@ -420,7 +435,8 @@
 
           <div id="report-list" class="report-list"></div>
           <div id="gate-note" class="gate-note" hidden></div>
-        </aside>
+          </div>
+        </details>
 
         <p class="map-attribution" data-i18n-html="map.attribution">
           Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>

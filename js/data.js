@@ -352,6 +352,30 @@ export async function adminSetBadge(id, badge, on, note = null) {
   return data ?? [];
 }
 
+/**
+ * Hand a badge back to the count.
+ *
+ * Not the same as switching it off: off is a decision that outlives the next
+ * twenty reports, and this is the absence of one. For an earned badge it means
+ * "whatever they earned"; for one of the four editorial badges there is
+ * nothing to fall back to, so it means they no longer have it.
+ */
+export async function adminClearBadge(id, badge) {
+  need();
+  const { data, error } = await supabase.rpc('admin_clear_badge',
+    { p_id: id, p_badge: badge });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Which of this member's badges were set by hand, and which way. */
+export async function adminBadgeOverrides(id) {
+  need();
+  const { data, error } = await supabase.rpc('admin_badge_overrides', { p_id: id });
+  if (error) throw error;
+  return Object.fromEntries((data ?? []).map(r => [r.badge, r.granted]));
+}
+
 export async function adminSetListed(id, listed) {
   need();
   const { data, error } = await supabase.rpc('admin_set_listed',

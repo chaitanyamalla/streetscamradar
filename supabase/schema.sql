@@ -1000,12 +1000,24 @@ $$;
 -- the creator who films scams in Barcelona is often also a top contributor,
 -- and a column would make us choose which of the two to hide.
 -- ---------------------------------------------------------------------------
+-- What an ADMIN decided about somebody's badges, which is not the same as what
+-- they have. Most people have no row here at all: four of the eleven badges can
+-- only come from this table, and the other seven are counted off the reports
+-- unless a row here says otherwise. See badges_of().
 create table if not exists public.contributor_badges (
   profile_id uuid not null references public.profiles(id) on delete cascade,
-  -- GRANTED badges only. The earned ones — the metals and the reach ladder —
-  -- are worked out from the reports every time they are asked for and are
-  -- never stored here: see earned_badges() below for why.
-  badge      text not null check (badge in ('creator', 'top', 'early', 'partner')),
+  badge      text not null check (badge in ('creator', 'top', 'early', 'partner',
+                                            'bronze', 'silver', 'gold',
+                                            'local', 'country', 'regional', 'global')),
+  -- true: they have it whatever the reports say.
+  -- false: they do NOT have it, even if they earned it.
+  -- no row: whatever they earned, which is the normal state.
+  --
+  -- A column rather than a delete, because "an admin took this away" and "an
+  -- admin never said anything" are different facts and the second must not
+  -- silently become the first: deleting a revoked Gold would hand it straight
+  -- back on the next page load, which would read as the admin page not working.
+  granted    boolean not null default true,
   -- Why this person has it, in your words. Never shown on the page; it is
   -- there so that in a year you can still tell what you were recognising.
   note       text,
@@ -1017,6 +1029,10 @@ create table if not exists public.contributor_badges (
 -- being here while the map was empty, and a badge that says so on a stranger's
 -- profile is a claim about the company, not about them.
 --
+-- The `granted` column, for databases made before it existed.
+alter table public.contributor_badges
+  add column if not exists granted boolean not null default true;
+
 -- All three statements are needed, and the ORDER of them is the whole point.
 -- `create table if not exists` above does nothing at all to a table that
 -- already exists, so on the live database the constraint is still the old one
@@ -1034,7 +1050,9 @@ alter table public.contributor_badges
 update public.contributor_badges set badge = 'early' where badge = 'founder';
 alter table public.contributor_badges
   add constraint contributor_badges_badge_check
-  check (badge in ('creator', 'top', 'early', 'partner'));
+  check (badge in ('creator', 'top', 'early', 'partner',
+                   'bronze', 'silver', 'gold',
+                   'local', 'country', 'regional', 'global'));
 
 alter table public.contributor_badges enable row level security;
 -- No policy at all: nothing reads this table directly. The page sees badges
@@ -1153,18 +1171,34 @@ returns text[] language sql stable security definer set search_path = public as 
   ], null);
 $$;
 
--- Every badge somebody has, given and earned, in one place.
+-- Every badge somebody actually has.
 --
--- One function rather than the same two subqueries in four callers: my
--- standing, the public board, the admin list and the dashboard view all showed
--- badges, and four copies of this would be four chances for one of them to
--- quietly stop agreeing with the others about what somebody has.
+-- Earned, plus what an admin added, minus what an admin took away. An admin
+-- always wins: the seven earned ones are a rule, and a rule needs somebody who
+-- can say "not this person" — a report that games the count, or a Globetrotter
+-- who turned out to be filing from one chair. It works the other way too: a
+-- badge can be given to somebody the count has not caught up with yet.
+--
+-- One function rather than the same subqueries in four callers: my standing,
+-- the public board, the admin list and the dashboard view all show badges, and
+-- four copies would be four chances for one of them to quietly stop agreeing
+-- with the others about what somebody has.
+--
+-- Note what this does NOT do: it never re-applies the one-rung-at-a-time rule
+-- to a hand-granted badge. An admin who gives somebody Gold while they are
+-- earning Bronze gets both on the chip row, because overruling the ladder is
+-- what granting by hand means.
 create or replace function public.badges_of(p_user uuid)
 returns text[] language sql stable security definer set search_path = public as $$
-  select coalesce((select array_agg(b.badge order by b.granted_at)
-                     from public.contributor_badges b
-                    where b.profile_id = p_user), '{}')
-       || public.earned_badges(p_user);
+  with decided as (
+    select b.badge, b.granted, b.granted_at
+      from public.contributor_badges b where b.profile_id = p_user
+  )
+  select coalesce((select array_agg(d.badge order by d.granted_at)
+                     from decided d where d.granted), '{}')
+       || coalesce((select array_agg(e)
+                      from unnest(public.earned_badges(p_user)) e
+                     where e not in (select d.badge from decided d)), '{}');
 $$;
 
 revoke all on function public.earned_badges(uuid) from public, anon;
@@ -1333,6 +1367,9 @@ $$;
 -- The signature gains three filters, and a function's argument list cannot be
 -- changed in place any more than its return type can.
 drop function if exists public.admin_members(text, int);
+-- A column was added — the hand-set decisions — and Postgres will not replace a
+-- function's return type in place.
+drop function if exists public.admin_members(text, text, int, text, int);
 create or replace function public.admin_members(
   p_search  text default null,
   p_role    text default null,
@@ -1343,7 +1380,7 @@ create or replace function public.admin_members(
 returns table (
   id uuid, display_name text, email text, role text,
   level int, level_override int, points int,
-  reports int, badges text[], countries text[],
+  reports int, badges text[], overrides jsonb, countries text[],
   listed boolean, created_at timestamptz
 )
 language plpgsql stable security definer set search_path = public as $$
@@ -1365,6 +1402,14 @@ begin
            (select count(*)::int from public.reports r
              where r.reporter_id = p.id and r.status = 'published'),
            public.badges_of(p.id),
+           -- Which of those were set by hand, and which way: {"gold": true,
+           -- "local": false}. The page needs it to tell three states apart that
+           -- a badge array cannot — given, taken away, and nobody said — so it
+           -- can offer "back to automatic" only where there is an automatic
+           -- answer to go back to.
+           coalesce((select jsonb_object_agg(b.badge, b.granted)
+                       from public.contributor_badges b
+                      where b.profile_id = p.id), '{}'::jsonb),
            -- Where their reports come from, which is the only sense in which a
            -- member has a region at all: a profile has no country on it, and
            -- asking one for their nationality would be a question this site has
@@ -1456,25 +1501,70 @@ begin
 end;
 $$;
 
+-- Say yes or no about one badge, by hand.
+--
+-- For the four editorial badges this is the only way anybody gets one. For the
+-- seven earned ones it is an override: p_on true gives it to somebody the
+-- count has not reached, p_on false takes it off somebody the count did reach,
+-- and either way the decision sticks until admin_clear_badge puts them back on
+-- the automatic answer.
+--
+-- p_on false writes a row rather than deleting one, which is the whole point:
+-- deleting a revoked Gold would hand it straight back on the next page load,
+-- because the reports that earned it have not gone anywhere.
 create or replace function public.admin_set_badge(
   p_id uuid, p_badge text, p_on boolean, p_note text default null
 )
 returns text[] language plpgsql security definer set search_path = public as $$
 begin
   perform public.admin_required();
-  if p_on then
-    insert into public.contributor_badges (profile_id, badge, note)
-    values (p_id, p_badge, p_note)
-    on conflict (profile_id, badge)
-      do update set note = coalesce(excluded.note, public.contributor_badges.note);
-  else
+  -- Four of the eleven can only ever come from this table, so "off" for one of
+  -- them has nothing to fall back to and storing a `false` row would just be a
+  -- row saying what its absence already says — and would make the page offer
+  -- "back to automatic" on a badge that has no automatic.
+  if not coalesce(p_on, true) and p_badge in ('creator', 'top', 'early', 'partner') then
     delete from public.contributor_badges b
      where b.profile_id = p_id and b.badge = p_badge;
+    return public.badges_of(p_id);
   end if;
+
+  insert into public.contributor_badges (profile_id, badge, granted, note)
+  values (p_id, p_badge, coalesce(p_on, true), p_note)
+  on conflict (profile_id, badge) do update
+    set granted    = excluded.granted,
+        granted_at = now(),
+        note       = coalesce(excluded.note, public.contributor_badges.note);
   -- Everything they have, not just what this call changed: the admin row
   -- redraws its chips from what comes back, and returning the granted ones
   -- alone would blank somebody's Gold and Globetrotter until the next reload.
   return public.badges_of(p_id);
+end;
+$$;
+
+-- Take the hand back off. The row goes, and whatever the reports say is the
+-- answer again — which for the four editorial badges means they no longer have
+-- it, and for the seven earned ones means whatever they earned.
+create or replace function public.admin_clear_badge(p_id uuid, p_badge text)
+returns text[] language plpgsql security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  delete from public.contributor_badges b
+   where b.profile_id = p_id and b.badge = p_badge;
+  return public.badges_of(p_id);
+end;
+$$;
+
+-- Which badges this person has an admin decision on, so the page can show a
+-- hand-set one as hand-set rather than as the count's own answer.
+create or replace function public.admin_badge_overrides(p_id uuid)
+returns table (badge text, granted boolean)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  return query select b.badge, b.granted
+                 from public.contributor_badges b
+                where b.profile_id = p_id
+                order by b.badge;
 end;
 $$;
 
@@ -1518,12 +1608,16 @@ revoke all on function public.admin_members(text, text, int, text, int) from pub
 revoke all on function public.admin_set_role(uuid, text) from public, anon;
 revoke all on function public.admin_set_level(uuid, int) from public, anon;
 revoke all on function public.admin_set_badge(uuid, text, boolean, text) from public, anon;
+revoke all on function public.admin_clear_badge(uuid, text) from public, anon;
+revoke all on function public.admin_badge_overrides(uuid) from public, anon;
 revoke all on function public.admin_set_listed(uuid, boolean) from public, anon;
 revoke all on function public.admin_remove_member(uuid) from public, anon;
 grant execute on function public.admin_members(text, text, int, text, int) to authenticated;
 grant execute on function public.admin_set_role(uuid, text) to authenticated;
 grant execute on function public.admin_set_level(uuid, int) to authenticated;
 grant execute on function public.admin_set_badge(uuid, text, boolean, text) to authenticated;
+grant execute on function public.admin_clear_badge(uuid, text) to authenticated;
+grant execute on function public.admin_badge_overrides(uuid) to authenticated;
 grant execute on function public.admin_set_listed(uuid, boolean) to authenticated;
 grant execute on function public.admin_remove_member(uuid) to authenticated;
 -- admin_required and other_admins are called by the functions above while they

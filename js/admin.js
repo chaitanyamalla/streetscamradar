@@ -12,9 +12,9 @@
 // ---------------------------------------------------------------------------
 import { bootPage } from './page.js';
 import { initAuth, onAuthChange } from './auth.js';
-import { esc, toast, badgeChip, GRANTED_BADGES, EARNED_BADGES } from './ui.js';
+import { esc, toast, badgeChip, EARNED_BADGES, BADGES } from './ui.js';
 import { formatDate } from './i18n.js';
-import { amAdmin, adminMembers, adminSetRole, adminSetLevel, adminSetBadge,
+import { amAdmin, adminMembers, adminSetRole, adminSetLevel, adminSetBadge, adminClearBadge,
          adminSetListed, adminRemoveMember, adminReports, adminSetReportStatus,
          adminDeleteReport, contributorLadder, adminSetLevels, adminRegionCatalog,
          adminBlockedRegions, adminSetBlockedRegions, adminSettings,
@@ -198,27 +198,33 @@ function memberRow(m) {
         </label>
       </div>
 
-      <!-- Checkboxes for the badges that are ours to give. The earned ones
-           below them are read off this member's reports every time anybody
-           looks, so there is nothing here to tick: a checkbox for Gold would
-           be a switch that does nothing, and the database would refuse the
-           write anyway. They are shown because an admin looking at somebody
-           wants to see everything they have, not only the half we decided. -->
+      <!-- Every badge, with a checkbox on each, because an admin can say yes
+           or no about any of them. The seven earned ones have a THIRD state
+           the other four do not: no opinion, which is the normal one and means
+           whatever this member's reports add up to. A checkbox cannot show
+           three states, so the undo beside it does — it appears only on a
+           badge somebody decided by hand, and puts it back on the count.
+           Taking an earned badge away has to be a stored decision and not a
+           deleted row: the reports that earned it have not gone anywhere, so a
+           delete would hand it straight back on the next load. -->
       <div class="ar-badges">
-        ${GRANTED_BADGES.map(slug => `
-          <label class="ar-badge${(m.badges ?? []).includes(slug) ? ' is-on' : ''}">
+        ${BADGES.map(slug => {
+          const has = (m.badges ?? []).includes(slug);
+          const byHand = Object.prototype.hasOwnProperty.call(m.overrides ?? {}, slug);
+          const earnable = EARNED_BADGES.includes(slug);
+          return `
+          <label class="ar-badge${has ? ' is-on' : ''}${byHand && earnable ? ' is-hand' : ''}">
             <input type="checkbox" data-act="badge" data-badge="${slug}"
-                   ${(m.badges ?? []).includes(slug) ? 'checked' : ''} />
+                   ${has ? 'checked' : ''} />
             ${badgeChip(slug)}
-          </label>`).join('')}
+            ${earnable ? `<button type="button" class="ar-auto" data-act="badge-auto"
+                   data-badge="${slug}" title="Back to whatever they earned"
+                   ${byHand ? '' : 'hidden'}>&#8634;</button>` : ''}
+          </label>`;
+        }).join('')}
       </div>
-      ${(() => {
-        const earned = EARNED_BADGES.filter(slug => (m.badges ?? []).includes(slug));
-        return earned.length
-          ? `<div class="ar-earned"><span class="ar-earned-note">Earned</span>
-               ${earned.map(badgeChip).join('')}</div>`
-          : '';
-      })()}
+      <p class="ar-badge-note">Ticked without the ${'\u21BA'} is earned from their
+         reports and keeps itself up to date.</p>
 
       <div class="ar-danger">
         <button type="button" class="link-danger" data-act="remove"
@@ -300,9 +306,46 @@ $('#admin-list').addEventListener('change', async (e) => {
     await attempt(async () => {
       const badges = await adminSetBadge(id, badge, wanted);
       member.badges = badges;
-      e.target.closest('.ar-badge')?.classList.toggle('is-on', wanted);
+      // The decision is recorded for an earned badge whichever way it went —
+      // "not this person" is as much a decision as "yes this one" — so the
+      // undo appears on both.
+      if (EARNED_BADGES.includes(badge)) member.overrides = { ...(member.overrides ?? {}), [badge]: wanted };
+      paintBadgeState(e.target.closest('.ar-badge'), badge, member);
     }, { onFail: () => { e.target.checked = !wanted; } });
   }
+});
+
+/** Put one badge's controls back in step with what the member now has. */
+function paintBadgeState(label, badge, member) {
+  if (!label) return;
+  const has = (member.badges ?? []).includes(badge);
+  const byHand = Object.prototype.hasOwnProperty.call(member.overrides ?? {}, badge);
+  label.classList.toggle('is-on', has);
+  label.classList.toggle('is-hand', byHand && EARNED_BADGES.includes(badge));
+  const input = label.querySelector('input[data-act="badge"]');
+  if (input) input.checked = has;
+  const undo = label.querySelector('[data-act="badge-auto"]');
+  if (undo) undo.hidden = !byHand;
+}
+
+// Back to automatic. Not the same as switching it off: off outlives the next
+// twenty reports, this is the absence of an opinion.
+$('#admin-list').addEventListener('click', async (e) => {
+  if (e.target.dataset.act !== 'badge-auto') return;
+  e.preventDefault();
+  const row = e.target.closest('.admin-row');
+  const id = row?.dataset.id;
+  const member = state.members.find(m => m.id === id);
+  const badge = e.target.dataset.badge;
+  if (!member) return;
+  await attempt(async () => {
+    member.badges = await adminClearBadge(id, badge);
+    const rest = { ...(member.overrides ?? {}) };
+    delete rest[badge];
+    member.overrides = rest;
+    paintBadgeState(e.target.closest('.ar-badge'), badge, member);
+    toast('Back to whatever they earned.');
+  }, { onFail: () => {} });
 });
 
 // Removing somebody is the one thing here that cannot be undone, so it asks

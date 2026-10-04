@@ -209,13 +209,63 @@ begin
       insert into public.contributor_badges (profile_id, badge) values (nobody, 'gold');
     exception when check_violation then refused := true;
     end;
-    perform pg_temp.ok(refused, 'nor can an earned badge be handed out by hand');
+    perform pg_temp.ok(not refused,
+      'while an earned badge CAN be handed out by hand, which is the override');
+    delete from public.contributor_badges where profile_id = nobody and badge = 'gold';
     refused := false;
     begin
       insert into public.contributor_badges (profile_id, badge) values (nobody, 'early');
     exception when check_violation then refused := true;
     end;
     perform pg_temp.ok(not refused, 'while early, which replaced it, can be');
+  end;
+
+  -- ---- an admin overrules the count, both ways ---------------------------
+  --
+  -- The seven earned badges are a rule, and a rule needs somebody who can say
+  -- "not this person" — and the other way round, give one to somebody the
+  -- count has not caught up with. Three states: given, taken away, and no
+  -- opinion, which is the normal one.
+  perform pg_temp.ok(true, '--- what an admin can overrule ---');
+  declare forced uuid := pg_temp.member('forced');
+  begin
+    perform pg_temp.file(forced, 'FR', 'Vichy', 10, witness);
+    b := public.badges_of(forced);
+    perform pg_temp.ok('silver' = any(b) and 'local' = any(b),
+      format('earned Silver and Local hero on their own (%s)', b));
+
+    -- Taken away: the reports that earned it have not gone anywhere, so a
+    -- delete would hand it straight back. The row has to say no.
+    insert into public.contributor_badges (profile_id, badge, granted)
+      values (forced, 'silver', false);
+    b := public.badges_of(forced);
+    perform pg_temp.ok(not ('silver' = any(b)),
+      format('an admin can take an earned badge away (%s)', b));
+    perform pg_temp.ok('local' = any(b),
+      'and only that one — the rest of what they earned stands');
+
+    -- Given: a badge the count has not reached.
+    insert into public.contributor_badges (profile_id, badge, granted)
+      values (forced, 'gold', true);
+    b := public.badges_of(forced);
+    perform pg_temp.ok('gold' = any(b),
+      format('and give one the count has not reached (%s)', b));
+
+    -- Hand back to the count.
+    delete from public.contributor_badges where profile_id = forced and badge = 'silver';
+    b := public.badges_of(forced);
+    perform pg_temp.ok('silver' = any(b),
+      format('clearing the decision puts the earned one back (%s)', b));
+
+    -- A revoked badge stays revoked when the count rises. An admin decision
+    -- is a decision, not a one-off correction that the next report undoes.
+    insert into public.contributor_badges (profile_id, badge, granted)
+      values (forced, 'local', false) on conflict (profile_id, badge)
+      do update set granted = false;
+    perform pg_temp.file(forced, 'FR', 'Vichy', 20, witness);
+    b := public.badges_of(forced);
+    perform pg_temp.ok(not ('local' = any(b)),
+      format('and twenty more reports do not undo a revoke (%s)', b));
   end;
 
   -- ---- the thresholds are settings, not constants ------------------------

@@ -1322,6 +1322,16 @@ body.page { min-height:100vh; background:var(--paper); }
 .ar-badge { display:inline-flex; align-items:center; gap:6px; cursor:pointer; opacity:.4; }
 .ar-badge.is-on { opacity:1; }
 .ar-badge input { accent-color:var(--brand-fill); }
+/* Set by hand rather than counted. The outline says so without a second line
+   of text beside every chip — an admin needs to tell "we decided this" from
+   "the reports say this" at a glance, because only the first is theirs to
+   undo. */
+.ar-badge.is-hand .badge-chip { border-style:dashed; border-color:var(--brand); }
+.ar-auto { border:0; background:none; padding:0 2px; cursor:pointer;
+  color:var(--brand); font-size:13px; line-height:1; }
+.ar-auto[hidden] { display:none; }
+.ar-auto:hover { color:var(--ink); }
+.ar-badge-note { margin:6px 0 0; color:var(--muted); font-size:11px; }
 
 .ar-danger { padding-top:10px; border-top:1px solid var(--line); }
 .link-danger { border:0; background:none; padding:0; color:#c5382c; font:inherit;

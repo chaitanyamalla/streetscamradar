@@ -555,8 +555,88 @@ def probe_official_links(sample=("spain", "greece", "portugal", "germany",
         print(f"    {status}  {len(body or ''):>7} bytes  {kind[:24]:<24} {url}{hint}")
 
 
+
+def probe_country_codes():
+    """What does affectedcountries actually look like today?
+
+    The scheduled refresh stopped with "188 events came back but none carried a
+    usable country code" — a guard that exists so a parse that has quietly
+    stopped working cannot wipe the map. countries_of() reads
+    affectedcountries, which has always arrived as a PYTHON REPR rather than
+    JSON and is converted with a quote swap before parsing. Several things
+    could have changed: the field, its shape, the key inside it, or something
+    as small as a country whose name contains an apostrophe.
+
+    So this prints the raw value, untouched, for both endpoints — and then
+    tries the conversion the parser does and says which events it fails on.
+    """
+    import re
+    print(f"\n{'=' * 70}\nAFFECTEDCOUNTRIES, AS IT ARRIVES\n{'=' * 70}")
+    for label, url in (
+        ("EVENTS4APP", "https://www.gdacs.org/gdacsapi/api/events/geteventlist/EVENTS4APP"),
+        ("SEARCH", "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH"),
+    ):
+        try:
+            request = urllib.request.Request(url, headers={"User-Agent": UA,
+                                                           "Accept": "application/json"})
+            with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except Exception as error:
+            print(f"\n{label}: could not be read — {error}")
+            continue
+
+        features = payload.get("features") or []
+        print(f"\n{label}: {len(features)} events")
+
+        good = bad = missing = 0
+        shown = 0
+        why = {}
+        for feature in features:
+            props = (feature or {}).get("properties") or {}
+            raw = props.get("affectedcountries")
+            if raw is None:
+                missing += 1
+                continue
+            if shown < 3:
+                print(f"  type={type(raw).__name__}  raw={str(raw)[:220]!r}")
+                shown += 1
+            if isinstance(raw, str):
+                try:
+                    parsed = json.loads(raw.replace("'", '"'))
+                except json.JSONDecodeError as error:
+                    bad += 1
+                    why[str(error)[:60]] = why.get(str(error)[:60], 0) + 1
+                    continue
+            else:
+                parsed = raw
+            codes = [str((e or {}).get("iso2") or "").strip().upper()
+                     for e in (parsed if isinstance(parsed, list) else [])]
+            if any(len(c) == 2 and c.isalpha() for c in codes):
+                good += 1
+            else:
+                bad += 1
+                keys = sorted({k for e in (parsed if isinstance(parsed, list) else [])
+                               if isinstance(e, dict) for k in e})
+                why[f"parsed, but no iso2 — keys were {keys}"] = \
+                    why.get(f"parsed, but no iso2 — keys were {keys}", 0) + 1
+
+        print(f"  usable: {good}   unusable: {bad}   field missing: {missing}")
+        for reason, n in sorted(why.items(), key=lambda kv: -kv[1])[:4]:
+            print(f"    {n:>4}  {reason}")
+
+        # The other fields that name a country, in case one of them is the way
+        # back: iso3, country, countryname.
+        for key in ("iso3", "country", "countryname"):
+            seen = [str(((f or {}).get("properties") or {}).get(key) or "")
+                    for f in features[:6]]
+            if any(seen):
+                print(f"  {key:<12} first six: {seen}")
+
+
 def main():
     print("Probing the hazard sources. Nothing is written.")
+    # First, because it is the question the scheduled refresh is stuck on.
+    probe_country_codes()
     everything = {}
     for name, url in SOURCES.items():
         everything[name] = report(name, url)

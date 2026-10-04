@@ -47,7 +47,18 @@ insert into public.app_settings (key, value, note) values
   -- public.region_catalog for the whole menu. Reading is never affected: what
   -- is on the map stays readable everywhere.
   ('blocked_regions', '{"countries": [], "groups": []}',
-   'Countries and groups where new reports are refused. Reading is unaffected.')
+   'Countries and groups where new reports are refused. Reading is unaffected.'),
+  -- What the earned badges cost. See earned_badges() for what each one counts
+  -- and why. Here rather than in the function so a rung can be moved from the
+  -- dashboard on the day it turns out to be too steep for a young map, which
+  -- is exactly the kind of number nobody gets right the first time.
+  ('badge_bronze_confirmed',   '3',   'Reports of yours confirmed by somebody else for Bronze.'),
+  ('badge_silver_confirmed',   '10',  'Reports of yours confirmed by somebody else for Silver.'),
+  ('badge_gold_confirmed',     '30',  'Reports of yours confirmed by somebody else for Gold.'),
+  ('badge_local_reports',      '5',   'Reports in a single town for Local hero.'),
+  ('badge_country_towns',      '5',   'Towns in a single country for Country hero.'),
+  ('badge_region_countries',   '3',   'Countries in a single region for Regional hero.'),
+  ('badge_global_continents',  '2',   'Continents for Globetrotter.')
 on conflict (key) do nothing;
 
 alter table public.app_settings enable row level security;
@@ -991,13 +1002,39 @@ $$;
 -- ---------------------------------------------------------------------------
 create table if not exists public.contributor_badges (
   profile_id uuid not null references public.profiles(id) on delete cascade,
-  badge      text not null check (badge in ('creator', 'top', 'founder', 'partner')),
+  -- GRANTED badges only. The earned ones — the metals and the reach ladder —
+  -- are worked out from the reports every time they are asked for and are
+  -- never stored here: see earned_badges() below for why.
+  badge      text not null check (badge in ('creator', 'top', 'early', 'partner')),
   -- Why this person has it, in your words. Never shown on the page; it is
   -- there so that in a year you can still tell what you were recognising.
   note       text,
   granted_at timestamptz not null default now(),
   primary key (profile_id, badge)
 );
+
+-- 'founder' was the wrong word and is now 'early'. Nobody founded anything by
+-- being here while the map was empty, and a badge that says so on a stranger's
+-- profile is a claim about the company, not about them.
+--
+-- All three statements are needed, and the ORDER of them is the whole point.
+-- `create table if not exists` above does nothing at all to a table that
+-- already exists, so on the live database the constraint is still the old one
+-- when this is reached — and the old one does not allow 'early'. Renaming the
+-- rows first therefore fails on the way IN, not on the way out:
+--
+--   ERROR: new row for relation "contributor_badges"
+--          violates check constraint "contributor_badges_badge_check"
+--
+-- which is what the upgrade pass in supabase/test/run.sh caught, and what an
+-- empty database can never show. So: take the old constraint off, move the
+-- rows while nothing is judging them, then put the new one on.
+alter table public.contributor_badges
+  drop constraint if exists contributor_badges_badge_check;
+update public.contributor_badges set badge = 'early' where badge = 'founder';
+alter table public.contributor_badges
+  add constraint contributor_badges_badge_check
+  check (badge in ('creator', 'top', 'early', 'partner'));
 
 alter table public.contributor_badges enable row level security;
 -- No policy at all: nothing reads this table directly. The page sees badges
@@ -1020,6 +1057,141 @@ alter table public.profiles add column if not exists listed boolean not null def
 -- starts with. Case-insensitive, because nobody remembers the capitals.
 create index if not exists profiles_display_name_idx
   on public.profiles (lower(display_name));
+
+-- ---------------------------------------------------------------------------
+-- Badges nobody hands out.
+--
+-- The four in the table above are editorial: somebody decided this person
+-- makes videos, or that organisation is a partner. These are not. They are
+-- read off the reports every time they are asked for, which is the whole
+-- design decision worth defending here — there is no backfill, no nightly job
+-- that can silently stop, and no way for a stored badge to drift from the work
+-- it was given for. A report withdrawn takes its badge with it.
+--
+-- Two ladders, and at most ONE rung of each shows. They answer two different
+-- questions and neither is the level:
+--
+--   the metals   how much of this person's work somebody else stood behind.
+--                Counted in CONFIRMED reports, not filed ones, because filing
+--                is a thing you can do alone and the number that means
+--                anything is the one other people agreed with. It is also the
+--                only one of the three that spam cannot move on its own.
+--
+--   the reach    how far their map goes. Local is depth in one town; the three
+--                above it are width. They widen strictly — a town, then towns
+--                in a country, then countries in a region, then continents —
+--                so the highest rung reached is the only one shown, the way a
+--                level is.
+--
+-- WHAT THESE DO NOT SAY. Not one of them names a place. The contributors board
+-- shows no geography on purpose — reports_feed drops reporter_id so that
+-- whoever reported a scam stays anonymous, and a board reading "Ana — 4
+-- reports in Seville" would hand straight back what that view exists to
+-- withhold. "Five or more reports in one town" says the SHAPE of somebody's
+-- contribution and not where they live, and that is the line these sit behind.
+-- A badge naming the town would be the thing the board was built to prevent.
+--
+-- A town is counted by `city` as the geocoder returned it, so two spellings of
+-- one place count twice. That is a reason the rungs are low rather than a
+-- reason to normalise names we do not control.
+-- ---------------------------------------------------------------------------
+create or replace function public.earned_badges(p_user uuid)
+returns text[] language sql stable security definer set search_path = public as $$
+  with mine as (
+    select nullif(btrim(r.city), '') as town, r.country_code
+      from public.reports r
+     where r.reporter_id = p_user and r.status = 'published'
+  ),
+  confirmed as (
+    select count(distinct r.id)::int as n
+      from public.reports r
+      join public.report_supports s on s.report_id = r.id
+     where r.reporter_id = p_user
+       and r.status = 'published'
+       and s.user_id is distinct from p_user
+  ),
+  -- The deepest single town, the widest single country, the widest single
+  -- region, and how many continents in all.
+  deepest_town as (
+    select coalesce(max(n), 0) as n from (
+      select count(*)::int as n from mine
+       where town is not null and country_code is not null
+       group by country_code, town) t
+  ),
+  widest_country as (
+    select coalesce(max(n), 0) as n from (
+      select count(distinct town)::int as n from mine
+       where town is not null and country_code is not null
+       group by country_code) t
+  ),
+  widest_region as (
+    select coalesce(max(n), 0) as n from (
+      select count(distinct m.country_code)::int as n
+        from mine m
+        join public.country_groups g on g.country_code = m.country_code
+       where m.country_code is not null and g.kind = 'zone'
+       group by g.group_code) t
+  ),
+  continents as (
+    select count(distinct g.group_code)::int as n
+      from mine m
+      join public.country_groups g on g.country_code = m.country_code
+     where m.country_code is not null and g.kind = 'continent'
+  )
+  select array_remove(array[
+    case
+      when (select n from confirmed) >= public.setting_int('badge_gold_confirmed', 30)   then 'gold'
+      when (select n from confirmed) >= public.setting_int('badge_silver_confirmed', 10) then 'silver'
+      when (select n from confirmed) >= public.setting_int('badge_bronze_confirmed', 3)  then 'bronze'
+    end,
+    case
+      when (select n from continents) >= public.setting_int('badge_global_continents', 2)    then 'global'
+      when (select n from widest_region) >= public.setting_int('badge_region_countries', 3)  then 'regional'
+      when (select n from widest_country) >= public.setting_int('badge_country_towns', 5)    then 'country'
+      when (select n from deepest_town) >= public.setting_int('badge_local_reports', 5)      then 'local'
+    end
+  ], null);
+$$;
+
+-- Every badge somebody has, given and earned, in one place.
+--
+-- One function rather than the same two subqueries in four callers: my
+-- standing, the public board, the admin list and the dashboard view all showed
+-- badges, and four copies of this would be four chances for one of them to
+-- quietly stop agreeing with the others about what somebody has.
+create or replace function public.badges_of(p_user uuid)
+returns text[] language sql stable security definer set search_path = public as $$
+  select coalesce((select array_agg(b.badge order by b.granted_at)
+                     from public.contributor_badges b
+                    where b.profile_id = p_user), '{}')
+       || public.earned_badges(p_user);
+$$;
+
+revoke all on function public.earned_badges(uuid) from public, anon;
+revoke all on function public.badges_of(uuid) from public, anon;
+
+-- What each rung costs, for the page that explains them.
+--
+-- Same reasoning as point_weights() above: app_settings itself stays revoked
+-- from both browser roles because it also holds which regions are closed to
+-- reporting, and that is nobody's business but ours. What a badge costs IS the
+-- reader's business — a guide page that printed "three reports" while the
+-- setting said five would be worse than one that printed nothing.
+create or replace function public.badge_rungs()
+returns table (bronze int, silver int, gold int,
+               local_reports int, country_towns int,
+               region_countries int, global_continents int)
+language sql stable security definer set search_path = public as $$
+  select public.setting_int('badge_bronze_confirmed', 3),
+         public.setting_int('badge_silver_confirmed', 10),
+         public.setting_int('badge_gold_confirmed', 30),
+         public.setting_int('badge_local_reports', 5),
+         public.setting_int('badge_country_towns', 5),
+         public.setting_int('badge_region_countries', 3),
+         public.setting_int('badge_global_continents', 2);
+$$;
+
+grant execute on function public.badge_rungs() to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Your own standing: points, level, and how far to the next one.
@@ -1068,8 +1240,7 @@ language sql stable security definer set search_path = public as $$
             where s.user_id = (select id from me)
               and r.status = 'published'
               and r.reporter_id is distinct from (select id from me)),
-         (select coalesce(array_agg(b.badge order by b.granted_at), '{}')
-            from public.contributor_badges b where b.profile_id = (select id from me)),
+         public.badges_of((select id from me)),
          coalesce((select pr.listed from public.profiles pr
                     where pr.id = (select id from me)), false),
          coalesce((select pr.role from public.profiles pr
@@ -1098,8 +1269,7 @@ language sql stable security definer set search_path = public as $$
   select coalesce(nullif(btrim(p.display_name), ''), 'Member'),
          public.member_level(p.id),
          public.contribution_points(p.id),
-         coalesce((select array_agg(b.badge order by b.granted_at)
-                     from public.contributor_badges b where b.profile_id = p.id), '{}')
+         public.badges_of(p.id)
     from public.profiles p
    where p.listed
    order by 3 desc, p.created_at
@@ -1127,8 +1297,7 @@ create or replace view public.admin_contributors as
          p.role,
          public.member_level(p.id)                          as level,
          public.contribution_points(p.id)                   as points,
-         coalesce((select array_agg(b.badge order by b.granted_at)
-                     from public.contributor_badges b where b.profile_id = p.id), '{}') as badges,
+         public.badges_of(p.id)                              as badges,
          (select count(*) from public.reports r
            where r.reporter_id = p.id and r.status = 'published')          as reports,
          (select count(*) from public.report_supports s
@@ -1195,8 +1364,7 @@ begin
            public.contribution_points(p.id),
            (select count(*)::int from public.reports r
              where r.reporter_id = p.id and r.status = 'published'),
-           coalesce((select array_agg(b.badge order by b.granted_at)
-                       from public.contributor_badges b where b.profile_id = p.id), '{}'),
+           public.badges_of(p.id),
            -- Where their reports come from, which is the only sense in which a
            -- member has a region at all: a profile has no country on it, and
            -- asking one for their nationality would be a question this site has
@@ -1303,8 +1471,10 @@ begin
     delete from public.contributor_badges b
      where b.profile_id = p_id and b.badge = p_badge;
   end if;
-  return coalesce((select array_agg(b.badge order by b.granted_at)
-                     from public.contributor_badges b where b.profile_id = p_id), '{}');
+  -- Everything they have, not just what this call changed: the admin row
+  -- redraws its chips from what comes back, and returning the granted ones
+  -- alone would blank somebody's Gold and Globetrotter until the next reload.
+  return public.badges_of(p_id);
 end;
 $$;
 

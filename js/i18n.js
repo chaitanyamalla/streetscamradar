@@ -152,7 +152,11 @@ export const plural = (key, n) => tn(key, n);
  * deploy. We translate the ones we know by slug and fall back to whatever
  * label the row carries, which beats showing "category.new_thing".
  */
-export const tOr = (key, fallbackText) => (has(key) ? t(key) : fallbackText);
+/** t(), but with your own words for a key that is not there yet. `params` are
+ *  filled in the same way t() fills them — the badge notes carry the number of
+ *  reports a rung costs, and that number is read from the database. */
+export const tOr = (key, fallbackText, params) =>
+  (has(key) ? t(key, params) : fallbackText);
 
 /** A date written the way the reader's language writes dates. */
 export function formatDate(value, options = { year: 'numeric', month: 'long' }) {

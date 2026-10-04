@@ -425,6 +425,28 @@ export async function contributorLadder() {
  * from the browser and should stay that way — it also holds which regions are
  * closed to reporting.
  */
+/**
+ * What each earned badge costs, for the guide page.
+ *
+ * Read rather than hardcoded for the same reason the point weights are: the
+ * rungs are settings, so a guide page carrying its own copy of them would go
+ * quietly wrong the first time one was moved from the dashboard — and a page
+ * that explains the rules has to be the LAST place that is allowed to be
+ * out of date about them.
+ */
+export async function badgeRungs() {
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc('badge_rungs');
+  if (error) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+  return {
+    bronze: Number(row.bronze), silver: Number(row.silver), gold: Number(row.gold),
+    local: Number(row.local_reports), country: Number(row.country_towns),
+    regional: Number(row.region_countries), global: Number(row.global_continents),
+  };
+}
+
 export async function pointWeights() {
   if (!supabase) return null;
   const { data, error } = await supabase.rpc('point_weights');

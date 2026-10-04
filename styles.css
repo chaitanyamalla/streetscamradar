@@ -1240,6 +1240,12 @@ body.page { min-height:100vh; background:var(--paper); }
   font:600 12px 'DM Mono',monospace; }
 .lv-name { font-weight:700; }
 
+/* Three groups now, not one list: given, earned for what others confirmed,
+   earned for how far the map reaches. The heading carries the distinction a
+   flat row of eleven chips could not. */
+.badge-group { margin:22px 0 2px; font-size:12px; letter-spacing:.02em;
+  color:var(--ink-soft); }
+.badge-group:first-child { margin-top:4px; }
 .badge-explain { display:flex; align-items:flex-start; gap:12px; padding:11px 0;
   border-bottom:1px solid var(--line); }
 .badge-explain .badge-chip { flex:none; margin-top:1px; }

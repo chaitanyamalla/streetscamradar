@@ -928,9 +928,36 @@ export function setGateNote(host, { mode, shown = 0, hiddenCount = 0, signedIn }
 // ---------------------------------------------------------------------------
 
 /** Every badge the database can hold, in the order they are shown. */
-export const BADGES = ['creator', 'top', 'founder', 'partner'];
+/**
+ * The badges somebody can be GIVEN — the editorial ones, which the admin page
+ * offers as checkboxes. 'founder' was one of these and is now 'early': nobody
+ * founded a company by being here while the map was empty, and a badge saying
+ * so on a stranger's profile is a claim about us rather than about them.
+ */
+export const GRANTED_BADGES = ['creator', 'top', 'early', 'partner'];
 
-const BADGE_GLYPH = { creator: '🎥', top: '🏅', founder: '🌱', partner: '🤝' };
+/**
+ * The ones nobody gives out. Two ladders, worked out from the reports
+ * themselves every time they are read — see earned_badges() in schema.sql.
+ * At most one rung of each shows, so a chip row stays a row.
+ *
+ *   the metals   how many of their reports somebody else confirmed
+ *   the reach    how far their map goes, from one town to two continents
+ *
+ * Listed in the order they are explained on the guide page, which is the order
+ * they are climbed.
+ */
+export const EARNED_BADGES = ['bronze', 'silver', 'gold',
+                              'local', 'country', 'regional', 'global'];
+
+/** Everything there is, for the guide page. */
+export const BADGES = [...GRANTED_BADGES, ...EARNED_BADGES];
+
+const BADGE_GLYPH = {
+  creator: '🎥', top: '🏅', early: '🌱', partner: '🤝',
+  bronze: '🥉', silver: '🥈', gold: '🥇',
+  local: '🏘', country: '🗺', regional: '🧭', global: '🌍',
+};
 
 /**
  * One badge, as a chip with its meaning on hover.

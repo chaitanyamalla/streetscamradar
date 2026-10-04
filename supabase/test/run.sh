@@ -26,6 +26,8 @@ $PSQL -v ON_ERROR_STOP=1 -q -f "$HERE/supabase_shim.sql" || { echo "the shim wou
 # database already had the table from an earlier run.
 $PSQL -v ON_ERROR_STOP=1 -q -f "$HERE/../schema.sql" || { echo "schema.sql would not apply to an empty database"; exit 1; }
 $PSQL -f "$HERE/levels_test.sql" 2>&1 | grep -E '  ok  |FAIL|^ERROR|passed' | sed 's/^psql:[^ ]*//;s/NOTICE: *//'
+echo
+$PSQL -f "$HERE/badges_test.sql" 2>&1 | grep -E '  ok  |FAIL|^ERROR|passed' | sed 's/^psql:[^ ]*//;s/NOTICE: *//'
 
 # ---------------------------------------------------------------------------
 # And again, as an UPGRADE rather than an install.
@@ -49,10 +51,32 @@ if [ -n "$BASE" ]; then
     $PSQL -q -c 'drop schema if exists public cascade; create schema public; drop schema if exists auth cascade;' >/dev/null 2>&1
     $PSQL -v ON_ERROR_STOP=1 -q -f "$HERE/supabase_shim.sql" >/dev/null 2>&1
     $PSQL -q -f "$OLD" >/dev/null 2>&1
+    # Put a row in the shape the OLD schema allowed and the new one does not,
+    # so the upgrade has something real to migrate. A constraint swap that
+    # forgets to move its rows first passes on an empty table and fails on the
+    # only database anybody cares about.
+    $PSQL -q >/dev/null 2>&1 <<'SEED'
+      insert into auth.users (id, email)
+        values ('11111111-1111-1111-1111-111111111111', 'old@example.test')
+        on conflict do nothing;
+      insert into public.profiles (id, display_name)
+        values ('11111111-1111-1111-1111-111111111111', 'Old hand')
+        on conflict (id) do nothing;
+      insert into public.contributor_badges (profile_id, badge)
+        values ('11111111-1111-1111-1111-111111111111', 'founder')
+        on conflict do nothing;
+SEED
     if $PSQL -v ON_ERROR_STOP=1 -q -f "$HERE/../schema.sql" 2>&1 | grep -E '^(psql:)?.*ERROR' ; then
       echo "  FAIL  schema.sql does not apply on top of $BASE"
     else
       echo "  ok    schema.sql applies on top of $BASE, not only to an empty database"
+      MOVED="$($PSQL -tAc "select badge from public.contributor_badges
+                            where profile_id = '11111111-1111-1111-1111-111111111111'" 2>/dev/null | tr -d ' ')"
+      if [ "$MOVED" = "early" ]; then
+        echo "  ok    and a badge granted as 'founder' came across as 'early'"
+      else
+        echo "  FAIL  the founder badge did not survive the rename (got '$MOVED')"
+      fi
     fi
   fi
   rm -f "$OLD"

@@ -9,9 +9,9 @@
 // ---------------------------------------------------------------------------
 import { bootPage } from './page.js';
 import { t, tOr, plural } from './i18n.js';
-import { esc, badgeChip, BADGES } from './ui.js';
+import { esc, badgeChip, GRANTED_BADGES } from './ui.js';
 import { REPORT_WINDOW_DAYS } from './config.js';
-import { contributorLadder, pointWeights } from './data.js';
+import { contributorLadder, pointWeights, badgeRungs } from './data.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -21,9 +21,20 @@ const $ = (sel) => document.querySelector(sel);
 const LADDER = [[1, 0], [2, 10], [3, 25], [4, 50], [5, 90],
                 [6, 150], [7, 230], [8, 330], [9, 450], [10, 600]];
 const WEIGHTS = { report: 5, confirmation: 4, given: 1 };
+// And what each earned badge costs, same idea: the seeded values from
+// schema.sql, replaced by the real ones as soon as the database answers.
+const RUNGS = { bronze: 3, silver: 10, gold: 30,
+                local: 5, country: 5, regional: 3, global: 2 };
+
+// The two earned ladders, in the order they are climbed. The slug is the
+// badge, the second item is which rung in RUNGS its sentence counts.
+const METALS = [['bronze', 'bronze'], ['silver', 'silver'], ['gold', 'gold']];
+const REACH  = [['local', 'local'], ['country', 'country'],
+                ['regional', 'regional'], ['global', 'global']];
 
 let ladder = LADDER;
 let weights = WEIGHTS;
+let rungs = RUNGS;
 
 function paintPoints() {
   const row = (key, n) => `
@@ -51,12 +62,32 @@ function paintLadder() {
       </tr>`).join('')}</tbody>`;
 }
 
+/**
+ * Three groups, because a badge means a different thing depending on where it
+ * came from. The first are ours to give; the other two are counted off
+ * somebody's reports and cannot be asked for. A flat list of eleven chips said
+ * none of that, and the lede that went with it said they were all given by
+ * hand, which stopped being true.
+ *
+ * The numbers come from badge_rungs() rather than from the strings, so moving
+ * a rung from the dashboard moves what this page says it costs. A page that
+ * explains the rules is the last place allowed to be out of date about them.
+ */
+function badgeGroup(key, pairs) {
+  return `
+    <h3 class="badge-group">${esc(t(key))}</h3>
+    ${pairs.map(([slug, rung]) => `
+      <div class="badge-explain">
+        ${badgeChip(slug)}
+        <p>${esc(tOr(`badge.${slug}.note`, '', { n: rungs[rung] }))}</p>
+      </div>`).join('')}`;
+}
+
 function paintBadges() {
-  $('#badge-guide').innerHTML = BADGES.map(slug => `
-    <div class="badge-explain">
-      ${badgeChip(slug)}
-      <p>${esc(tOr(`badge.${slug}.note`, ''))}</p>
-    </div>`).join('');
+  $('#badge-guide').innerHTML =
+      badgeGroup('guide.badges.given', GRANTED_BADGES.map(slug => [slug, null]))
+    + badgeGroup('guide.badges.metals', METALS)
+    + badgeGroup('guide.badges.reach', REACH);
 }
 
 function paintSources() {
@@ -98,8 +129,10 @@ await bootPage({ onLanguage: paintAll });
 // contributor_levels and this page would otherwise go on quoting the numbers
 // it shipped with.
 try {
-  const [live, w] = await Promise.all([contributorLadder(), pointWeights()]);
+  const [live, w, r] = await Promise.all([
+    contributorLadder(), pointWeights(), badgeRungs()]);
   if (live?.length) ladder = live;
   if (w) weights = { ...weights, ...w };
+  if (r) rungs = { ...rungs, ...r };
   paintAll();
 } catch { /* the seeded values stand */ }

@@ -12,7 +12,7 @@
 // ---------------------------------------------------------------------------
 import { bootPage } from './page.js';
 import { initAuth, onAuthChange } from './auth.js';
-import { esc, toast, badgeChip, BADGES } from './ui.js';
+import { esc, toast, badgeChip, GRANTED_BADGES, EARNED_BADGES } from './ui.js';
 import { formatDate } from './i18n.js';
 import { amAdmin, adminMembers, adminSetRole, adminSetLevel, adminSetBadge,
          adminSetListed, adminRemoveMember, adminReports, adminSetReportStatus,
@@ -198,14 +198,27 @@ function memberRow(m) {
         </label>
       </div>
 
+      <!-- Checkboxes for the badges that are ours to give. The earned ones
+           below them are read off this member's reports every time anybody
+           looks, so there is nothing here to tick: a checkbox for Gold would
+           be a switch that does nothing, and the database would refuse the
+           write anyway. They are shown because an admin looking at somebody
+           wants to see everything they have, not only the half we decided. -->
       <div class="ar-badges">
-        ${BADGES.map(slug => `
+        ${GRANTED_BADGES.map(slug => `
           <label class="ar-badge${(m.badges ?? []).includes(slug) ? ' is-on' : ''}">
             <input type="checkbox" data-act="badge" data-badge="${slug}"
                    ${(m.badges ?? []).includes(slug) ? 'checked' : ''} />
             ${badgeChip(slug)}
           </label>`).join('')}
       </div>
+      ${(() => {
+        const earned = EARNED_BADGES.filter(slug => (m.badges ?? []).includes(slug));
+        return earned.length
+          ? `<div class="ar-earned"><span class="ar-earned-note">Earned</span>
+               ${earned.map(badgeChip).join('')}</div>`
+          : '';
+      })()}
 
       <div class="ar-danger">
         <button type="button" class="link-danger" data-act="remove"

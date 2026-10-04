@@ -99,10 +99,18 @@
 # GDACS, not a calm day on the planet, so it writes nothing and the previous
 # rows stay up.
 #
+# Keeping nothing from a feed we could read is a different thing, and is
+# allowed. Green is most of what GDACS publishes, so a morning with no Orange
+# or Red anywhere is a real morning; the table empties, as it should. The three
+# checks at the end of rows_from draw that line by asking whether each field
+# the rules depend on was understood anywhere in the feed, rather than whether
+# anything survived the rules. See the comment there.
+#
 # Usage:
 #   python3 fetch_disasters.py > disasters.sql
 #   python3 fetch_disasters.py --file sample.json > disasters.sql
 # ---------------------------------------------------------------------------
+import ast
 import json
 import re
 import sys
@@ -133,6 +141,21 @@ KINDS = {
 # front of somebody planning a trip. Anything Green falls through the lookup
 # below and is dropped.
 SEVERITY = {"Red": "severe", "Orange": "notice"}
+
+# The three grades GDACS publishes and the six kinds it publishes, spelled
+# exactly as its own fields spell them — Green and drought included, which are
+# the two things above that we deliberately do NOT carry.
+#
+# They are listed because "we kept nothing" has two completely different
+# causes and the table's health depends on telling them apart. A feed we can
+# still read, holding nothing but Green, is an ordinary quiet morning. A feed
+# where `alertlevel` has been renamed, or now says ORANGE, reads as nothing but
+# Green too — and must not be allowed to empty the map. So the end of rows_from
+# asks whether each field was understood AT ALL, anywhere in the feed, and
+# understanding it means recognising what it says even when we drop the event
+# for saying it.
+ALERT_LEVELS = frozenset({"Green", "Orange", "Red"})
+GDACS_KINDS = frozenset(KINDS) | {"DR"}
 
 # How long since GDACS last touched an event before we stop believing it.
 MAX_QUIET_DAYS = 7
@@ -196,14 +219,20 @@ def countries_of(props):
     """Every two-letter country code an event touches.
 
     affectedcountries arrives as a Python-repr string — single quotes — rather
-    than JSON, so it is converted before parsing rather than trusted to load.
+    than JSON, so it is read with literal_eval and not with a JSON parser.
+
+    It was read by swapping the quotes round and handing the result to
+    json.loads, which works right up to the first country with an apostrophe in
+    its name: "Cote d'Ivoire" becomes "Cote d"Ivoire", the parse fails, and the
+    event silently loses every country it touches — including the other twelve
+    in the same list. literal_eval reads the repr GDACS is actually sending.
     """
     codes = []
     affected = props.get("affectedcountries")
     if isinstance(affected, str):
         try:
-            affected = json.loads(affected.replace("'", '"'))
-        except json.JSONDecodeError:
+            affected = ast.literal_eval(affected)
+        except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
             affected = None
     for entry in affected if isinstance(affected, list) else []:
         code = str((entry or {}).get("iso2") or "").strip().upper()
@@ -374,34 +403,59 @@ def rows_from(payload, now=None):
 
     rows = {}
     shape_reported = False
+    # What the feed was understood to be saying, and what each rule threw out.
+    # Both are printed below whatever happens: a run that keeps nothing should
+    # say which rule emptied it, and the previous version of this did not —
+    # it reported "none carried a usable country code" for every empty result,
+    # whichever of the six rules had actually done it.
+    read = {"events": 0, "graded": 0, "typed": 0, "placed": 0}
+    dropped = {}
+
+    def drop(reason):
+        dropped[reason] = dropped.get(reason, 0) + 1
+
     for feature in features:
         props = (feature or {}).get("properties")
         if not isinstance(props, dict):
+            drop("no properties")
             continue
+        read["events"] += 1
         if not shape_reported:
             print(f"-- fields in an event: [{', '.join(sorted(props))}]", file=sys.stderr)
             shape_reported = True
 
-        severity = SEVERITY.get(str(props.get("alertlevel") or "").strip())
+        level = str(props.get("alertlevel") or "").strip()
+        type_code = str(props.get("eventtype") or "").strip().upper()
+        codes = countries_of(props)
+        read["graded"] += level in ALERT_LEVELS
+        read["typed"] += type_code in GDACS_KINDS
+        read["placed"] += bool(codes)
+
+        severity = SEVERITY.get(level)
         if not severity:
+            drop("alertlevel " + (level or "missing"))
             continue
-        kind = KINDS.get(str(props.get("eventtype") or "").strip().upper())
+        kind = KINDS.get(type_code)
         if not kind:
+            drop("eventtype " + (type_code or "missing"))
             continue
         # See RUNNING_MEANS_SOMETHING and the header: obeyed for the three
         # kinds that can actually finish, ignored for the three that cannot.
         if kind in RUNNING_MEANS_SOMETHING \
                 and str(props.get("iscurrent") or "true").strip().lower() == "false":
+            drop("the agency called it over")
             continue
 
         magnitude, depth, measure = severity_numbers(props)
 
         name = str(props.get("name") or props.get("description") or "").strip()
         if not name:
+            drop("no name")
             continue
 
         to_date = as_timestamp(props.get("todate"))
         if is_stale(to_date, now):
+            drop(f"untouched for {MAX_QUIET_DAYS} days")
             continue
         # With no `iscurrent` behind them, these three have nothing else keeping
         # a year-old one out, and GDACS's list carries plenty. A missing date is
@@ -410,6 +464,7 @@ def rows_from(payload, now=None):
         if kind not in RUNNING_MEANS_SOMETHING:
             when = to_date or as_timestamp(props.get("fromdate"))
             if not when or is_stale(when, now):
+                drop("undated" if not when else f"untouched for {MAX_QUIET_DAYS} days")
                 continue
 
         event_id = "{}-{}-{}".format(
@@ -424,7 +479,9 @@ def rows_from(payload, now=None):
 
         lat, lng = point_of(feature)
 
-        for code in countries_of(props):
+        if not codes:
+            drop("no country named")
+        for code in codes:
             rows[(event_id, code)] = {
                 "event_id": event_id, "country_code": code, "kind": kind,
                 "severity": severity, "name": name,
@@ -434,12 +491,43 @@ def rows_from(payload, now=None):
                 "magnitude": magnitude, "depth_km": depth, "measure": measure,
             }
 
-    # An event GDACS lists but names no country for cannot answer the only
-    # question this table exists for, so zero rows from a full feed is still a
-    # problem worth stopping on.
-    if not rows:
-        raise SourceProblem(
-            f"{len(features)} events came back but none carried a usable country code")
+    print("--   of {} event(s): kept {} row(s); dropped {}".format(
+        read["events"], len(rows),
+        ", ".join(f"{n} for {reason}" for reason, n
+                  in sorted(dropped.items(), key=lambda kv: (-kv[1], kv[0]))) or "nothing"),
+        file=sys.stderr)
+
+    # Keeping nothing is allowed. Failing to READ the feed is not, and these
+    # three checks are the whole difference.
+    #
+    # GDACS publishes mostly Green, so a morning with no Orange or Red anywhere
+    # on Earth is a real morning — rare, and not an error. Stopping on it would
+    # leave yesterday's cyclone on the map until somebody noticed, which is the
+    # opposite of what this guard is for; the table is meant to empty.
+    #
+    # What must never empty it is a field that has quietly changed shape, since
+    # that reads exactly the same from here: every event dropped, nothing kept.
+    # So each field the rules depend on is checked for having been understood
+    # somewhere in the feed, and a field that was understood NOWHERE stops the
+    # run and names itself. Recognising a value we go on to drop — Green, or a
+    # drought — still counts as understanding the field: what is being tested
+    # is the reading and not the keeping.
+    #
+    # This replaced a single check that fired on an empty result and blamed
+    # affectedcountries for it, whichever rule had really emptied it. The
+    # scheduled run of 4 October 2026 stopped with "188 events came back but
+    # none carried a usable country code" while 175 of those 188 events carried
+    # one perfectly well.
+    for field, count, what in (
+        ("alertlevel", read["graded"], "Green, Orange or Red"),
+        ("eventtype", read["typed"], "one of its six event types"),
+        ("affectedcountries", read["placed"], "a two-letter country code"),
+    ):
+        if not count:
+            raise SourceProblem(
+                f"{read['events']} events came back and not one had a readable "
+                f"{field} — nothing in the feed said {what}, so it has changed "
+                "shape. Refusing to overwrite the table")
     return sorted(rows.values(), key=lambda r: (r["country_code"], r["event_id"]))
 
 

@@ -106,8 +106,62 @@ for broken, label in [
 try:
     fd.rows_from(payload([event(countries=(), event_id=i) for i in range(40)]))
     check(False, "a full feed naming no countries is refused")
-except fd.SourceProblem:
-    check(True, "a full feed naming no countries is refused")
+except fd.SourceProblem as problem:
+    check("affectedcountries" in str(problem),
+          "a full feed naming no countries is refused, and says which field")
+
+
+# --- keeping nothing, versus reading nothing ---------------------------------
+#
+# These two look identical from inside rows_from — every event dropped, no rows
+# — and must not be treated the same. A readable feed holding nothing we carry
+# is a quiet morning and the table is meant to empty; a field that has changed
+# shape reads as a quiet morning too and must stop the run.
+#
+# This is the bug the scheduled run of 4 October 2026 hit. It stopped with "188
+# events came back but none carried a usable country code" when 175 of the 188
+# carried one, because the only check on an empty result blamed the countries
+# whichever rule had actually emptied it.
+quiet = fd.rows_from(payload(filler(40)))
+check(quiet == [], "a readable feed of nothing but Green keeps nothing")
+
+for field, bad, label in [
+    ("alertlevel", {"alertlevel": "ORANGE"}, "alertlevel that changed case"),
+    ("alertlevel", {"alertlevel": "sev-2"}, "alertlevel that was renumbered"),
+    ("eventtype", {"eventtype": "FLOOD"}, "eventtype that was spelled out"),
+]:
+    try:
+        fd.rows_from(payload([event(event_id=i, **bad) for i in range(40)]))
+        check(False, f"an {label} is refused")
+    except fd.SourceProblem as problem:
+        check(field in str(problem),
+              f"an {label} is refused, and names {field}")
+
+# Green proves alertlevel was read even though no Green event is kept, and a
+# drought proves the same of eventtype. Otherwise every quiet morning would
+# look like a broken feed.
+check(fd.rows_from(payload(filler(40) + [event("DR", "Orange", "Drought", ("KE",), 9)])) == [],
+      "a feed of Green and drought reads fine and still keeps nothing")
+
+
+# --- a country with an apostrophe in its name --------------------------------
+#
+# affectedcountries is a Python repr, and it used to be read by swapping the
+# quotes round and handing the result to json.loads. "Cote d'Ivoire" became
+# "Cote d"Ivoire", the parse failed, and the event lost EVERY country it
+# touched — so one apostrophe in a thirteen-country flood erased all thirteen.
+ivory = "[{'iso2': 'CI', 'iso3': 'CIV', 'countryname': \"Cote d'Ivoire\"}]"
+check(fd.countries_of({"affectedcountries": ivory}) == ["CI"],
+      "a country whose name holds an apostrophe still yields its code")
+check(fd.countries_of({"affectedcountries":
+                       "[{'iso2': 'GH', 'countryname': 'Ghana'}, "
+                       + ivory[1:-1] + ", {'iso2': 'ML', 'countryname': 'Mali'}]"})
+      == ["GH", "CI", "ML"],
+      "and it does not take the rest of its list down with it")
+check(fd.countries_of({"affectedcountries": "[{'iso2': 'FR'}]"}) == ["FR"],
+      "the ordinary single-quoted repr still reads")
+check(fd.countries_of({"affectedcountries": "__import__('os')"}) == [],
+      "and the reader evaluates no code")
 
 
 # --- Orange and Red, and nothing else ---------------------------------------

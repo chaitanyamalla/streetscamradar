@@ -345,7 +345,6 @@ export default {
   'weather.source': 'Herausgegeben von {who}',
   'weather.source.meteoalarm': 'Herausgegeben von {who}, über MeteoAlarm',
   'advisory.chipName': 'Reisehinweise',
-  'advisory.prompt': 'Ort suchen',
   'advisory.empty': 'Für diesen Ort liegen keine Hinweise vor. Zoomen Sie auf ein Land oder suchen Sie eines, um zu sehen, ob eine Warnung gilt.',
   'weather.chipName': 'Wetterwarnung',
   'weather.legend': 'Wetterwarnungen',

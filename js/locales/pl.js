@@ -351,7 +351,6 @@ export default {
   'weather.source': 'Wydane przez {who}',
   'weather.source.meteoalarm': 'Wydane przez {who}, przez MeteoAlarm',
   'advisory.chipName': 'Porady dla podróżnych',
-  'advisory.prompt': 'Wyszukaj miejsce',
   'advisory.empty': 'Brak porad dla tego miejsca. Przybliż widok na kraj lub go wyszukaj, aby sprawdzić, czy obowiązuje ostrzeżenie.',
   'weather.chipName': 'Ostrzeżenie meteo',
   'weather.legend': 'Ostrzeżenia meteorologiczne',

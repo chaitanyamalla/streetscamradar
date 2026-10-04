@@ -366,7 +366,6 @@ export default {
   'weather.source': 'Emitido por {who}',
   'weather.source.meteoalarm': 'Emitido por {who}, via MeteoAlarm',
   'advisory.chipName': 'Conselhos de viagem',
-  'advisory.prompt': 'Pesquisar um lugar',
   'advisory.empty': 'Não há conselhos para este lugar. Aproxime o mapa num país, ou procure-o, para ver se há um aviso em vigor.',
   'weather.chipName': 'Aviso meteorológico',
   'weather.legend': 'Avisos meteorológicos',

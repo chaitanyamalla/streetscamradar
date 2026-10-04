@@ -49,11 +49,13 @@ export const SOURCE = {
 // is what stops the relay reading as our own chatty advice.
 export const STRINGS = {
   kicker: 'Reisehinweise',
-  // No `prompt` here on purpose. "Search a place" is an instruction from us to
-  // the reader, not a word of the ministry's, and it was the one line of this
-  // panel an English reader met before any advisory existed — so it sat on the
-  // English page in German, which is the opposite of what the rule above is
-  // for. It lives in js/locales as advisory.prompt and follows the page.
+  // No `prompt` here, and none anywhere else either. This used to hold "Ort
+  // suchen", which showed on the English page too; it was moved into the site
+  // strings so it would at least follow the page, and then dropped altogether.
+  // The chip sits in the corner of a map that already has a search box, so
+  // telling a reader to search in order to learn whether they need to search
+  // earned no room. With nothing resolved the chip shows its own name and
+  // nothing else — see paintAdvisoryPrompt in app.js.
   eyebrow: 'Offizielle Reisehinweise',
   title: 'Reise- und Sicherheitshinweise',
   whose: 'Herausgegeben vom Auswärtigen Amt für Reisende aus Deutschland. '

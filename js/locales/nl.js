@@ -365,7 +365,6 @@ export default {
   'weather.source': 'Uitgegeven door {who}',
   'weather.source.meteoalarm': 'Uitgegeven door {who}, via MeteoAlarm',
   'advisory.chipName': 'Reisadvies',
-  'advisory.prompt': 'Zoek een plaats',
   'advisory.empty': 'Geen advies voor deze plek. Zoom in op een land, of zoek er een, om te zien of er een waarschuwing geldt.',
   'weather.chipName': 'Weerwaarschuwing',
   'weather.legend': 'Weerwaarschuwingen',

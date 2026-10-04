@@ -1326,17 +1326,20 @@ function paintAdvisoryPrompt(chip) {
   state.advisoryCountry = null;
   chip.hidden = false;
   chip.className = 'advisory-chip is-empty';
-  // The name line is fixed markup now, so only the value below it is set here.
-  // In the reader's language, unlike the level it replaces: there is no
-  // advisory behind it yet, so there is nothing of the ministry's to quote.
-  const prompt = t('advisory.prompt');
+  // Nothing in the level line, and no stand-in for it. It held "Search a
+  // place" — "Ort suchen" in German — which was an instruction nobody needed:
+  // the chip is in the corner of a map that already has a search box, and
+  // telling a reader to search in order to find out whether they need to
+  // search is a sentence that earns no room. The chip says what it is, and
+  // fills in once there is a country. CSS promotes the name line to the
+  // level's size while this is empty, so it does not read as a caption with
+  // nothing under it.
   const line = $('#advisory-level');
-  line.textContent = prompt;
-  // The markup marks this line lang="de" because a level normally IS German.
-  // A prompt is not, so the attribute comes off while it is showing and goes
-  // back on with the next real level.
+  line.textContent = '';
+  // lang="de" is right for a level, which is the ministry's own word. There is
+  // no level here, so it comes off and goes back on with the next real one.
   line.removeAttribute('lang');
-  chip.setAttribute('aria-label', `${t('advisory.chipName')}: ${prompt}`);
+  chip.setAttribute('aria-label', t('advisory.chipName'));
   if ($('#advisory-dialog').open) paintAdvisoryDialog();
 }
 

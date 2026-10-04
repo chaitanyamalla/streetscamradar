@@ -287,7 +287,16 @@ em { font-style:italic; }
 .advisory-chip.is-severe { border-color:rgba(197,56,44,.45); }
 .advisory-chip.is-notice .ac-dot { background:var(--pin); }
 .advisory-chip.is-clear  .ac-dot { background:var(--safe); }
-.advisory-chip.is-empty .ac-level { color:var(--ink-soft); font-weight:600; }
+/* Nothing resolved yet: the chip is just its own name. The name line is
+   normally a small caption ABOVE the level, so with the level empty it would
+   sit there as a caption for nothing — it takes the level's size and weight
+   instead, and the empty line goes rather than leaving a gap below it.
+   .is-empty is only ever set on the advisory chip; the weather chip shares the
+   class .advisory-chip but always has a level to show. */
+.advisory-chip.is-empty .ac-level { display:none; }
+.advisory-chip.is-empty .ac-name { color:var(--ink); font-family:inherit;
+  font-size:12.5px; font-weight:700; line-height:1.25; letter-spacing:0;
+  text-transform:none; }
 
 /* Inside the dialog. */
 .advisory-panel { margin:4px 0 14px; padding:14px 15px; border:1px solid var(--line);
@@ -1066,7 +1075,7 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   .hz-name { white-space:normal; }
   .ac-dot { width:8px; height:8px; }
   .ac-kicker { font-size:8.5px; }
-  .ac-level { font-size:11.5px; }
+  .ac-level, .advisory-chip.is-empty .ac-name { font-size:11.5px; }
   .icon-button:first-child { border-radius:var(--radius) var(--radius) 0 0; }
   .icon-button:last-child { border-radius:0 0 var(--radius) var(--radius); border-top:0; }
   .filter-panel { position:static; order:3; width:auto; margin:0 var(--gutter); }

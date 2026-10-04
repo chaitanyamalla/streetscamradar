@@ -363,7 +363,6 @@ export default {
   'weather.source': 'Issued by {who}',
   'weather.source.meteoalarm': 'Issued by {who}, via MeteoAlarm',
   'advisory.chipName': 'Travel advisory',
-  'advisory.prompt': 'Search a place',
   'advisory.empty': 'No advisory for this place. Zoom in on a country, or search for one, to see whether a warning applies.',
   'weather.chipName': 'Weather advisory',
   'weather.legend': 'Weather warnings',

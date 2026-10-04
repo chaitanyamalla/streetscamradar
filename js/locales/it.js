@@ -345,7 +345,6 @@ export default {
   'weather.source': 'Emesso da {who}',
   'weather.source.meteoalarm': 'Emesso da {who}, via MeteoAlarm',
   'advisory.chipName': 'Avvisi di viaggio',
-  'advisory.prompt': 'Cerca un luogo',
   'advisory.empty': 'Nessun avviso per questo luogo. Ingrandisci su un paese, o cercalo, per vedere se è in vigore un avvertimento.',
   'weather.chipName': 'Allerta meteo',
   'weather.legend': 'Allerte meteo',

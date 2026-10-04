@@ -351,7 +351,6 @@ export default {
   'weather.source': 'Vydal {who}',
   'weather.source.meteoalarm': 'Vydal {who}, přes MeteoAlarm',
   'advisory.chipName': 'Cestovní doporučení',
-  'advisory.prompt': 'Vyhledejte místo',
   'advisory.empty': 'Pro toto místo nejsou k dispozici žádná doporučení. Přibližte se na nějakou zemi nebo ji vyhledejte, abyste zjistili, zda pro ni platí varování.',
   'weather.chipName': 'Výstraha ČHMÚ',
   'weather.legend': 'Meteorologické výstrahy',

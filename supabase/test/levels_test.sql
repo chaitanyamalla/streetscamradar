@@ -42,15 +42,15 @@ declare ana uuid := '11111111-1111-1111-1111-111111111111';
 begin
   -- Ana files four, Bo files one.
   for i in 1..4 loop
-    insert into public.reports (reporter_id, category, headline, description, lat, lng, happened_at)
-    values (ana, 'pickpocket', 'Something happened here ' || i, 'detail', 48.86, 2.33, now() - interval '1 hour')
+    insert into public.reports (reporter_id, category, headline, description, lat, lng, country_code, happened_at)
+    values (ana, 'pickpocket', 'Something happened here ' || i, 'detail', 48.86, 2.33, 'FR', now() - interval '1 hour')
     returning id into r;
     -- Two of Ana's get one confirmation each, from Bo.
     if i <= 2 then insert into public.report_supports (report_id, user_id) values (r, bo); end if;
   end loop;
 
-  insert into public.reports (reporter_id, category, headline, description, lat, lng, happened_at)
-  values (bo, 'taxi', 'Bo saw a thing happen', 'detail', 48.86, 2.33, now() - interval '1 hour')
+  insert into public.reports (reporter_id, category, headline, description, lat, lng, country_code, happened_at)
+  values (bo, 'taxi', 'Bo saw a thing happen', 'detail', 48.86, 2.33, 'FR', now() - interval '1 hour')
   returning id into r;
   -- Ana confirms Bo's.
   insert into public.report_supports (report_id, user_id) values (r, ana);
@@ -253,7 +253,7 @@ set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
 do $$
 declare n int;
 begin
-  select count(*) into n from public.admin_members(null, 10);
+  select count(*) into n from public.admin_members(null, null, null, null, 10);
   perform pg_temp.check(false, 'a member should not be able to list the members');
 exception when others then
   perform pg_temp.check(sqlerrm = 'admins only', 'a member listing members is refused: ' || sqlerrm);
@@ -278,7 +278,7 @@ reset role; reset request.jwt.claim.sub;
 set role authenticated;
 do $$
 begin
-  perform public.admin_members(null, 10);
+  perform public.admin_members(null, null, null, null, 10);
   perform pg_temp.check(false, 'a caller with no identity should be refused');
 exception when others then
   perform pg_temp.check(sqlerrm = 'sign in required',
@@ -289,16 +289,16 @@ reset role;
 -- --- The admin can ----------------------------------------------------------
 set role authenticated;
 set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
-select pg_temp.check((select count(*) from public.admin_members(null, 100)) = 3,
+select pg_temp.check((select count(*) from public.admin_members(null, null, null, null, 100)) = 3,
   'an admin sees every member');
 select pg_temp.check(
-  (select email from public.admin_members('bo@example', 100)) = 'bo@example.com',
+  (select email from public.admin_members('bo@example', null, null, null, 100)) = 'bo@example.com',
   'and can find one by a fragment of their email address');
 select pg_temp.check(
-  (select count(*) from public.admin_members('ana', 100)) = 2,
+  (select count(*) from public.admin_members('ana', null, null, null, 100)) = 2,
   'or by a fragment of a nickname, which may well match two people');
 select pg_temp.check(
-  (select role from public.admin_members('bo@example', 100)) = 'member',
+  (select role from public.admin_members('bo@example', null, null, null, 100)) = 'member',
   'the list says what role each of them has');
 
 -- Roles.
@@ -409,6 +409,53 @@ end $$;
 
 set role authenticated;
 set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+
+
+-- --- Filtering the member list ----------------------------------------------
+select pg_temp.check(
+  (select count(*) from public.admin_members(null, 'admin', null, null, 100)) = 1,
+  'members can be filtered to one role');
+select pg_temp.check(
+  (select count(*) from public.admin_members(null, 'moderator', null, null, 100)) = 0,
+  'and a role nobody holds returns nobody rather than everybody');
+-- The count to compare against is taken OUTSIDE the role. This block runs as
+-- `authenticated`, where the read-own-profile policy limits public.profiles to
+-- one row — so the first version of this compared a SECURITY DEFINER function
+-- that sees everybody against a table that sees one person, and failed for a
+-- reason that had nothing to do with the filter.
+create temporary table if not exists pg_temp.level_truth (n int);
+delete from pg_temp.level_truth;
+reset role;
+insert into pg_temp.level_truth
+select count(*) from public.profiles p where public.member_level(p.id) = 1;
+set role authenticated;
+do $$
+declare filtered int; actual int;
+begin
+  select count(*) into filtered from public.admin_members(null, null, 1, null, 100);
+  select n into actual from pg_temp.level_truth;
+  perform pg_temp.check(filtered = actual,
+    'and by level, agreeing with the level everybody is actually on ('
+    || filtered || ' filtered, ' || actual || ' on level 1)');
+end $$;
+select pg_temp.check(
+  (select count(*) from public.admin_members(null, null, null, 'FR', 100)) > 0,
+  'and by where their reports come from');
+select pg_temp.check(
+  (select count(*) from public.admin_members(null, null, null, 'fr', 100))
+    = (select count(*) from public.admin_members(null, null, null, 'FR', 100)),
+  'in either case, because nobody types a country code in capitals');
+select pg_temp.check(
+  (select count(*) from public.admin_members(null, null, null, 'JP', 100)) = 0,
+  'and a country nobody has reported in returns nobody');
+select pg_temp.check(
+  (select countries from public.admin_members('bo@example', null, null, null, 100)) = array['FR'],
+  'each member carries the countries they reported in');
+select pg_temp.check(
+  (select count(*) from public.admin_members(null, 'admin', null, 'ZZ', 100)) = 0,
+  'and the filters are ANDed, not ORed — an admin who has not reported in ZZ is not a match');
+select pg_temp.check((select count(*) from public.admin_member_countries()) > 0,
+  'the countries to filter by are a list to pick from, not a code to remember');
 
 -- --- Reports ----------------------------------------------------------------
 select pg_temp.check((select count(*) from public.admin_reports('flagged', null, 50)) = 1,

@@ -49,11 +49,13 @@
         <span id="place-label" data-i18n="header.place.anywhere">Anywhere in the world</span>
       </button>
 
+      <!-- Two entries, and both are places you can BE. "How it works" and
+           "Staying safe" were links to sections of this same page sitting
+           beside links to other pages, which is two different promises wearing
+           one style — and the sections are still right there to scroll to. -->
       <nav data-i18n-aria="nav.label" aria-label="Main">
         <a class="active" href="#map" data-i18n="nav.map">Map</a>
-        <a href="#how" data-i18n="nav.how">How it works</a>
-        <a href="#safety" data-i18n="nav.safety">Staying safe</a>
-        <a href="guide.html" data-i18n="nav.guide">What this shows</a>
+        <a href="guide.html" data-i18n="nav.guide">How it works</a>
         <!-- No Admin link here, deliberately, not even for an admin.
              This header belongs to the public site and administration is not
              part of it; /admin is reached by typing it or by a bookmark. That
@@ -107,8 +109,15 @@
 
     <main>
       <section class="map-area" id="map" data-i18n-aria="map.area" aria-label="Worldwide scam map">
+        <!-- The two paragraphs under the heading fold away on a pointer device
+             and come back on hover or focus. They are an introduction, read
+             once; the filter panel underneath is a control, used all the time,
+             and the card was sitting on top of it the moment it was expanded.
+             On touch, where there is no hover to come back from, nothing folds
+             — see the (hover: hover) query in styles.css. -->
         <aside class="map-intro">
           <h1 data-i18n-html="intro.heading">Know the scams<br /><em>before you arrive.</em></h1>
+          <div class="intro-more"><div>
           <p class="intro-copy" data-i18n="intro.copy">
             Street scams reported by the travellers and locals they happened to —
             with official travel advice, severe weather warnings and the nearest
@@ -122,6 +131,7 @@
             Free to look, anywhere in the world. Members see every report in an
             area and can add their own.
           </p>
+          </div></div>
 
           <form class="place-search" id="place-form" role="search">
             <label class="visually-hidden" for="place-search" data-i18n="intro.search.label">Search a city, town, postcode or address</label>
@@ -253,6 +263,13 @@
             <span class="panel-chevron" aria-hidden="true">⌄</span>
           </summary>
 
+          <!-- One scroll for all three sections, not one for the scam chips and
+               none for the rest. The chips scrolled inside their own 168px box
+               while Hospitals and Disaster update sat below it in whatever room
+               was left, so opening Disaster update grew the panel off the top
+               of the map. They scroll together now and stay visibly separate,
+               which is what the dividing lines are for. -->
+          <div class="panel-scroll">
           <div class="filter-section category-section">
             <p class="filter-title">
               <span data-i18n="filters.kind">Kind of scam</span>
@@ -378,6 +395,7 @@
               <p class="hp-foot"><a class="hp-link" href="guide.html#alerts" data-i18n="guide.more">What these mean</a></p>
             </div>
           </details>
+          </div>
         </details>
 
         <aside class="reports-card" data-i18n-aria="reports.label" aria-label="Reports in view">

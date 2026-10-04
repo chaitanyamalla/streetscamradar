@@ -5,8 +5,6 @@ export default {
   'brand.tagline': 'Naplánujte si cestu. Jeďte poučeni.',
   'brand.home': 'Úvodní stránka StreetScamRadar',
   'nav.map': 'Mapa',
-  'nav.how': 'Jak to funguje',
-  'nav.safety': 'Bezpečně na cestách',
   'nav.label': 'Hlavní',
   'header.place.label': 'Aktuální oblast — klikněte pro změnu',
   'header.place.anywhere': 'Kdekoli na světě',
@@ -407,7 +405,7 @@ export default {
   'badge.partner.note': 'Organizace, se kterou spolupracujeme.',
 
   // --- the reference page: alerts, levels, badges, sources ----------------
-  'nav.guide': 'Co se tu ukazuje',
+  'nav.guide': 'Jak to funguje',
   'guide.meta.title': 'Co tato mapa ukazuje — StreetScamRadar',
   'guide.meta.description': 'Co znamenají úrovně, co znamená červený nebo oranžový výstraha a odkud pochází každá vrstva mapy StreetScamRadar.',
   'guide.eyebrow': 'Přehled',

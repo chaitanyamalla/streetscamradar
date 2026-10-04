@@ -562,7 +562,7 @@ column.
 
 | Screen | What it does |
 |---|---|
-| **Members** | Every member with nickname, email, level, points, reports and badges. Change their role, give them a level, give or take a badge, put them on the contributors list, or remove them — which deletes their reports with them. |
+| **Members** | Every member with nickname, email, level, points, reports, badges and the countries they have reported in. Filter by any of search / role / level / country, ANDed. Change their role, give them a level, give or take a badge, put them on the contributors list, or remove them — which deletes their reports with them. |
 | **Reports** | Everything filed, filtered by flagged / hidden / taken down / on the map / all, with the text, the flag reasons and **who filed it**. Approve, hide, take down, or delete. |
 | **Levels** | The ladder, edited as a whole and saved in one go. |
 | **Regions** | Which countries are closed to new reports, picked from the list of continents, UN zones and unions rather than typed from memory. |
@@ -738,7 +738,7 @@ Everything else in this repository tests the page with the database stubbed,
 which means the stub and the page can agree perfectly while the SQL underneath
 is wrong. `supabase/test/run.sh` applies `schema.sql` to a throwaway Postgres
 and checks the arithmetic, the lookups, the admin calls and who may read what
-— 107 assertions, including putting a `REVOKE` back to confirm the permission
+— 116 assertions, including putting a `REVOKE` back to confirm the permission
 checks fail when they should.
 
 It runs **twice**: once against an empty database, and once as an upgrade,

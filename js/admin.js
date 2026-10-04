@@ -18,7 +18,7 @@ import { amAdmin, adminMembers, adminSetRole, adminSetLevel, adminSetBadge,
          adminSetListed, adminRemoveMember, adminReports, adminSetReportStatus,
          adminDeleteReport, contributorLadder, adminSetLevels, adminRegionCatalog,
          adminBlockedRegions, adminSetBlockedRegions, adminSettings,
-         adminSetSetting } from './data.js';
+         adminSetSetting, adminMemberCountries } from './data.js';
 
 const $ = (sel) => document.querySelector(sel);
 const ROLES = ['member', 'moderator', 'admin'];
@@ -26,7 +26,7 @@ const ROLES = ['member', 'moderator', 'admin'];
 const state = {
   me: null, admin: false, pending: null,
   tab: 'members',
-  members: [], search: '',
+  members: [], search: '', role: '', memberLevel: '', country: '', countries: [],
   reports: [], reportFilter: 'flagged', reportSearch: '',
   // The ladder is edited as a whole and only sent when Save is pressed: it is
   // valid as a set, not a row at a time, so a half-edited one must not reach
@@ -130,10 +130,30 @@ $('.admin-tabs')?.addEventListener('keydown', (e) => {
 async function load() {
   $('#admin-list').innerHTML = '<p class="empty-note">Loading…</p>';
   try {
-    state.members = await adminMembers(state.search, 100);
+    state.members = await adminMembers({
+      search: state.search,
+      role: state.role,
+      level: state.memberLevel ? Number(state.memberLevel) : null,
+      country: state.country,
+    });
     paint();
   } catch (err) {
     $('#admin-list').innerHTML = `<p class="empty-note">${esc(err.message)}</p>`;
+  }
+  // Both lists are of what is actually there, so they are filled from the
+  // database rather than written out here — a level that no longer exists or a
+  // country nobody has reported in would otherwise sit in the dropdown
+  // promising results it cannot give.
+  if (!state.countries.length) {
+    const [countries, ladder] = await Promise.all([
+      adminMemberCountries(), contributorLadder(),
+    ]);
+    state.countries = countries;
+    $('#member-country').innerHTML = '<option value="">Anywhere</option>'
+      + countries.map(c => `<option value="${esc(c.country_code)}">${esc(c.country_code)}
+          — ${c.members} ${c.members === 1 ? 'member' : 'members'}</option>`).join('');
+    $('#member-level').innerHTML = '<option value="">Any level</option>'
+      + ladder.map(([level]) => `<option value="${level}">Level ${level}</option>`).join('');
   }
 }
 
@@ -149,6 +169,10 @@ function memberRow(m) {
         <p class="ar-mail">${esc(m.email ?? '—')}</p>
         <p class="ar-meta">${m.points} points · ${m.reports} reports ·
           joined ${esc(formatDate(m.created_at, { year: 'numeric', month: 'short' }))}</p>
+        ${(m.countries ?? []).length
+          ? `<p class="ar-where">reports in ${(m.countries ?? []).map(c =>
+              `<span class="ar-cc">${esc(c)}</span>`).join(' ')}</p>`
+          : ''}
       </div>
 
       <div class="ar-controls">
@@ -192,10 +216,14 @@ function memberRow(m) {
 
 function paint() {
   const n = state.members.length;
-  $('#admin-count').textContent = n === 1 ? '1 member' : `${n} members`;
+  const filtered = Boolean(state.search || state.role || state.memberLevel || state.country);
+  $('#admin-count').textContent =
+    `${n === 1 ? '1 member' : `${n} members`}${filtered ? ' matching' : ''}`;
   $('#admin-list').innerHTML = n
     ? state.members.map(memberRow).join('')
-    : '<p class="empty-note">Nobody matches that.</p>';
+    : `<p class="empty-note">${filtered
+        ? 'Nobody matches all of those. Reset to see everybody.'
+        : 'No members yet.'}</p>`;
 }
 
 /** Replace one member in place, so the whole list is not rebuilt under a cursor. */
@@ -306,6 +334,20 @@ $('#admin-search').addEventListener('input', (e) => {
   state.search = e.target.value.trim();
   clearTimeout(searching);
   searching = setTimeout(load, 250);
+});
+
+// The three dropdowns filter immediately — there is nothing to debounce about
+// a choice from a list, and waiting 250ms after one reads as lag.
+for (const [id, key] of [['#member-role', 'role'], ['#member-level', 'memberLevel'],
+                         ['#member-country', 'country']]) {
+  $(id).addEventListener('change', (e) => { state[key] = e.target.value; load(); });
+}
+
+$('#member-reset').addEventListener('click', () => {
+  state.search = state.role = state.memberLevel = state.country = '';
+  $('#admin-search').value = '';
+  for (const id of ['#member-role', '#member-level', '#member-country']) $(id).value = '';
+  load();
 });
 
 $('#admin-signin').addEventListener('click', () => { window.location.href = 'index.html#map'; });

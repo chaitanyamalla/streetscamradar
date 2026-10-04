@@ -5,8 +5,6 @@ export default {
   'brand.tagline': 'Organizza il viaggio. Parti informato.',
   'brand.home': 'Home di StreetScamRadar',
   'nav.map': 'Mappa',
-  'nav.how': 'Come funziona',
-  'nav.safety': 'Viaggiare sicuri',
   'nav.label': 'Principale',
   'header.place.label': 'Zona attuale — clicca per cambiare',
   'header.place.anywhere': 'Ovunque nel mondo',
@@ -398,7 +396,7 @@ export default {
   'badge.partner.note': 'Un’organizzazione con cui collaboriamo.',
 
   // --- the reference page: alerts, levels, badges, sources ----------------
-  'nav.guide': 'Cosa mostra',
+  'nav.guide': 'Come funziona',
   'guide.meta.title': 'Cosa mostra questa mappa — StreetScamRadar',
   'guide.meta.description': 'Cosa significano i livelli, cosa significa un allerta rossa o arancione e da dove viene ogni livello della mappa StreetScamRadar.',
   'guide.eyebrow': 'Riferimento',

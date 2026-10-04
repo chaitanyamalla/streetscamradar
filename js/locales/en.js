@@ -8,8 +8,6 @@ export default {
   'brand.tagline': 'Plan your trip. Travel informed.',
   'brand.home': 'StreetScamRadar home',
   'nav.map': 'Map',
-  'nav.how': 'How it works',
-  'nav.safety': 'Staying safe',
   'nav.label': 'Main',
   'header.place.label': 'Current area — click to change',
   'header.place.anywhere': 'Anywhere in the world',
@@ -416,7 +414,7 @@ export default {
   'badge.partner.note': 'An organisation we work with.',
 
   // --- the reference page: alerts, levels, badges, sources ----------------
-  'nav.guide': 'What this shows',
+  'nav.guide': 'How it works',
   'guide.meta.title': 'What this map shows — StreetScamRadar',
   'guide.meta.description': 'What the levels mean, what a red or orange alert means, and where every layer on the StreetScamRadar map comes from.',
   'guide.eyebrow': 'Reference',

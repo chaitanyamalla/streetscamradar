@@ -8,8 +8,6 @@ export default {
   'brand.tagline': 'Plan je reis. Reis geïnformeerd.',
   'brand.home': 'StreetScamRadar home',
   'nav.map': 'Kaart',
-  'nav.how': 'Hoe het werkt',
-  'nav.safety': 'Veilig op pad',
   'nav.label': 'Hoofdmenu',
   'header.place.label': 'Huidig gebied — klik om te wijzigen',
   'header.place.anywhere': 'Overal ter wereld',
@@ -418,7 +416,7 @@ export default {
   'badge.partner.note': 'Een organisatie waarmee we samenwerken.',
 
   // --- the reference page: alerts, levels, badges, sources ----------------
-  'nav.guide': 'Wat dit toont',
+  'nav.guide': 'Hoe het werkt',
   'guide.meta.title': 'Wat deze kaart toont — StreetScamRadar',
   'guide.meta.description': 'Wat de niveaus betekenen, wat een rode of oranje waarschuwing betekent en waar elke laag van de StreetScamRadar-kaart vandaan komt.',
   'guide.eyebrow': 'Naslag',

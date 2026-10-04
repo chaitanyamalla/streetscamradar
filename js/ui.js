@@ -45,6 +45,11 @@ export function impactTags(value) {
   ).join('')}</span>`;
 }
 
+// When a report starts being marked as nearly over. Five of the seven days the
+// window holds: late enough that most reports are never marked, early enough
+// that the mark arrives before the report does not.
+const AGE_FADING_DAYS = 5;
+
 export function timeAgo(iso) {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return '';
@@ -270,8 +275,29 @@ export function popupHTML(props, categories) {
     ${body}
     ${confirmBadge(supports)}
     <p class="popup-meta">
-      ${where ? esc(where) + ' &middot; ' : ''}${esc(timeAgo(props.happened_at))}
+      ${where ? esc(where) + ' &middot; ' : ''}${agePill(props.happened_at)}
     </p>`;
+}
+
+/**
+ * How long ago it happened, as something you can actually see.
+ *
+ * It was the smallest text in the popup, in the same grey as the street name
+ * beside it — and it is the one thing on a scam report that decides whether it
+ * still means anything. "Six days ago" and "two hours ago" are different
+ * warnings about the same place.
+ *
+ * The TINT is only on the old ones. A chip on every report is a chip that says
+ * nothing; the point is to mark the ones about to leave, so that a quiet map
+ * reads as quiet rather than as out of date. Fading, not alarming — an old
+ * report is not a worse report, it is a report whose moment has nearly passed.
+ */
+export function agePill(when) {
+  const text = timeAgo(when);
+  if (!text) return '';
+  const days = (Date.now() - new Date(when).getTime()) / 86400000;
+  const fading = days >= AGE_FADING_DAYS;
+  return `<b class="popup-age${fading ? ' is-fading' : ''}">${esc(text)}</b>`;
 }
 
 /** A hospital, clicked on the map. Not user content, but

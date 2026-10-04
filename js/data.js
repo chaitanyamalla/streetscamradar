@@ -306,11 +306,26 @@ export async function amAdmin() {
   return data === true;
 }
 
-export async function adminMembers(search = '', limit = 100) {
+export async function adminMembers(
+  { search = '', role = '', level = null, country = '', limit = 200 } = {}
+) {
   need();
-  const { data, error } = await supabase.rpc('admin_members',
-    { p_search: search || null, p_limit: limit });
+  const { data, error } = await supabase.rpc('admin_members', {
+    p_search: search || null,
+    p_role: role || null,
+    p_level: level || null,
+    p_country: country || null,
+    p_limit: limit,
+  });
   if (error) throw error;
+  return data ?? [];
+}
+
+/** The countries members have actually reported in, for the filter beside the list. */
+export async function adminMemberCountries() {
+  need();
+  const { data, error } = await supabase.rpc('admin_member_countries');
+  if (error) return [];
   return data ?? [];
 }
 

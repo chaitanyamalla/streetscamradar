@@ -191,25 +191,8 @@ export function reportScopeLine({ mode, ageDays, windowDays }) {
            { when: ageLabel(ageDays, windowDays) });
 }
 
-/**
- * The list under the map, one openable entry per report.
- *
- * Each entry is a <details>. Open, it is what it always was; closed, it is one
- * line, so a view with eight reports in it can be scanned without scrolling
- * past eight blocks of chips. Native rather than a button of our own, so Enter
- * and Space work and a screen reader is told the thing expands.
- *
- * `collapsed` is the set of ids the reader has closed. It has to be passed in
- * because this list is rebuilt from scratch on every map move: without it, a
- * nudge of the map would reopen everything somebody had just closed.
- *
- * The whole entry used to be one click target, which flew the map to the
- * report. It cannot be any more — a click on the summary is how a <details>
- * opens — so that move is now its own control in the body, and it is there
- * whether or not anybody is signed in, which the actions beside it are not.
- */
 export function renderReportList(host, reports, { categories, mode, supported, signedIn,
-                                                  narrowed = false, collapsed = null }) {
+                                                  narrowed = false }) {
   const byslug = new Map(categories.map(c => [c.slug, c]));
 
   if (!reports.length) {
@@ -233,33 +216,27 @@ export function renderReportList(host, reports, { categories, mode, supported, s
     // Confirming is for other people's reports; the author's move on their own
     // is to withdraw it. Someone backing their own report would just be voting
     // for their own visibility, since confirmations now drive it.
-    const mine = signedIn ? (r.is_mine
-      ? `<button class="chip-action" data-withdraw="${esc(r.id)}">${esc(t('reports.withdrawMine'))}</button>`
-      : `<button class="chip-action" data-support="${esc(r.id)}" aria-pressed="${isOn}">
-           ${esc(t(isOn ? 'reports.confirmed' : 'reports.confirm'))}
-         </button>
-         <button class="chip-action" data-flag="${esc(r.id)}">${esc(t('reports.flag'))}</button>`) : '';
+    const actions = signedIn ? `
+      <div class="report-actions">
+        ${r.is_mine
+          ? `<button class="chip-action" data-withdraw="${esc(r.id)}">${esc(t('reports.withdrawMine'))}</button>`
+          : `<button class="chip-action" data-support="${esc(r.id)}" aria-pressed="${isOn}">
+               ${esc(t(isOn ? 'reports.confirmed' : 'reports.confirm'))}
+             </button>
+             <button class="chip-action" data-flag="${esc(r.id)}">${esc(t('reports.flag'))}</button>`}
+      </div>` : '';
 
     return `
-      <details class="report-entry${confirmClass(confirms)}" data-report="${esc(r.id)}"${
-        collapsed?.has(String(r.id)) ? '' : ' open'}>
-        <summary class="report-head">
-          <span class="report-glyph" aria-hidden="true">${esc(cat?.glyph ?? '⚠')}</span>
-          <span class="report-copy">
-            <b>${esc(r.headline)}</b>
-            <span class="report-meta">${place}${esc(categoryLabel(cat, r.category))} · ${timeAgo(r.happened_at)}</span>
-            ${confirmBadge(confirms)}
-          </span>
-          <span class="report-caret" aria-hidden="true">▾</span>
-        </summary>
-        <div class="report-body">
+      <article class="report-entry${confirmClass(confirms)}" data-report="${esc(r.id)}">
+        <span class="report-glyph" aria-hidden="true">${esc(cat?.glyph ?? '⚠')}</span>
+        <div class="report-copy">
+          <b>${esc(r.headline)}</b>
+          <span class="report-meta">${place}${esc(categoryLabel(cat, r.category))} · ${timeAgo(r.happened_at)}</span>
           ${impactTags(r.impacts)}
-          <div class="report-actions">
-            <button class="chip-action" data-locate="${esc(r.id)}">${esc(t('reports.showOnMap'))}</button>
-            ${mine}
-          </div>
+          ${confirmBadge(confirms)}
+          ${actions}
         </div>
-      </details>`;
+      </article>`;
   }).join('');
 }
 

@@ -84,11 +84,6 @@ const state = {
   // worked out from the view until they move the map themselves. See
   // rememberSearchedCountry below for why it has to.
   searchedCountry: null,
-  // Which report entries the reader has closed. The list is rebuilt from
-  // scratch on every map move, so without this a nudge of the map would
-  // reopen everything they had just closed. Ids only, and only for this
-  // session: nothing here is worth remembering between visits.
-  collapsedReports: new Set(),
   pin: null,          // { lat, lng, address, city, countryCode }
   pinPending: null,   // in-flight reverse geocode for that pin
   placeLabel: null,   // null = nowhere chosen yet, so the header says "anywhere"
@@ -1432,7 +1427,7 @@ function draw() {
 
   renderReportList($('#report-list'), visible, {
     categories: state.categories, mode, supported: state.supported, signedIn: signedIn(),
-    narrowed: state.ageDays < REPORT_WINDOW_DAYS, collapsed: state.collapsedReports,
+    narrowed: state.ageDays < REPORT_WINDOW_DAYS,
   });
   setGateNote($('#gate-note'), { mode, shown: visible.length, hiddenCount, signedIn: signedIn() });
 
@@ -1940,25 +1935,10 @@ function wireUI() {
   paintAgeEnds();
 
   // --- report list actions
-  // Opening and closing an entry. `toggle` does not bubble, so it is caught in
-  // the capture phase on the list rather than bound to each entry — the list
-  // is replaced wholesale on every map move, and handlers bound to entries
-  // would go with it.
-  $('#report-list').addEventListener('toggle', (e) => {
-    const entry = e.target.closest?.('.report-entry');
-    if (!entry) return;
-    const id = entry.dataset.report;
-    if (entry.open) state.collapsedReports.delete(id);
-    else state.collapsedReports.add(id);
-  }, true);
-
   $('#report-list').addEventListener('click', async e => {
-    // Showing a report on the map used to be a click anywhere on the entry.
-    // The entry opens and closes now, so that click belongs to the disclosure
-    // and this is its own button — see renderReportList.
-    const locate = e.target.closest('[data-locate]');
-    if (locate) {
-      const report = state.lastFetch.reports.find(x => String(x.id) === locate.dataset.locate);
+    const entry = e.target.closest('.report-entry');
+    if (entry && !e.target.closest('.chip-action')) {
+      const report = state.lastFetch.reports.find(x => String(x.id) === entry.dataset.report);
       if (report) {
         map.flyTo({ center: [report.lng, report.lat], zoom: Math.max(map.getZoom(), 15), duration: 700 });
         showPopup([report.lng, report.lat], popupHTML(report, state.categories));

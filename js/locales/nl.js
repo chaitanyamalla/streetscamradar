@@ -74,7 +74,6 @@ export default {
   'reports.empty.narrowed': 'Niets hier in die periode. Probeer een ruimere periode.',
   'reports.confirm': 'Dit zag ik ook',
   'reports.confirmed': '✓ Bevestigd',
-  'reports.showOnMap': 'Toon op de kaart',
   'reports.flag': 'Markeren',
   'reports.withdraw': 'Intrekken',
   'reports.withdrawMine': 'Mijn melding intrekken',

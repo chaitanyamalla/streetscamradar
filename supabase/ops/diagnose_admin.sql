@@ -38,7 +38,6 @@ select 'settings', count(*) from public.admin_settings()
 union all
 select 'levels',   count(*) from public.contributor_levels;
 
-select set_config('request.jwt.claim.sub', '', false) = '' as claim_dropped;
 
 -- The filters the Members screen now offers, each exercised once. Counts only.
 select 'by role: admin' as filter, count(*) as rows_it_returns
@@ -47,3 +46,5 @@ union all
 select 'by level 1', count(*) from public.admin_members(null, null, 1, null, 100)
 union all
 select 'countries to pick from', count(*) from public.admin_member_countries();
+
+select set_config('request.jwt.claim.sub', '', false) = '' as claim_dropped;

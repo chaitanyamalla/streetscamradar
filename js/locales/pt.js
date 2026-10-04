@@ -23,9 +23,7 @@ export default {
   'header.darkMode': 'Modo escuro',
 
   // --- intro ---------------------------------------------------------------
-  'intro.heading': 'Conhecer as burlas<br /><em>antes de chegar.</em>',
-  'intro.copy': 'Burlas de rua relatadas pelos viajantes e residentes a quem aconteceram — com conselhos oficiais de viagem, avisos de mau tempo e o hospital mais próximo no mesmo mapa.',
-  'intro.who': 'Consultar é grátis, em qualquer parte do mundo. Os membros veem todos os relatos de uma zona e podem acrescentar os seus.',
+  'intro.title': 'StreetScamRadar — burlas de rua, conselhos de viagem e perigos num só mapa',
   'intro.search.label': 'Pesquise uma cidade, vila, código postal ou morada',
   'intro.search.placeholder': 'Experimente Lisboa, 10115 Berlim ou Khao San Road',
   'intro.search.go': 'Pesquisar',
@@ -368,6 +366,8 @@ export default {
   'weather.source': 'Emitido por {who}',
   'weather.source.meteoalarm': 'Emitido por {who}, via MeteoAlarm',
   'advisory.chipName': 'Conselhos de viagem',
+  'advisory.prompt': 'Pesquisar um lugar',
+  'advisory.empty': 'Não há conselhos para este lugar. Aproxime o mapa num país, ou procure-o, para ver se há um aviso em vigor.',
   'weather.chipName': 'Aviso meteorológico',
   'weather.legend': 'Avisos meteorológicos',
   'weather.serves': 'Apenas Europa, dos serviços meteorológicos nacionais via MeteoAlarm.',

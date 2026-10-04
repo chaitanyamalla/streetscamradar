@@ -109,29 +109,18 @@
 
     <main>
       <section class="map-area" id="map" data-i18n-aria="map.area" aria-label="Worldwide scam map">
-        <!-- The two paragraphs under the heading fold away on a pointer device
-             and come back on hover or focus. They are an introduction, read
-             once; the filter panel underneath is a control, used all the time,
-             and the card was sitting on top of it the moment it was expanded.
-             On touch, where there is no hover to come back from, nothing folds
-             — see the (hover: hover) query in styles.css. -->
+        <!-- A search box and nothing else.
+             This card used to lead with a heading and two paragraphs saying
+             what the site is. They folded away on hover, which helped, and
+             still left a block of chrome sitting over the top-left of the map
+             and over the filter panel beneath it — on a laptop the part of the
+             map a reader is most likely to want.
+             The h1 stays, because a page needs one for its outline and for
+             search engines, and is visually hidden: it costs no pixels and the
+             words are still the first thing a screen reader or a crawler
+             meets. -->
         <aside class="map-intro">
-          <h1 data-i18n-html="intro.heading">Know the scams<br /><em>before you arrive.</em></h1>
-          <div class="intro-more"><div>
-          <p class="intro-copy" data-i18n="intro.copy">
-            Street scams reported by the travellers and locals they happened to —
-            with official travel advice, severe weather warnings and the nearest
-            hospital on the same map.
-          </p>
-          <!-- What it costs and what an account is for, in one line. It was the
-               most common thing to wonder about this page and the answer was
-               only inside the sign-in dialog, where somebody deciding whether to
-               bother had not been yet. -->
-          <p class="intro-who" data-i18n="intro.who">
-            Free to look, anywhere in the world. Members see every report in an
-            area and can add their own.
-          </p>
-          </div></div>
+          <h1 class="visually-hidden" data-i18n="intro.title">StreetScamRadar — street scams, travel advice and hazards on one map</h1>
 
           <form class="place-search" id="place-form" role="search">
             <label class="visually-hidden" for="place-search" data-i18n="intro.search.label">Search a city, town, postcode or address</label>

@@ -22,9 +22,7 @@ export default {
   'header.darkMode': 'Dark mode',
 
   // --- intro ---------------------------------------------------------------
-  'intro.heading': 'Know the scams<br /><em>before you arrive.</em>',
-  'intro.copy': 'Street scams reported by the travellers and locals they happened to — with official travel advice, severe weather warnings and the nearest hospital on the same map.',
-  'intro.who': 'Free to look, anywhere in the world. Members see every report in an area and can add their own.',
+  'intro.title': 'StreetScamRadar — street scams, travel advice and hazards on one map',
   'intro.search.label': 'Search a city, town, postcode or address',
   'intro.search.placeholder': 'Try Lisbon, 10115 Berlin, or Khao San Road',
   'intro.search.go': 'Search',
@@ -365,6 +363,8 @@ export default {
   'weather.source': 'Issued by {who}',
   'weather.source.meteoalarm': 'Issued by {who}, via MeteoAlarm',
   'advisory.chipName': 'Travel advisory',
+  'advisory.prompt': 'Search a place',
+  'advisory.empty': 'No advisory for this place. Zoom in on a country, or search for one, to see whether a warning applies.',
   'weather.chipName': 'Weather advisory',
   'weather.legend': 'Weather warnings',
   'weather.serves': 'Europe only, from the national met services via MeteoAlarm.',

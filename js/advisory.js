@@ -49,7 +49,11 @@ export const SOURCE = {
 // is what stops the relay reading as our own chatty advice.
 export const STRINGS = {
   kicker: 'Reisehinweise',
-  prompt: 'Ort suchen',
+  // No `prompt` here on purpose. "Search a place" is an instruction from us to
+  // the reader, not a word of the ministry's, and it was the one line of this
+  // panel an English reader met before any advisory existed — so it sat on the
+  // English page in German, which is the opposite of what the rule above is
+  // for. It lives in js/locales as advisory.prompt and follows the page.
   eyebrow: 'Offizielle Reisehinweise',
   title: 'Reise- und Sicherheitshinweise',
   whose: 'Herausgegeben vom Auswärtigen Amt für Reisende aus Deutschland. '
@@ -69,8 +73,10 @@ export const STRINGS = {
     situationPart: 'Für Teile dieses Landes liegt ein Sicherheitshinweis vor. Das ist keine Reisewarnung.',
     none:          'Es liegen nur allgemeine Länderinformationen vor — keine Reisewarnung und kein Sicherheitshinweis.',
   },
-  empty: 'Für diesen Ort liegen keine Hinweise vor. Zoomen Sie auf ein Land oder '
-       + 'suchen Sie eines, um zu sehen, ob eine Warnung gilt.',
+  // `empty` was here and has gone the same way as `prompt` above: it is the
+  // line a reader meets BEFORE any advisory exists, telling them to search or
+  // zoom, which is our instruction and not the ministry's wording. It is
+  // advisory.empty in js/locales now.
   // Facts, as short key/value pairs. A reader deciding something wants the
   // emergency number and the two dates; the prose that used to sit here said
   // the same thing at ten times the length.

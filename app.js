@@ -80,6 +80,10 @@ const state = {
             wildfire: true, volcano: true },
   countryWeather: null,    // { code, weather } for the chip and its dialog
   advisoryCountry: null,   // whose advisory the chip is currently showing
+  // The country of the place the reader searched for, which outranks anything
+  // worked out from the view until they move the map themselves. See
+  // rememberSearchedCountry below for why it has to.
+  searchedCountry: null,
   pin: null,          // { lat, lng, address, city, countryCode }
   pinPending: null,   // in-flight reverse geocode for that pin
   placeLabel: null,   // null = nowhere chosen yet, so the header says "anywhere"
@@ -136,6 +140,13 @@ map.on('load', () => {
   refreshSafety();
 });
 map.on('moveend', () => scheduleRefresh());
+// Moving the map yourself hands the country back to the view. `originalEvent`
+// is what MapLibre sets when a gesture started the move and leaves unset when
+// our own flyTo or fitBounds did, which is the difference that matters: the
+// flight a search starts must not immediately undo the search. dragstart is
+// belt and braces for the commonest gesture of the two.
+map.on('movestart', (e) => { if (e?.originalEvent) forgetSearchedCountry(); });
+map.on('dragstart', () => forgetSearchedCountry());
 map.on('click', onMapClick);
 
 if (!isConfigured()) {
@@ -273,7 +284,13 @@ function onLanguageChanged() {
     renderCategoryFilters($('#category-filters'), state.categories, state.activeCategories);
     fillCategorySelect();
   }
-  if (layersReady && isConfigured()) { draw(); refreshSafety(); refreshHazards(); }
+  if (layersReady && isConfigured()) {
+    draw(); refreshSafety(); refreshHazards();
+    // Both of these hold a line in the reader's language — the chip's prompt,
+    // the bar's country and service names — so they are repainted too. Neither
+    // re-reads anything: the country and the advisory rows are already in hand.
+    refreshEmergency(); refreshAdvisory();
+  }
   if ($('#profile-dialog').open) paintProfileList();
   // An open popup holds text built in the old language, and there is no way to
   // rebuild it without knowing which feature it came from. Closing it is
@@ -1214,18 +1231,56 @@ let countryPending = null;
 const forgetCountry = () => { countryPending = null; };
 
 /**
- * Whether the view is inside one country far enough to name it.
+ * The country the reader asked for, as opposed to the one the map is over.
+ *
+ * Searching a place used to tell these panels nothing, and both of the ways
+ * they had of working it out for themselves fail on exactly that move:
+ *
+ *   The zoom gate below. A country is fitted to its own bounding box, which
+ *   is zoom 5 or 6 on a desktop and 3 or 4 on a phone — under the gate, so the
+ *   chip went on prompting for a place while the map sat on France.
+ *
+ *   The centre of that box. Reverse-geocoding it answers whatever is at the
+ *   centroid, which for Norway is Sweden, for Croatia is Bosnia, and for a
+ *   country with overseas territory is open ocean. Even a city search could
+ *   miss, because the reports already loaded belonged to the view we just
+ *   left.
+ *
+ * A search result carries its own country code, from the geocoder that found
+ * it, so there is nothing to infer: the reader named a place and the panels
+ * follow it. It holds until they move the map themselves, at which point the
+ * view is theirs again and the inference below takes over.
+ */
+function rememberSearchedCountry(code) {
+  state.searchedCountry = code || null;
+  forgetCountry();
+}
+
+const forgetSearchedCountry = () => {
+  if (!state.searchedCountry) return;
+  state.searchedCountry = null;
+  forgetCountry();
+};
+
+/**
+ * Whether anything on screen can be named for one country.
  *
  * Zoomed out across a continent, one country's answer is a lie — that is as
  * true of an advisory as of an emergency number, so both use the same test.
  * It also keeps the geocoder out of a plain page load: at world zoom there is
  * nothing to look up and nothing worth showing.
+ *
+ * A searched country passes whatever the zoom, because there the answer was
+ * not inferred from the view at all. Both panels ask this one question so they
+ * cannot disagree: a bar naming France beside an advisory for Spain would be
+ * worse than either being slow.
  */
-const viewIsOneCountry = () => map.getZoom() >= EMERGENCY_MIN_ZOOM;
+const viewIsOneCountry = () =>
+  Boolean(state.searchedCountry) || map.getZoom() >= EMERGENCY_MIN_ZOOM;
 
 function currentCountry() {
   if (!countryPending) {
-    const known = countryFromView();
+    const known = state.searchedCountry || countryFromView();
     countryPending = known ? Promise.resolve(known) : countryAtCentre();
   }
   return countryPending;
@@ -1272,8 +1327,16 @@ function paintAdvisoryPrompt(chip) {
   chip.hidden = false;
   chip.className = 'advisory-chip is-empty';
   // The name line is fixed markup now, so only the value below it is set here.
-  $('#advisory-level').textContent = ADVISORY.prompt;
-  chip.setAttribute('aria-label', `${t('advisory.chipName')}: ${ADVISORY.prompt}`);
+  // In the reader's language, unlike the level it replaces: there is no
+  // advisory behind it yet, so there is nothing of the ministry's to quote.
+  const prompt = t('advisory.prompt');
+  const line = $('#advisory-level');
+  line.textContent = prompt;
+  // The markup marks this line lang="de" because a level normally IS German.
+  // A prompt is not, so the attribute comes off while it is showing and goes
+  // back on with the next real level.
+  line.removeAttribute('lang');
+  chip.setAttribute('aria-label', `${t('advisory.chipName')}: ${prompt}`);
   if ($('#advisory-dialog').open) paintAdvisoryDialog();
 }
 
@@ -1315,7 +1378,9 @@ async function refreshAdvisory() {
   // the country moves to the label a screen reader announces and to the dialog
   // behind the chip — the map is already showing you which country you are in,
   // and what the chip has to say that the map cannot is the level.
-  $('#advisory-level').textContent = levelLabel(level);
+  const line = $('#advisory-level');
+  line.textContent = levelLabel(level);
+  line.setAttribute('lang', 'de');     // the ministry's own word for it again
   chip.setAttribute('aria-label', chipAria(row, level));
 
   if ($('#advisory-dialog').open) paintAdvisoryDialog();
@@ -1609,6 +1674,10 @@ function moveSuggestion(step) {
 }
 
 function goToPlace(place) {
+  // Before the flight, not after: flyToPlace fires moveend, which runs the
+  // whole refresh — including the two panels that are about to ask which
+  // country this is.
+  rememberSearchedCountry(place.countryCode);
   flyToPlace(map, place, PLACE_ZOOM);
   state.placeLabel = place.label;
   $('#place-label').textContent = place.label;
@@ -1695,10 +1764,21 @@ function wireUI() {
     try {
       toast(t('toast.locating'));
       const here = await locateMe();
+      // Whatever was searched before is not where you are. Cleared before the
+      // flight so the panels do not spend it showing the old country.
+      forgetSearchedCountry();
       map.flyTo({ center: [here.lng, here.lat], zoom: PLACE_ZOOM, duration: 900 });
       const place = await describePoint(here.lat, here.lng);
       state.placeLabel = place.label ?? t('place.whereYouAre');
       $('#place-label').textContent = state.placeLabel;
+      // Where you are is a place you chose, like a searched one, so the
+      // advisory and the emergency numbers follow it rather than re-deriving
+      // it from the view.
+      if (place.countryCode) {
+        rememberSearchedCountry(place.countryCode);
+        refreshEmergency();
+        refreshAdvisory();
+      }
       toast(t('toast.showingAround'));
     } catch (err) {
       toast(err.message || t('toast.locateFailed'), { error: true });

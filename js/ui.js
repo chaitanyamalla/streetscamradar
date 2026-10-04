@@ -554,7 +554,10 @@ export const STAT_TITLE_KEYS = {
  * dial and the date it was written, not two paragraphs about our sourcing.
  */
 export function advisoryDialogHTML(row, { level, tone, changed, stats, ageDays }) {
-  if (!row) return `<p class="empty-note">${esc(ADVISORY.empty)}</p>`;
+  // In the reader's language, not the ministry's: with no advisory resolved
+  // there is nothing of theirs to quote, and this line is us telling somebody
+  // what to do next. Everything below it, once there IS a row, stays German.
+  if (!row) return `<p class="empty-note">${esc(t('advisory.empty'))}</p>`;
 
   const numbers = emergencyLine(row.country_code);
   const facts = [

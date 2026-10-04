@@ -22,9 +22,7 @@ export default {
   'header.darkMode': 'Donkere modus',
 
   // --- intro ---------------------------------------------------------------
-  'intro.heading': 'Ken de trucs<br /><em>voordat je aankomt.</em>',
-  'intro.copy': 'Straatoplichting, gemeld door de reizigers en bewoners die het overkwam — met officieel reisadvies, waarschuwingen voor zwaar weer en het dichtstbijzijnde ziekenhuis op dezelfde kaart.',
-  'intro.who': 'Overal ter wereld gratis te bekijken. Leden zien elke melding in een gebied en kunnen die van henzelf toevoegen.',
+  'intro.title': 'StreetScamRadar — straatoplichting, reisadvies en gevaren op één kaart',
   'intro.search.label': 'Zoek een stad, dorp, postcode of adres',
   'intro.search.placeholder': 'Probeer Lissabon, 10115 Berlijn of Khao San Road',
   'intro.search.go': 'Zoeken',
@@ -367,6 +365,8 @@ export default {
   'weather.source': 'Uitgegeven door {who}',
   'weather.source.meteoalarm': 'Uitgegeven door {who}, via MeteoAlarm',
   'advisory.chipName': 'Reisadvies',
+  'advisory.prompt': 'Zoek een plaats',
+  'advisory.empty': 'Geen advies voor deze plek. Zoom in op een land, of zoek er een, om te zien of er een waarschuwing geldt.',
   'weather.chipName': 'Weerwaarschuwing',
   'weather.legend': 'Weerwaarschuwingen',
   'weather.serves': 'Alleen Europa, van de nationale weerdiensten via MeteoAlarm.',

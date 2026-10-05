@@ -61,7 +61,7 @@ export default {
   'reports.window.days.other': 'Letzte {n} Tage',
   'reports.title.here': 'Meldungen hier',
   'reports.title.region': 'Meldungen in dieser Region',
-  'reports.empty.summary': 'Zoome in eine Stadt oder ein Viertel, um einzelne Meldungen zu sehen.',
+  'reports.empty.summary': 'Tippe auf einen Kreis oder zoome in eine Stadt, um einzelne Meldungen zu sehen.',
   'reports.empty.here': 'Hier wurde in den letzten 7 Tagen nichts gemeldet. Das ist eine gute Nachricht — oder es hat uns nur noch niemand erzählt.',
   'reports.empty.narrowed': 'In diesem Zeitraum wurde hier nichts gemeldet. Versuche einen größeren.',
   'reports.confirm': 'Habe ich auch erlebt',

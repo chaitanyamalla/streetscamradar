@@ -70,7 +70,7 @@ export default {
   'reports.window.days.other': 'Últimos {n} dias',
   'reports.title.here': 'Relatos aqui',
   'reports.title.region': 'Relatos nesta região',
-  'reports.empty.summary': 'Aproxime até uma cidade ou bairro para ver relatos individuais.',
+  'reports.empty.summary': 'Toque num círculo, ou aproxime até uma cidade, para ver relatos individuais.',
   'reports.empty.here': 'Nada relatado aqui nos últimos 7 dias. É boa notícia — ou ainda ninguém nos contou.',
   'reports.empty.narrowed': 'Nada aqui nesse período. Tente um período maior.',
   'reports.confirm': 'Também vi isto',

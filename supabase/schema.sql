@@ -2055,6 +2055,8 @@ $$;
 -- function's signature in place.
 drop function if exists public.public_area_summary(double precision, double precision, double precision, double precision, int);
 drop function if exists public.public_area_summary(double precision, double precision, double precision, double precision, int, int);
+-- `step` was added to the result and Postgres will not replace a function's
+-- return type in place, so the old shape is dropped before the new one lands.
 create or replace function public.public_area_summary(
   min_lat double precision, min_lng double precision,
   max_lat double precision, max_lng double precision,
@@ -2062,7 +2064,15 @@ create or replace function public.public_area_summary(
   -- How far back the reader's chip is set. Null is the whole window.
   max_age_days int default null
 )
-returns table (lat double precision, lng double precision, total bigint, confirmed bigint)
+-- `step` is the cell's own width in degrees, and it is returned so a reader can
+-- CLICK a circle and land on exactly the ground it counted. Without it the page
+-- could only guess a zoom level, which lands near the reports rather than on
+-- them — and the number in the circle is a promise about one square of the
+-- lattice, so the view it opens should be that square and not a guess around
+-- it. Every row of one answer carries the same step; it is per-row because a
+-- set-returning SQL function has nowhere else to put it.
+returns table (lat double precision, lng double precision, total bigint,
+               confirmed bigint, step double precision)
 language sql stable security definer set search_path = public as $$
   with bounds as (
     select least(min_lat, max_lat) as y0, greatest(min_lat, max_lat) as y1,
@@ -2106,13 +2116,14 @@ language sql stable security definer set search_path = public as $$
   select floor(r.lat / f.step) * f.step + f.step / 2,
          floor(r.lng / f.step) * f.step + f.step / 2,
          count(*),
-         count(*) filter (where r.support_count > 0)
+         count(*) filter (where r.support_count > 0),
+         f.step
     from public.reports r, frame f
    where r.status = 'published'
      and r.happened_at > now() - public.report_age_limit(max_age_days)
      and r.lat between f.qy0 and f.qy1
      and r.lng between f.qx0 and f.qx1
-   group by 1, 2;
+   group by 1, 2, f.step;
 $$;
 
 -- Signed-out visitors get the report text too. This used to withhold

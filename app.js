@@ -129,7 +129,8 @@ map.on('load', () => {
 
   // A pin that opens something should look like it.
   for (const layer of ['report-point', 'report-icon', 'clusters', 'safety-icon',
-                       'hazard-ring', 'volcano-icon', 'disaster-icon', 'weather-icon']) {
+                       'hazard-ring', 'volcano-icon', 'disaster-icon', 'weather-icon',
+                       'density-blob', 'density-count']) {
     map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', layer, () => {
       map.getCanvas().style.cursor = state.picking ? 'crosshair' : '';
@@ -1422,7 +1423,7 @@ function draw() {
   $('#reports-title').textContent = t(mode === 'summary'
     ? 'reports.title.region' : 'reports.title.here');
   $('#reports-scope').textContent = reportScopeLine(
-    { mode, ageDays: state.ageDays, windowDays: REPORT_WINDOW_DAYS });
+    { signedIn: signedIn(), ageDays: state.ageDays, windowDays: REPORT_WINDOW_DAYS });
   setAgeSlider($('#age-range'), state.ageDays, REPORT_WINDOW_DAYS);
 
   renderReportList($('#report-list'), visible, {
@@ -1489,7 +1490,8 @@ function onMapClick(e) {
   const pad = 8;
   const box = [[e.point.x - pad, e.point.y - pad], [e.point.x + pad, e.point.y + pad]];
   const layers = ['report-icon', 'report-point', 'clusters', 'safety-icon',
-                  'volcano-icon', 'disaster-icon', 'weather-icon', 'hazard-ring']
+                  'volcano-icon', 'disaster-icon', 'weather-icon', 'hazard-ring',
+                  'density-blob', 'density-count']
     .filter(id => map.getLayer(id));
   const hits = layersReady ? map.queryRenderedFeatures(box, { layers }) : [];
   if (!hits.length) return;
@@ -1497,6 +1499,10 @@ function onMapClick(e) {
   const hit = hits[0];
   if (hit.properties.cluster) {
     map.easeTo({ center: hit.geometry.coordinates, zoom: map.getZoom() + 2 });
+    return;
+  }
+  if (hit.layer?.id === 'density-blob' || hit.layer?.id === 'density-count') {
+    openDensityCell(hit);
     return;
   }
 
@@ -1508,6 +1514,38 @@ function onMapClick(e) {
     : popupHTML(hit.properties, state.categories);
 
   showPopup(hit.geometry.coordinates, html);
+}
+
+/**
+ * Open a counted circle.
+ *
+ * The number in it is a promise about one square of a global lattice — see
+ * public_area_summary — so this opens that square and not a guessed zoom near
+ * it. Fitting its exact bounds means every report the circle counted is in
+ * view when the map lands, and the reports card underneath is then listing the
+ * same reports the number was about.
+ *
+ * `step` comes back with the cell. Without it the only move available was
+ * "zoom in two levels at this point", which lands close but counts something
+ * else, and the number in the circle would stop matching the list a moment
+ * later for no reason a reader could see.
+ *
+ * A circle that is a single square of the lattice on a wide view can still be
+ * wider than the detail cut, so landing on it may well show counted circles
+ * again — smaller ones, over the same ground. That is the zoom working, not a
+ * failure: each click is one step down the lattice.
+ */
+function openDensityCell(hit) {
+  const [lng, lat] = hit.geometry.coordinates;
+  const step = Number(hit.properties.step) || 0;
+  if (!step) {
+    // An older summary with no step in it. Better than doing nothing.
+    map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom() + 3, 11) });
+    return;
+  }
+  const half = step / 2;
+  map.fitBounds([[lng - half, lat - half], [lng + half, lat + half]],
+                { padding: 40, maxZoom: PRECISE_ZOOM, duration: 700 });
 }
 
 function startPicking() {

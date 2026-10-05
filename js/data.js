@@ -9,7 +9,8 @@
 // ---------------------------------------------------------------------------
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { t } from './i18n.js';
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, isConfigured, PUBLIC_DETAIL_MAX_SPAN, SAFETY_MAX_PLACES } from './config.js';
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, isConfigured, PUBLIC_DETAIL_MAX_SPAN,
+         MEMBER_DETAIL_MAX_SPAN, SAFETY_MAX_PLACES } from './config.js';
 
 export const supabase = isConfigured()
   ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -63,7 +64,25 @@ export async function fetchForBounds(bounds, { signedIn, ageDays = null }) {
     ? new Date(Date.now() - ageDays * 86400000).toISOString()
     : null;
 
+  const span = Math.max(maxLat - minLat, maxLng - minLng);
+
   if (signedIn) {
+    // Across a country, individual pins are a smear. The counted circles a
+    // signed-out visitor gets are the better drawing at that width — they say
+    // where the reports are and how many — so a member gets them too, and the
+    // pins come back the moment the view is small enough for them to be
+    // separate things. Nothing is withheld by this: a member may read every
+    // report at any zoom, and one click on a circle opens the ground it
+    // counted.
+    if (span > MEMBER_DETAIL_MAX_SPAN) {
+      const { data, error } = await supabase.rpc('public_area_summary', {
+        min_lat: minLat, min_lng: minLng, max_lat: maxLat, max_lng: maxLng, cells: 14,
+        max_age_days: ageDays,
+      });
+      if (error) throw error;
+      return { mode: 'summary', reports: [], cells: data ?? [], hiddenCount: 0 };
+    }
+
     let query = supabase
       .from('reports_feed')
       .select('id,category,impacts,headline,description,lat,lng,address,city,country_code,happened_at,support_count,is_mine')
@@ -77,7 +96,6 @@ export async function fetchForBounds(bounds, { signedIn, ageDays = null }) {
     return { mode: 'member', reports: data ?? [], cells: [], hiddenCount: 0 };
   }
 
-  const span = Math.max(maxLat - minLat, maxLng - minLng);
   if (span <= PUBLIC_DETAIL_MAX_SPAN) {
     const { data, error } = await supabase.rpc('public_sample_reports', {
       min_lat: minLat, min_lng: minLng, max_lat: maxLat, max_lng: maxLng,

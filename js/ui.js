@@ -186,8 +186,12 @@ export function setAgeSlider(input, days, windowDays) {
  * Both halves in one string rather than concatenated, because the separator
  * and the order of the two are a language's business, not ours.
  */
-export function reportScopeLine({ mode, ageDays, windowDays }) {
-  return t(mode === 'member' ? 'reports.scope.member' : 'reports.scope.public',
+export function reportScopeLine({ signedIn, ageDays, windowDays }) {
+  // Who is reading, not what is drawn. It used to switch on `mode`, which was
+  // the same thing while only a signed-out visitor ever saw counted circles —
+  // and stopped being the same thing the moment members got them too, at which
+  // point a member looking at a country was told they were on the public view.
+  return t(signedIn ? 'reports.scope.member' : 'reports.scope.public',
            { when: ageLabel(ageDays, windowDays) });
 }
 

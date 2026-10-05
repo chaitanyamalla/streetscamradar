@@ -61,7 +61,7 @@ export default {
   'reports.window.days.other': 'Últimos {n} días',
   'reports.title.here': 'Denuncias aquí',
   'reports.title.region': 'Denuncias en esta región',
-  'reports.empty.summary': 'Acércate a una ciudad o un barrio para ver denuncias concretas.',
+  'reports.empty.summary': 'Toca un círculo, o acércate a una ciudad, para ver denuncias concretas.',
   'reports.empty.here': 'Nada denunciado aquí en los últimos 7 días. Es buena noticia — o todavía nadie nos lo ha contado.',
   'reports.empty.narrowed': 'Nada aquí en ese periodo. Prueba uno más amplio.',
   'reports.confirm': 'A mí también me pasó',

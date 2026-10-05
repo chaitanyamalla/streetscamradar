@@ -61,7 +61,7 @@ export default {
   'reports.window.days.other': '{n} derniers jours',
   'reports.title.here': 'Signalements ici',
   'reports.title.region': 'Signalements dans cette région',
-  'reports.empty.summary': 'Zoomez sur une ville ou un quartier pour voir les signalements individuels.',
+  'reports.empty.summary': 'Touchez un cercle, ou zoomez sur une ville, pour voir les signalements individuels.',
   'reports.empty.here': "Rien de signalé ici ces 7 derniers jours. C'est une bonne nouvelle — ou personne ne nous l'a encore dit.",
   'reports.empty.narrowed': 'Rien ici sur cette période. Essayez une période plus large.',
   'reports.confirm': "Ça m'est arrivé aussi",

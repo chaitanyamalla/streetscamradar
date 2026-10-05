@@ -61,7 +61,7 @@ export default {
   'reports.window.days.other': 'Ultimi {n} giorni',
   'reports.title.here': 'Segnalazioni qui',
   'reports.title.region': 'Segnalazioni in questa regione',
-  'reports.empty.summary': 'Ingrandisci su una città o un quartiere per vedere le singole segnalazioni.',
+  'reports.empty.summary': 'Tocca un cerchio, o ingrandisci su una città, per vedere le singole segnalazioni.',
   'reports.empty.here': 'Niente segnalato qui negli ultimi 7 giorni. È una buona notizia — o nessuno ce l’ha ancora detto.',
   'reports.empty.narrowed': 'Niente qui in questo periodo. Prova un periodo più ampio.',
   'reports.confirm': 'È successo anche a me',

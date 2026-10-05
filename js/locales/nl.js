@@ -69,7 +69,7 @@ export default {
   'reports.window.days.other': 'Afgelopen {n} dagen',
   'reports.title.here': 'Meldingen hier',
   'reports.title.region': 'Meldingen in deze regio',
-  'reports.empty.summary': 'Zoom in op een stad of wijk om losse meldingen te zien.',
+  'reports.empty.summary': 'Tik op een cirkel, of zoom in op een stad, om losse meldingen te zien.',
   'reports.empty.here': 'Hier is de afgelopen 7 dagen niets gemeld. Dat is goed nieuws — of niemand heeft het ons nog verteld.',
   'reports.empty.narrowed': 'Niets hier in die periode. Probeer een ruimere periode.',
   'reports.confirm': 'Dit zag ik ook',

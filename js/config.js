@@ -50,6 +50,22 @@ export const PRECISE_ZOOM = 16; // after picking an exact address
 export const PUBLIC_DETAIL_MAX_SPAN = 0.35; // degrees; wider than this = counts only
 export const PUBLIC_SAMPLE_LIMIT = 5;
 
+// --- And how wide a view a MEMBER gets counts for --------------------------
+//
+// Not a gate — a member may read every report at any zoom, and this changes
+// nothing about that. It is about what is worth drawing. Across a country,
+// five hundred individual pins collapse into a smear of orange dots that says
+// less than a handful of circles with numbers in them: the circles say where
+// the reports are and how many, which is the question somebody looking at a
+// country is asking. The pins come back as soon as the view is small enough
+// for them to be separate things.
+//
+// Wider than the public cut above, deliberately. That one is a privacy rule
+// about when individual reports may be seen at all; this one is a drawing
+// rule, so it sits where pins stop being legible rather than where a visitor
+// stops being trusted.
+export const MEMBER_DETAIL_MAX_SPAN = 1.5; // degrees; about a large region
+
 // --- Reports ---------------------------------------------------------------
 // A rolling seven days, counted back from right now — not a calendar week.
 // Mirrors app_settings.report_window_days, which is the real gate; this copy

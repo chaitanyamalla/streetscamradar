@@ -62,7 +62,7 @@ export default {
   'reports.window.days.other': 'Ostatnie {n} dni',
   'reports.title.here': 'Zgłoszenia tutaj',
   'reports.title.region': 'Zgłoszenia w tym regionie',
-  'reports.empty.summary': 'Przybliż na miasto lub dzielnicę, aby zobaczyć pojedyncze zgłoszenia.',
+  'reports.empty.summary': 'Dotknij kółka albo przybliż na miasto, aby zobaczyć pojedyncze zgłoszenia.',
   'reports.empty.here': 'Przez ostatnie 7 dni nic tu nie zgłoszono. To dobra wiadomość — albo nikt nam jeszcze nie powiedział.',
   'reports.empty.narrowed': 'Nic tu w tym okresie. Spróbuj dłuższego okresu.',
   'reports.confirm': 'Mnie też to spotkało',

@@ -69,7 +69,7 @@ export default {
   'reports.window.days.other': 'Last {n} days',
   'reports.title.here': 'Reports here',
   'reports.title.region': 'Reports in this region',
-  'reports.empty.summary': 'Zoom into a town or neighbourhood to see individual reports.',
+  'reports.empty.summary': 'Tap a circle, or zoom into a town, to see individual reports.',
   'reports.empty.here': 'Nothing reported here in the last 7 days. That is good news — or nobody has told us yet.',
   'reports.empty.narrowed': 'Nothing here in that window. Try a wider one.',
   'reports.confirm': 'I saw this too',

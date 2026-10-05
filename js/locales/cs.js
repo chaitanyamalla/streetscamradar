@@ -62,7 +62,7 @@ export default {
   'reports.window.days.other': 'Posledních {n} dní',
   'reports.title.here': 'Hlášení zde',
   'reports.title.region': 'Hlášení v této oblasti',
-  'reports.empty.summary': 'Přibližte na město nebo čtvrť, ať uvidíte jednotlivá hlášení.',
+  'reports.empty.summary': 'Klepněte na kroužek nebo přibližte na město, ať uvidíte jednotlivá hlášení.',
   'reports.empty.here': 'Za posledních 7 dní tu nikdo nic nenahlásil. To je dobrá zpráva — nebo nám to zatím nikdo neřekl.',
   'reports.empty.narrowed': 'V tomto období tu nic není. Zkuste delší období.',
   'reports.confirm': 'Stalo se to i mně',

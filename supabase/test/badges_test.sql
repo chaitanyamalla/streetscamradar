@@ -281,6 +281,48 @@ begin
     update public.app_settings set value = '3' where key = 'badge_bronze_confirmed';
   end;
 
+  -- ---- a counted circle knows how big it is ------------------------------
+  --
+  -- `step` is what the page fits the map to when somebody clicks a circle, so
+  -- a wrong one lands them on ground the number was not about. Checked here
+  -- because it is arithmetic over a lattice and the page stub cannot see it.
+  perform pg_temp.ok(true, '--- the counted circles ---');
+  declare cell record; n int; s double precision;
+  begin
+    -- Four reports in one town and one a long way off: two circles, and the
+    -- far one must not be folded into the near one.
+    perform pg_temp.file(witness, 'FR', 'Paris', 4);
+    perform pg_temp.file(witness, 'FR', 'Marseille', 1);
+    update public.reports set lat = 43.3, lng = 5.4
+     where reporter_id = witness and city = 'Marseille';
+
+    select count(*)::int into n
+      from public.public_area_summary(40.0, -5.0, 52.0, 10.0, 14, null);
+    perform pg_temp.ok(n >= 2, format('a wide view answers with several circles (%s)', n));
+
+    select * into cell
+      from public.public_area_summary(40.0, -5.0, 52.0, 10.0, 14, null)
+     order by total desc limit 1;
+    perform pg_temp.ok(cell.step > 0, format('each circle carries its own width (%s)', cell.step));
+
+    -- The centre must sit in the middle of its own square, which is what makes
+    -- fitting centre +/- step/2 land on exactly the ground that was counted.
+    perform pg_temp.ok(
+      abs(((cell.lat - cell.step / 2) / cell.step)
+          - round(((cell.lat - cell.step / 2) / cell.step)::numeric)::double precision) < 1e-6,
+      format('and sits on the lattice, so its square is exactly the ground counted (%s)', cell.lat));
+
+    -- Fitting that square and asking again must find the same reports. This is
+    -- the whole promise of the click: the number you pressed is the number you
+    -- land on.
+    select coalesce(sum(total), 0)::int into n
+      from public.public_area_summary(cell.lat - cell.step / 2, cell.lng - cell.step / 2,
+                                      cell.lat + cell.step / 2, cell.lng + cell.step / 2,
+                                      14, null);
+    perform pg_temp.ok(n = cell.total,
+      format('clicking it lands on exactly the reports it counted (%s of %s)', n, cell.total));
+  end;
+
   -- ---- the board still names no place ------------------------------------
   perform pg_temp.ok(true, '--- what the board still refuses to say ---');
   declare row_text text;

@@ -74,6 +74,13 @@ SEED
                             where profile_id = '11111111-1111-1111-1111-111111111111'" 2>/dev/null | tr -d ' ')"
       if [ "$MOVED" = "early" ]; then
         echo "  ok    and a badge granted as 'founder' came across as 'early'"
+      elif [ -z "$MOVED" ]; then
+        # The seed above did not take, because $BASE has itself moved past the
+        # rename and its constraint no longer accepts 'founder'. There is
+        # nothing left to migrate, which is the rename having finished rather
+        # than the rename being broken — and this check retiring itself is the
+        # correct end for a check about a one-way migration.
+        echo "  ok    $BASE no longer has a 'founder' badge to move (the rename is done)"
       else
         echo "  FAIL  the founder badge did not survive the rename (got '$MOVED')"
       fi

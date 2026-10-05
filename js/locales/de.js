@@ -72,7 +72,7 @@ export default {
   'reports.confirmedBy.one': '✓ 1 Person hat das bestätigt',
   'reports.confirmedBy.other': '✓ {n} Personen haben das bestätigt',
 
-  'gate.summary': 'Jeder Kreis zeigt, wie viele Betrugsfälle hier in den letzten 7 Tagen gemeldet wurden. <b>Zoome in eine Stadt</b>, um einzelne Meldungen zu sehen, oder <button class="chip-action" data-open-auth>melde dich kostenlos an</button>, um alle zu sehen.',
+  'gate.summary': 'Jeder Kreis zeigt, wie viele Betrugsfälle hier in den letzten 7 Tagen gemeldet wurden. <button class="chip-action" data-open-auth>Melde dich kostenlos an</button>, um alle zu sehen.',
   'gate.partial.one': 'Es werden {shown} von {total} Meldungen gezeigt. <b>1 weitere ist nur für Mitglieder.</b> <button class="chip-action" data-open-auth>Kostenlos anmelden und alle sehen</button>',
   'gate.partial.other': 'Es werden {shown} von {total} Meldungen gezeigt. <b>{hidden} weitere sind nur für Mitglieder.</b> <button class="chip-action" data-open-auth>Kostenlos anmelden und alle sehen</button>',
   'gate.invite': 'Selbst etwas erlebt? <button class="chip-action" data-open-auth>Melde dich kostenlos an</button> und setze es auf die Karte.',
@@ -340,6 +340,8 @@ export default {
   'weather.zoomIn': 'Auf ein Land zoomen',
   'weather.until': 'Bis {when}',
   'weather.from': 'Ab {when}',
+  'weather.starts': 'Beginnt',
+  'weather.ends': 'Endet',
   'weather.upcoming': 'Noch nicht in Kraft — im Voraus herausgegeben.',
   'weather.onMeteoalarm': 'Auf MeteoAlarm ansehen',
   'weather.source': 'Herausgegeben von {who}',

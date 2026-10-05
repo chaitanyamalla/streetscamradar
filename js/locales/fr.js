@@ -72,7 +72,7 @@ export default {
   'reports.confirmedBy.one': '✓ 1 personne a confirmé',
   'reports.confirmedBy.other': '✓ {n} personnes ont confirmé',
 
-  'gate.summary': "Chaque cercle indique combien d'arnaques ont été signalées ici ces 7 derniers jours. <b>Zoomez sur une ville</b> pour voir les signalements individuels, ou <button class=\"chip-action\" data-open-auth>inscrivez-vous gratuitement</button> pour tous les voir.",
+  'gate.summary': 'Chaque cercle indique combien d\'arnaques ont été signalées ici ces 7 derniers jours. <button class="chip-action" data-open-auth>Inscrivez-vous gratuitement</button> pour tous les voir.',
   'gate.partial.one': '{shown} signalements affichés sur {total}. <b>1 autre est réservé aux membres.</b> <button class="chip-action" data-open-auth>Inscrivez-vous gratuitement pour les voir</button>',
   'gate.partial.other': '{shown} signalements affichés sur {total}. <b>{hidden} autres sont réservés aux membres.</b> <button class="chip-action" data-open-auth>Inscrivez-vous gratuitement pour les voir</button>',
   'gate.invite': 'Vous avez vécu quelque chose ici ? <button class="chip-action" data-open-auth>Inscrivez-vous gratuitement</button> et mettez-le sur la carte.',
@@ -340,6 +340,8 @@ export default {
   'weather.zoomIn': 'Zoomez sur un pays',
   'weather.until': 'Jusqu’à {when}',
   'weather.from': 'À partir de {when}',
+  'weather.starts': 'Début',
+  'weather.ends': 'Fin',
   'weather.upcoming': 'Pas encore en vigueur — émis à l’avance.',
   'weather.onMeteoalarm': 'Voir sur MeteoAlarm',
   'weather.source': 'Émis par {who}',

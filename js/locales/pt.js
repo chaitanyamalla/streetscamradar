@@ -82,7 +82,7 @@ export default {
   'reports.confirmedBy.other': '✓ {n} pessoas confirmaram isto',
 
   // --- the signed-out prompt ----------------------------------------------
-  'gate.summary': 'Cada círculo mostra quantas burlas foram relatadas aqui nos últimos 7 dias. <b>Aproxime até uma cidade</b> para ver relatos individuais, ou <button class="chip-action" data-open-auth>junte-se gratuitamente</button> para os ver todos.',
+  'gate.summary': 'Cada círculo mostra quantas burlas foram relatadas aqui nos últimos 7 dias. <button class="chip-action" data-open-auth>Junte-se gratuitamente</button> para os ver todos.',
   'gate.partial.one': 'A mostrar {shown} de {total} relatos aqui. <b>Mais 1 é só para membros.</b> <button class="chip-action" data-open-auth>Junte-se gratuitamente para os ver</button>',
   'gate.partial.other': 'A mostrar {shown} de {total} relatos aqui. <b>Mais {hidden} são só para membros.</b> <button class="chip-action" data-open-auth>Junte-se gratuitamente para os ver</button>',
   'gate.invite': 'Também viu alguma coisa aqui? <button class="chip-action" data-open-auth>Junte-se gratuitamente</button> e ponha-a no mapa.',
@@ -361,6 +361,8 @@ export default {
   'weather.zoomIn': 'Aproxime até um país',
   'weather.until': 'Até {when}',
   'weather.from': 'A partir de {when}',
+  'weather.starts': 'Começa',
+  'weather.ends': 'Termina',
   'weather.upcoming': 'Ainda não está em vigor — emitido com antecedência.',
   'weather.onMeteoalarm': 'Ver no MeteoAlarm',
   'weather.source': 'Emitido por {who}',

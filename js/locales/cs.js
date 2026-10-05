@@ -74,7 +74,7 @@ export default {
   'reports.confirmedBy.few': '✓ Potvrdili {n} lidé',
   'reports.confirmedBy.other': '✓ Potvrdilo {n} lidí',
 
-  'gate.summary': 'Každý kroužek říká, kolik podvodů se tu nahlásilo za posledních 7 dní. <b>Přibližte na město</b>, ať uvidíte jednotlivá hlášení, nebo se <button class="chip-action" data-open-auth>zdarma přidejte</button> a uvidíte je všechna.',
+  'gate.summary': 'Každý kroužek říká, kolik podvodů se tu nahlásilo za posledních 7 dní. <button class="chip-action" data-open-auth>Zdarma se přidejte</button> a uvidíte je všechna.',
   'gate.partial.one': 'Zobrazeno {shown} z {total} hlášení. <b>Další 1 je jen pro členy.</b> <button class="chip-action" data-open-auth>Přidejte se zdarma a uvidíte je</button>',
   'gate.partial.few': 'Zobrazeno {shown} z {total} hlášení. <b>Další {hidden} jsou jen pro členy.</b> <button class="chip-action" data-open-auth>Přidejte se zdarma a uvidíte je</button>',
   'gate.partial.other': 'Zobrazeno {shown} z {total} hlášení. <b>Dalších {hidden} je jen pro členy.</b> <button class="chip-action" data-open-auth>Přidejte se zdarma a uvidíte je</button>',
@@ -346,6 +346,8 @@ export default {
   'weather.zoomIn': 'Přibližte na jednu zemi',
   'weather.until': 'Do {when}',
   'weather.from': 'Od {when}',
+  'weather.starts': 'Začíná',
+  'weather.ends': 'Končí',
   'weather.upcoming': 'Ještě neplatí — vydáno předem.',
   'weather.onMeteoalarm': 'Zobrazit na MeteoAlarm',
   'weather.source': 'Vydal {who}',

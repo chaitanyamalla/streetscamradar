@@ -81,7 +81,7 @@ export default {
   'reports.confirmedBy.other': '✓ {n} people confirmed this',
 
   // --- the signed-out prompt ----------------------------------------------
-  'gate.summary': 'Each circle is how many scams were reported here in the last 7 days. <b>Zoom into a town</b> to see individual reports, or <button class="chip-action" data-open-auth>join free</button> to see them all.',
+  'gate.summary': 'Each circle is how many scams were reported here in the last 7 days. <button class="chip-action" data-open-auth>Join free</button> to see them all.',
   'gate.partial.one': 'Showing {shown} of {total} reports here. <b>1 more is members-only.</b> <button class="chip-action" data-open-auth>Join free to see them</button>',
   'gate.partial.other': 'Showing {shown} of {total} reports here. <b>{hidden} more are members-only.</b> <button class="chip-action" data-open-auth>Join free to see them</button>',
   'gate.invite': 'Seen something here yourself? <button class="chip-action" data-open-auth>Join free</button> to put it on the map.',
@@ -358,6 +358,8 @@ export default {
   'weather.zoomIn': 'Zoom in to a country',
   'weather.until': 'Until {when}',
   'weather.from': 'From {when}',
+  'weather.starts': 'Starts',
+  'weather.ends': 'Ends',
   'weather.upcoming': 'Not yet in force — issued ahead of time.',
   'weather.onMeteoalarm': 'See it on MeteoAlarm',
   'weather.source': 'Issued by {who}',

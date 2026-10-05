@@ -787,6 +787,33 @@ export function warningCredit(rows) {
  * are named underneath either way.
  */
 /**
+ * When it starts, or when it lifts.
+ *
+ * The loudest thing in the popup, which it was not: this used to be the
+ * smallest line on it — grey monospace under a divider — while "See it on
+ * MeteoAlarm" was a filled green button. That is backwards. Somebody looking
+ * at an orange rain warning over the place they are going wants to know when
+ * it lifts; a page explaining the warning is the second thing they want, not
+ * the first.
+ *
+ * "Starts" and "Ends" rather than "From" and "Until", because the word is what
+ * a reader is scanning for. A warning that has not begun and one about to lift
+ * carry the same date and look identical until you have read which preposition
+ * it was, and a preposition is a bad place to hide the difference.
+ */
+function hazardWhen(props) {
+  const clock = { weekday: 'short', hour: 'numeric', minute: '2-digit' };
+  const ahead = isUpcoming(props);
+  const stamp = ahead ? props.from_date : props.to_date;
+  if (!stamp) return '';
+  return `
+    <p class="hazard-when${ahead ? ' is-ahead' : ''}">
+      <span class="hw-label">${esc(t(ahead ? 'weather.starts' : 'weather.ends'))}</span>
+      <strong>${esc(formatDate(stamp, clock))}</strong>
+    </p>`;
+}
+
+/**
  * The two ways out of a weather popup, in the order they are useful.
  *
  * MeteoAlarm first: one page, the reader's language, the warning drawn on a map,
@@ -794,31 +821,36 @@ export function warningCredit(rows) {
  * is the authority and because for several of them — the DWD, the KNMI, AEMET —
  * it is a better page than MeteoAlarm's. Named rather than called "official
  * details", so a reader can see where each one goes before clicking.
+ *
+ * Plain links rather than buttons. They were two pills, one of them filled in
+ * the brand colour, which made leaving the site the most prominent thing a
+ * weather popup offered — above the time the warning ends. They are what you
+ * read after the warning, so they are sized like it.
  */
 function weatherLinks(props) {
   const meteoalarm = meteoalarmUrl(props.country_code);
   const service = String(props.source ?? '').trim();
   const links = [];
   if (meteoalarm) {
-    links.push(`<a class="popup-action is-primary" href="${esc(meteoalarm)}"
+    links.push(`<a class="popup-link" href="${esc(meteoalarm)}"
       target="_blank" rel="noopener noreferrer">${esc(t('weather.onMeteoalarm'))}</a>`);
   }
   if (props.url) {
-    // The service's own name on the button. "Official details" told a reader
+    // The service's own name on the link. "Official details" told a reader
     // nothing about which of two official places they were about to go to.
-    links.push(`<a class="popup-action" href="${esc(props.url)}"
+    links.push(`<a class="popup-link" href="${esc(props.url)}"
       target="_blank" rel="noopener noreferrer">${esc(service || t('hazard.official'))}</a>`);
   }
-  return links.length ? `<div class="popup-actions">${links.join('')}</div>` : '';
+  return links.length ? `<p class="popup-links">${links.join('')}</p>` : '';
 }
 
 export function weatherPopupHTML(props) {
   const kind = String(props.kind ?? 'wind');
-  const when = warningWhen(props);
   const areas = String(props.areas ?? '').split(',').map(a => a.trim()).filter(Boolean);
   const shown = areas.slice(0, 6).join(', ');
   const rest = areas.length - 6;
   const also = Number(props.also) || 0;
+  const when = hazardWhen(props);
 
   return `
     <div class="popup-head">
@@ -829,10 +861,15 @@ export function weatherPopupHTML(props) {
       </div>
     </div>
     ${gradeLine(props.severity)}
-    ${isUpcoming(props) ? `<p class="hazard-upcoming">${esc(t('weather.upcoming'))}</p>` : ''}
+    ${when}
+    ${/* "Not yet in force" only where the line above cannot already say so.
+          With a start time on it, the two of them are the same sentence twice
+          — and a warning with no from_date is exactly the case where the
+          highlighted line is missing and this is all a reader has. */
+      isUpcoming(props) && !when
+        ? `<p class="hazard-upcoming">${esc(t('weather.upcoming'))}</p>` : ''}
     ${weatherLinks(props)}
-    <p class="popup-meta">${esc(when)}${when && also ? ' \u00b7 ' : ''}${
-      also ? esc(t('weather.alsoHere', { n: also })) : ''}</p>`;
+    ${also ? `<p class="popup-meta">${esc(t('weather.alsoHere', { n: also }))}</p>` : ''}`;
 }
 
 /**

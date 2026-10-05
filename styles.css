@@ -482,6 +482,23 @@ em { font-style:italic; }
    news, not a second warning on top of the first. */
 .hazard-upcoming { margin-top:7px; padding:6px 9px; border-radius:4px;
   background:var(--tint-brand); color:var(--brand); font-size:12px; font-weight:700; }
+/* When the warning lifts, or when it begins — the thing a weather popup is
+   really for, and for a long time the smallest line on it. It sat in grey
+   monospace under a divider while "See it on MeteoAlarm" was a filled green
+   button, which made leaving the site louder than the answer. The band is
+   warm rather than graded: the line above it already says orange or red, and
+   two coloured blocks arguing about severity is one too many. */
+.hazard-when { display:flex; align-items:baseline; gap:9px; margin:9px 0 0;
+  padding:9px 12px; border-radius:var(--radius);
+  background:var(--tint-warm); border:1px solid var(--tint-warm-line); }
+.hw-label { flex:none; color:var(--ink-soft); font:500 9.5px/1.2 'DM Mono',monospace;
+  letter-spacing:.1em; text-transform:uppercase; }
+.hazard-when strong { color:var(--ink); font-size:15px; font-weight:800;
+  letter-spacing:-.01em; }
+/* Not yet in force. Lead time is good news rather than a second warning, so
+   the brand colour — the same reasoning as .hazard-upcoming above. */
+.hazard-when.is-ahead { background:var(--tint-brand); border-color:var(--brand-fill); }
+.hazard-when.is-ahead .hw-label, .hazard-when.is-ahead strong { color:var(--brand); }
 /* Said on every hazard, not buried in a page nobody opens: this is a signal
    for planning, and somebody in trouble needs the official source. */
 .popup-fine { margin-top:7px; color:var(--muted); font-size:10.5px; line-height:1.45; }
@@ -996,6 +1013,14 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
 .popup-action:hover { border-color:var(--brand); color:var(--brand); }
 .popup-action.is-primary { border-color:var(--brand-fill); background:var(--brand-fill); color:var(--on-accent); }
 .popup-action.is-primary:hover { background:var(--brand-deep); color:var(--on-accent); }
+/* Going somewhere else, as plain text. A weather popup had two of these as
+   pills with one filled in, which put "read about this elsewhere" above "when
+   does it end" — see .hazard-when. They are what you read after the warning,
+   so they are sized like an afterthought rather than like the answer. */
+.popup-links { display:flex; flex-wrap:wrap; gap:3px 14px; margin:10px 0 0; }
+.popup-link { color:var(--brand); font-size:11.5px; font-weight:700;
+  text-decoration:underline; text-underline-offset:2px; }
+.popup-link:hover { color:var(--ink); }
 /* The agency's own measurement — "Magnitude 5.2M, Depth:10km". Monospaced
    because it is numbers and units, and it should read as something read off an
    instrument rather than as another sentence of ours. */
@@ -1136,6 +1161,10 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
   .popup-age { font-size:12px; }
   .popup-actions { margin-top:9px; gap:6px; }
   .popup-action { padding:6px 10px; font-size:11px; }
+  .popup-links { margin-top:9px; gap:3px 12px; }
+  .popup-link { font-size:11px; }
+  .hazard-when { margin-top:8px; padding:8px 10px; gap:8px; }
+  .hazard-when strong { font-size:14px; }
   .impact-tag { font-size:10px; }
 
   /* On a phone the bar spans the width and drops the lead-in, so the numbers

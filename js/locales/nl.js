@@ -81,7 +81,7 @@ export default {
   'reports.confirmedBy.other': '✓ {n} mensen bevestigden dit',
 
   // --- the signed-out prompt ----------------------------------------------
-  'gate.summary': 'Elke cirkel laat zien hoeveel oplichting hier de afgelopen 7 dagen is gemeld. <b>Zoom in op een stad</b> om losse meldingen te zien, of <button class="chip-action" data-open-auth>word gratis lid</button> om ze allemaal te zien.',
+  'gate.summary': 'Elke cirkel laat zien hoeveel oplichting hier de afgelopen 7 dagen is gemeld. <button class="chip-action" data-open-auth>Word gratis lid</button> om ze allemaal te zien.',
   'gate.partial.one': '{shown} van de {total} meldingen hier te zien. <b>Nog 1 is alleen voor leden.</b> <button class="chip-action" data-open-auth>Word gratis lid om ze te zien</button>',
   'gate.partial.other': '{shown} van de {total} meldingen hier te zien. <b>Nog {hidden} zijn alleen voor leden.</b> <button class="chip-action" data-open-auth>Word gratis lid om ze te zien</button>',
   'gate.invite': 'Zelf hier iets gezien? <button class="chip-action" data-open-auth>Word gratis lid</button> en zet het op de kaart.',
@@ -360,6 +360,8 @@ export default {
   'weather.zoomIn': 'Zoom in op een land',
   'weather.until': 'Tot {when}',
   'weather.from': 'Vanaf {when}',
+  'weather.starts': 'Begint',
+  'weather.ends': 'Eindigt',
   'weather.upcoming': 'Nog niet van kracht — vooraf uitgegeven.',
   'weather.onMeteoalarm': 'Bekijk op MeteoAlarm',
   'weather.source': 'Uitgegeven door {who}',

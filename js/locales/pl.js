@@ -74,7 +74,7 @@ export default {
   'reports.confirmedBy.few': '✓ Potwierdziły {n} osoby',
   'reports.confirmedBy.other': '✓ Potwierdziło {n} osób',
 
-  'gate.summary': 'Każde kółko pokazuje, ile oszustw zgłoszono tu przez ostatnie 7 dni. <b>Przybliż na miasto</b>, aby zobaczyć pojedyncze zgłoszenia, albo <button class="chip-action" data-open-auth>dołącz za darmo</button>, aby zobaczyć wszystkie.',
+  'gate.summary': 'Każde kółko pokazuje, ile oszustw zgłoszono tu przez ostatnie 7 dni. <button class="chip-action" data-open-auth>Dołącz za darmo</button>, aby zobaczyć wszystkie.',
   'gate.partial.one': 'Pokazano {shown} z {total} zgłoszeń. <b>Jeszcze 1 jest tylko dla członków.</b> <button class="chip-action" data-open-auth>Dołącz za darmo, aby je zobaczyć</button>',
   'gate.partial.few': 'Pokazano {shown} z {total} zgłoszeń. <b>Kolejne {hidden} są tylko dla członków.</b> <button class="chip-action" data-open-auth>Dołącz za darmo, aby je zobaczyć</button>',
   'gate.partial.other': 'Pokazano {shown} z {total} zgłoszeń. <b>Kolejnych {hidden} jest tylko dla członków.</b> <button class="chip-action" data-open-auth>Dołącz za darmo, aby je zobaczyć</button>',
@@ -346,6 +346,8 @@ export default {
   'weather.zoomIn': 'Przybliż do kraju',
   'weather.until': 'Do {when}',
   'weather.from': 'Od {when}',
+  'weather.starts': 'Zaczyna się',
+  'weather.ends': 'Kończy się',
   'weather.upcoming': 'Jeszcze nie obowiązuje — wydane z wyprzedzeniem.',
   'weather.onMeteoalarm': 'Zobacz na MeteoAlarm',
   'weather.source': 'Wydane przez {who}',

@@ -154,9 +154,9 @@ export function addLayers(map) {
   // --- Counted circles: one per grid cell, for anybody looking at a wide view
   //
   // Signed-out at any width past a city, signed-in past a region — see
-  // MEMBER_DETAIL_MAX_SPAN. Each one is clickable and opens its own square,
-  // which is why the count has to be a promise about a fixed piece of ground:
-  // see the lattice comment in public_area_summary.
+  // MEMBER_DETAIL_MAX_SPAN. Read-only: they were clickable for one commit and
+  // a thumb set them off by accident, so on a pointer they explain themselves
+  // on hover and on a touch screen they do nothing at all.
   map.addLayer({
     id: 'density-blob', type: 'circle', source: 'density',
     paint: {
@@ -531,14 +531,7 @@ export const toDensity = (cells) => ({
   features: cells.map(c => ({
     type: 'Feature',
     geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
-    // `step` is the cell's width in degrees, from public_area_summary. It is
-    // carried through so a click can open exactly the square the number counts
-    // rather than a guessed zoom near it.
-    properties: {
-      total: Number(c.total),
-      confirmed: Number(c.confirmed ?? 0),
-      step: Number(c.step) || 0,
-    },
+    properties: { total: Number(c.total), confirmed: Number(c.confirmed ?? 0) },
   })),
 });
 

@@ -44,6 +44,17 @@ export const WORLD_VIEW = { center: [10, 30], zoom: 1.6 };
 export const PLACE_ZOOM = 13;   // after searching a city or town
 export const PRECISE_ZOOM = 16; // after picking an exact address
 
+// How far one press of + or − moves the map.
+//
+// Two, not one, where the buttons are the only way to zoom. A pointer has a
+// wheel and a trackpad has a pinch, so one level a press is a fine grain
+// there; a thumb has the two buttons and nothing else, and getting from a
+// continent to a street one level at a time is eleven presses. Two halves
+// that without making the jump disorienting — the map still passes through
+// every other level on the way, because easeTo animates between them.
+export const ZOOM_STEP_TOUCH = 2;
+export const ZOOM_STEP_POINTER = 1;
+
 // --- What signed-out visitors may see --------------------------------------
 // Mirrors app_settings in the database. The database is the real gate; these
 // values only decide which query the page bothers to make.

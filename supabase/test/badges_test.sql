@@ -312,15 +312,18 @@ begin
           - round(((cell.lat - cell.step / 2) / cell.step)::numeric)::double precision) < 1e-6,
       format('and sits on the lattice, so its square is exactly the ground counted (%s)', cell.lat));
 
-    -- Fitting that square and asking again must find the same reports. This is
-    -- the whole promise of the click: the number you pressed is the number you
-    -- land on.
+    -- Asking again for exactly the square a circle describes must find exactly
+    -- the reports it counted. That is what makes the number in a circle a
+    -- statement about a fixed piece of ground rather than about wherever the
+    -- viewport happened to start — the property the global lattice exists for,
+    -- and the one that broke once already and sent the circles sliding around
+    -- under the cursor on every pan.
     select coalesce(sum(total), 0)::int into n
       from public.public_area_summary(cell.lat - cell.step / 2, cell.lng - cell.step / 2,
                                       cell.lat + cell.step / 2, cell.lng + cell.step / 2,
                                       14, null);
     perform pg_temp.ok(n = cell.total,
-      format('clicking it lands on exactly the reports it counted (%s of %s)', n, cell.total));
+      format('and its square holds exactly the reports it counted (%s of %s)', n, cell.total));
   end;
 
   -- ---- the board still names no place ------------------------------------

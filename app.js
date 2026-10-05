@@ -7,6 +7,7 @@
 // not this file's.
 // ---------------------------------------------------------------------------
 import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS,
+         ZOOM_STEP_TOUCH, ZOOM_STEP_POINTER,
          REPORT_MOVE_WINDOW_HOURS, SAFETY_MIN_ZOOM, EMERGENCY_MIN_ZOOM,
          SUGGEST_MIN_CHARS, SUGGEST_DEBOUNCE_MS, REPORT_BOUNDS,
          WEATHER_COUNTRIES } from './js/config.js';
@@ -129,13 +130,13 @@ map.on('load', () => {
 
   // A pin that opens something should look like it.
   for (const layer of ['report-point', 'report-icon', 'clusters', 'safety-icon',
-                       'hazard-ring', 'volcano-icon', 'disaster-icon', 'weather-icon',
-                       'density-blob', 'density-count']) {
+                       'hazard-ring', 'volcano-icon', 'disaster-icon', 'weather-icon']) {
     map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', layer, () => {
       map.getCanvas().style.cursor = state.picking ? 'crosshair' : '';
     });
   }
+  wireCellTooltip();
 
   refresh();
   refreshSafety();
@@ -1489,9 +1490,15 @@ function onMapClick(e) {
   // pin it was aimed at.
   const pad = 8;
   const box = [[e.point.x - pad, e.point.y - pad], [e.point.x + pad, e.point.y + pad]];
+  // The counted circles are deliberately NOT in here. They were, and a tap
+  // anywhere near one flew the map into it — which on a phone is what half of
+  // all taps are, because the circles are the biggest things on a wide view
+  // and a thumb is wider than a mouse pointer. A map that jumps somewhere you
+  // did not ask for is worse than a map that does nothing. They are read-only
+  // now, with what they hold shown on hover where there is a pointer to hover
+  // with; see the tooltip below.
   const layers = ['report-icon', 'report-point', 'clusters', 'safety-icon',
-                  'volcano-icon', 'disaster-icon', 'weather-icon', 'hazard-ring',
-                  'density-blob', 'density-count']
+                  'volcano-icon', 'disaster-icon', 'weather-icon', 'hazard-ring']
     .filter(id => map.getLayer(id));
   const hits = layersReady ? map.queryRenderedFeatures(box, { layers }) : [];
   if (!hits.length) return;
@@ -1499,10 +1506,6 @@ function onMapClick(e) {
   const hit = hits[0];
   if (hit.properties.cluster) {
     map.easeTo({ center: hit.geometry.coordinates, zoom: map.getZoom() + 2 });
-    return;
-  }
-  if (hit.layer?.id === 'density-blob' || hit.layer?.id === 'density-count') {
-    openDensityCell(hit);
     return;
   }
 
@@ -1517,35 +1520,56 @@ function onMapClick(e) {
 }
 
 /**
- * Open a counted circle.
+ * What a counted circle holds, on hover.
  *
- * The number in it is a promise about one square of a global lattice — see
- * public_area_summary — so this opens that square and not a guessed zoom near
- * it. Fitting its exact bounds means every report the circle counted is in
- * view when the map lands, and the reports card underneath is then listing the
- * same reports the number was about.
+ * Hover only, and only where hovering exists. Clicking one used to fly the map
+ * into it, and on a phone that fired on taps nobody meant — the circles are
+ * the biggest targets on a wide view and a thumb is not a mouse pointer. So
+ * the circles do nothing on touch at all, which is the right amount for
+ * something a finger lands on by accident.
  *
- * `step` comes back with the cell. Without it the only move available was
- * "zoom in two levels at this point", which lands close but counts something
- * else, and the number in the circle would stop matching the list a moment
- * later for no reason a reader could see.
+ * On a pointer device there is a move that costs nothing and cannot misfire,
+ * so the number says what it is made of there: how many, how many of them
+ * somebody else confirmed, and that zooming reads them. (hover: hover) is the
+ * same test the CSS uses — a touch screen never matches it, so a phone gets
+ * no tooltip it could never open and no handler it would never fire.
  *
- * A circle that is a single square of the lattice on a wide view can still be
- * wider than the detail cut, so landing on it may well show counted circles
- * again — smaller ones, over the same ground. That is the zoom working, not a
- * failure: each click is one step down the lattice.
+ * Its own popup object, never `openPopup`: a tooltip that closed the report
+ * window somebody had open, just because the pointer crossed a circle on the
+ * way, would be worse than no tooltip.
  */
-function openDensityCell(hit) {
-  const [lng, lat] = hit.geometry.coordinates;
-  const step = Number(hit.properties.step) || 0;
-  if (!step) {
-    // An older summary with no step in it. Better than doing nothing.
-    map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom() + 3, 11) });
-    return;
+let cellTip = null;
+const closeCellTip = () => { cellTip?.remove(); cellTip = null; };
+
+function wireCellTooltip() {
+  if (!window.matchMedia?.('(hover: hover)').matches) return;
+
+  const show = (e) => {
+    const f = e.features?.[0];
+    if (!f) return;
+    const total = Number(f.properties.total) || 0;
+    const confirmed = Number(f.properties.confirmed) || 0;
+    const lines = [`<b>${esc(plural('cells.tip', total))}</b>`];
+    if (confirmed > 0) lines.push(esc(plural('cells.confirmed', confirmed)));
+    lines.push(esc(t('cells.zoom')));
+    closeCellTip();
+    cellTip = new maplibregl.Popup({
+      offset: 14, closeButton: false, closeOnClick: false,
+      className: 'cell-tip', maxWidth: '220px',
+    })
+      .setLngLat(f.geometry.coordinates)
+      .setHTML(`<p class="ct-line">${lines.join('</p><p class="ct-line is-quiet">')}</p>`)
+      .addTo(map);
+  };
+
+  for (const layer of ['density-blob', 'density-count']) {
+    if (!map.getLayer(layer)) continue;
+    map.on('mouseenter', layer, show);
+    map.on('mouseleave', layer, closeCellTip);
   }
-  const half = step / 2;
-  map.fitBounds([[lng - half, lat - half], [lng + half, lat + half]],
-                { padding: 40, maxZoom: PRECISE_ZOOM, duration: 700 });
+  // A circle redrawn under a stationary pointer leaves its tooltip behind
+  // pointing at nothing, and the map redraws these on every pan.
+  map.on('movestart', closeCellTip);
 }
 
 function startPicking() {
@@ -1835,8 +1859,12 @@ function wireUI() {
   });
 
   // --- map controls
-  $('#zoom-in').addEventListener('click', () => map.zoomIn());
-  $('#zoom-out').addEventListener('click', () => map.zoomOut());
+  // A bigger step where the buttons are all there is. See ZOOM_STEP_TOUCH.
+  // Read per press rather than once, so turning a phone sideways past the
+  // breakpoint changes it without a reload.
+  const zoomStep = () => (narrowScreen() ? ZOOM_STEP_TOUCH : ZOOM_STEP_POINTER);
+  $('#zoom-in').addEventListener('click', () => map.zoomTo(map.getZoom() + zoomStep()));
+  $('#zoom-out').addEventListener('click', () => map.zoomTo(map.getZoom() - zoomStep()));
 
   // --- filters
   $('#category-filters').addEventListener('click', e => {
@@ -1943,6 +1971,9 @@ function wireUI() {
     layersReady = false;
     setMapTheme(map, theme, () => {
       buildMapLayers();
+      // The swap discarded the layers these were bound to.
+      closeCellTip();
+      wireCellTooltip();
       refresh();
       refreshSafety();
       refreshHazards();

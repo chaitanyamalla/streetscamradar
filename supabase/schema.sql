@@ -2064,12 +2064,20 @@ create or replace function public.public_area_summary(
   -- How far back the reader's chip is set. Null is the whole window.
   max_age_days int default null
 )
--- `step` is the cell's own width in degrees, and it is returned so a reader can
--- CLICK a circle and land on exactly the ground it counted. Without it the page
--- could only guess a zoom level, which lands near the reports rather than on
--- them — and the number in the circle is a promise about one square of the
--- lattice, so the view it opens should be that square and not a guess around
--- it. Every row of one answer carries the same step; it is per-row because a
+-- `step` is the cell's own width in degrees. A function that returns cells
+-- should say how big they are, and nothing else can: the lattice below is this
+-- function's contract — a circle's position is a property of where the reports
+-- are rather than of where the viewport happens to start — and without the
+-- width nobody outside can check that a centre really sits in the middle of
+-- its own square. It has been wrong before, which is what the lattice comment
+-- is about, so it is worth being able to prove.
+--
+-- The page does not read it. It did for one commit, to open the exact square a
+-- circle counted when the circle was clicked; the click is gone — a thumb set
+-- it off by accident — and the column stayed because the test for it is worth
+-- more than the click was.
+--
+-- Every row of one answer carries the same step; it is per-row because a
 -- set-returning SQL function has nowhere else to put it.
 returns table (lat double precision, lng double precision, total bigint,
                confirmed bigint, step double precision)

@@ -44,16 +44,33 @@ export const WORLD_VIEW = { center: [10, 30], zoom: 1.6 };
 export const PLACE_ZOOM = 13;   // after searching a city or town
 export const PRECISE_ZOOM = 16; // after picking an exact address
 
-// How far one press of + or − moves the map.
+// How far one press of + or − moves the map, and how fast a wheel turns it.
 //
-// Two, not one, where the buttons are the only way to zoom. A pointer has a
-// wheel and a trackpad has a pinch, so one level a press is a fine grain
-// there; a thumb has the two buttons and nothing else, and getting from a
-// continent to a street one level at a time is eleven presses. Two halves
-// that without making the jump disorienting — the map still passes through
-// every other level on the way, because easeTo animates between them.
+// A world map has about sixteen useful zoom levels between a continent and a
+// street corner. At one level a press that is sixteen presses, which is not a
+// control, it is a chore — and the first attempt at this only fixed the phone,
+// on the theory that a pointer has a wheel to fall back on. It does, and the
+// wheel was slow too: MapLibre moves 1/450 of a level per wheel notch by
+// default, so crossing those sixteen levels is a few hundred notches.
+//
+// So: two levels a press everywhere, and a wheel about three times quicker.
+// Both stay animated, so the map still travels through what is in between
+// rather than cutting — the complaint was the time it took, not the motion.
+//
+// Fine adjustment is not lost. A wheel is continuous and stops wherever you
+// let go of it, and a trackpad pinch is finer still; the buttons were never
+// the precise instrument.
 export const ZOOM_STEP_TOUCH = 2;
-export const ZOOM_STEP_POINTER = 1;
+export const ZOOM_STEP_POINTER = 2;
+
+// How long a button press takes to land. MapLibre's easeTo default is 500ms,
+// which reads as lag when the thing you are doing is pressing + four times.
+export const ZOOM_STEP_MS = 260;
+
+// Wheel and trackpad. MapLibre's defaults are 1/450 for a wheel notch and
+// 1/100 for a trackpad pinch; these are the same gestures moving further.
+export const WHEEL_ZOOM_RATE = 1 / 150;
+export const PINCH_ZOOM_RATE = 1 / 60;
 
 // --- What signed-out visitors may see --------------------------------------
 // Mirrors app_settings in the database. The database is the real gate; these

@@ -7,7 +7,7 @@
 // not this file's.
 // ---------------------------------------------------------------------------
 import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DAYS,
-         ZOOM_STEP_TOUCH, ZOOM_STEP_POINTER,
+         ZOOM_STEP_TOUCH, ZOOM_STEP_POINTER, ZOOM_STEP_MS,
          REPORT_MOVE_WINDOW_HOURS, SAFETY_MIN_ZOOM, EMERGENCY_MIN_ZOOM,
          SUGGEST_MIN_CHARS, SUGGEST_DEBOUNCE_MS, REPORT_BOUNDS,
          WEATHER_COUNTRIES } from './js/config.js';
@@ -1859,12 +1859,18 @@ function wireUI() {
   });
 
   // --- map controls
-  // A bigger step where the buttons are all there is. See ZOOM_STEP_TOUCH.
-  // Read per press rather than once, so turning a phone sideways past the
-  // breakpoint changes it without a reload.
+  // Two levels a press, and landing in a quarter of a second rather than half
+  // of one. See ZOOM_STEP_TOUCH and ZOOM_STEP_MS — a world map is sixteen
+  // levels deep and one level a press was sixteen presses.
+  //
+  // Read per press rather than once, so the two can diverge again later
+  // without this needing to know, and so a phone turned sideways past the
+  // breakpoint changes with no reload.
   const zoomStep = () => (narrowScreen() ? ZOOM_STEP_TOUCH : ZOOM_STEP_POINTER);
-  $('#zoom-in').addEventListener('click', () => map.zoomTo(map.getZoom() + zoomStep()));
-  $('#zoom-out').addEventListener('click', () => map.zoomTo(map.getZoom() - zoomStep()));
+  const zoomBy = (levels) =>
+    map.zoomTo(map.getZoom() + levels, { duration: ZOOM_STEP_MS });
+  $('#zoom-in').addEventListener('click', () => zoomBy(zoomStep()));
+  $('#zoom-out').addEventListener('click', () => zoomBy(-zoomStep()));
 
   // --- filters
   $('#category-filters').addEventListener('click', e => {

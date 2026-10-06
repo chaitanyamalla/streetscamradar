@@ -9,7 +9,7 @@
 import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
 import { paintHazardSign, hazardColor } from './hazard-signs.js';
 import { mapStyleFor, WORLD_VIEW, PIN_COLOR, CLUSTER_COLOR,
-         SAFETY_MIN_ZOOM } from './config.js';
+         SAFETY_MIN_ZOOM, WHEEL_ZOOM_RATE, PINCH_ZOOM_RATE } from './config.js';
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
 
@@ -111,6 +111,13 @@ export function createMap(container, theme = 'light') {
     // header, the panels and everything below the map.
     cooperativeGestures: false,
   });
+
+  // A wheel notch moves 1/450 of a zoom level out of the box, and a world map
+  // is sixteen levels deep from a continent to a street. See WHEEL_ZOOM_RATE.
+  // Guarded because the handler is absent on a map built without interaction,
+  // which is what every test harness builds.
+  map.scrollZoom?.setWheelZoomRate?.(WHEEL_ZOOM_RATE);
+  map.scrollZoom?.setZoomRate?.(PINCH_ZOOM_RATE);
 
   if (window.ResizeObserver) {
     new ResizeObserver(() => map.resize()).observe(

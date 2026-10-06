@@ -12,10 +12,31 @@
 import io
 import sys
 from contextlib import redirect_stdout
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fetch_disasters as fd  # noqa: E402
+
+# ---------------------------------------------------------------------------
+# Every date in this file is RELATIVE, and that is not a style choice.
+#
+# The fixtures used to carry the dates somebody typed on the day they wrote
+# them — fromdate 2026-09-18, todate 2026-09-29 — against code whose whole job
+# is to drop anything GDACS has not touched in seven days. So the file passed
+# for a week and then failed every day after, with no commit in between. It
+# went off on 6 October 2026 and stopped the scheduled refresh, which is the
+# guard working exactly as intended: the generators are checked before
+# anything is allowed to write, and a check that has rotted is a check that
+# failed.
+#
+# One `NOW` for the whole run so nothing can straddle midnight mid-file, and
+# every fixture date expressed as days back from it. A test about "has this
+# been touched in the last seven days" has to be written in those terms or it
+# is really a test about what the calendar said when it was committed.
+# ---------------------------------------------------------------------------
+NOW = datetime.now(timezone.utc)
+ago = lambda d: (NOW - timedelta(days=d)).isoformat()
 
 results = []
 
@@ -31,7 +52,9 @@ def event(kind="FL", level="Orange", name="Flood in France", countries=("FR",),
     props = {
         "eventtype": kind, "alertlevel": level, "name": name, "description": name,
         "eventid": event_id, "episodeid": episode, "iscurrent": current,
-        "fromdate": "2026-09-18T01:00:00", "todate": "2026-09-29T01:00:00",
+        # Eleven days running, last touched half a day ago: an ordinary
+        # live event, which is what a fixture's default should be.
+        "fromdate": ago(11), "todate": ago(0.5),
         "affectedcountries": f"[{affected}]",
         "url": url if url is not None else {"report": "https://www.gdacs.org/report"},
     }
@@ -74,7 +97,7 @@ check(by_key[("FL-1-1", "FR")]["kind"] == "flood", "eventtype maps to a kind")
 check(by_key[("TC-2-1", "MZ")]["severity"] == "severe", "Red is severe")
 check(by_key[("FL-1-1", "FR")]["severity"] == "notice", "Orange is a notice")
 check(all(r["kind"] != "Thing" for r in rows), "Green events are dropped, whatever the kind")
-check(by_key[("FL-1-1", "FR")]["from_date"].startswith("2026-09-18"), "dates parse")
+check(by_key[("FL-1-1", "FR")]["from_date"].startswith(ago(11)[:10]), "dates parse")
 check(by_key[("FL-1-1", "FR")]["from_date"].endswith("+00:00"),
       "and are pinned to UTC rather than left for Postgres to guess")
 check(by_key[("FL-1-1", "FR")]["url"] == "https://www.gdacs.org/report",
@@ -228,10 +251,6 @@ check(storm["magnitude"] is None,
 
 
 # --- and nothing GDACS has left alone for a week ----------------------------
-from datetime import datetime, timedelta, timezone  # noqa: E402
-
-NOW = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)
-ago = lambda d: (NOW - timedelta(days=d)).isoformat()
 
 rows = fd.rows_from(payload(filler(40) + [
     event("TC", "Orange", "Storm updated today", ("US",), 11, todate=ago(0.2)),
@@ -322,9 +341,9 @@ check(names == {"Good"}, f"only the usable event survives ({sorted(names)})")
 BIG = "{'severity': 7.1, 'severitytext': 'Magnitude 7.1M, Depth:12km', 'severityunit': 'M'}"
 rows = fd.rows_from(payload(filler(40) + [
     event("EQ", "Orange", "Quake two days ago", ("ID",), 7001, current="false",
-          fromdate="2026-09-27T04:00:00", todate="2026-09-27T04:00:00", severitydata=BIG),
+          fromdate=ago(2), todate=ago(2), severitydata=BIG),
     event("EQ", "Orange", "Quake five weeks ago", ("ID",), 7002, current="false",
-          fromdate="2026-08-24T04:00:00", todate="2026-08-24T04:00:00", severitydata=BIG),
+          fromdate=ago(36), todate=ago(36), severitydata=BIG),
     event("EQ", "Orange", "Quake with no date at all", ("ID",), 7003, current="false",
           fromdate="", todate="", severitydata=BIG),
     event("FL", "Red", "Flood the agency called over", ("FR",), 7004, current="false"),
@@ -342,9 +361,9 @@ check("Flood the agency called over" not in names,
 # The same flag, the same week's cut, for the eruptions it does not fit either.
 rows = fd.rows_from(payload(filler(40) + [
     event("VO", "Orange", "Eruption three days ago", ("ID",), 7101, current="false",
-          fromdate="2026-09-26T04:00:00", todate="2026-09-26T04:00:00"),
+          fromdate=ago(3), todate=ago(3)),
     event("VO", "Red", "Eruption a month ago", ("ID",), 7102, current="false",
-          fromdate="2026-08-26T04:00:00", todate="2026-08-26T04:00:00"),
+          fromdate=ago(34), todate=ago(34)),
     event("TC", "Red", "Storm the agency called over", ("MX",), 7104, current="false"),
 ]), now=NOW)
 names = {r["name"] for r in rows}
@@ -362,7 +381,7 @@ check("Storm the agency called over" not in names,
 # of them were 48 of the table's 51 rows.
 rows = fd.rows_from(payload(filler(40) + [
     event("DR", "Red", "Drought updated this morning", ("KE", "SO", "ET"), 7103,
-          fromdate="2026-05-21T00:00:00", todate=ago(0.2)),
+          fromdate=ago(131), todate=ago(0.2)),
     event("FL", "Orange", "Flood in Kenya", ("KE",), 7105),
 ]), now=NOW)
 names = {r["name"] for r in rows}
@@ -384,6 +403,26 @@ check(fd.as_timestamp("") is None, "a blank date is not a date")
 check(fd.as_timestamp("not a date") is None, "an unparseable date is not a date")
 check(fd.as_timestamp(None) is None, "a missing date is not a date")
 check(fd.as_timestamp("2026-09-18T01:00:00Z").startswith("2026-09-18"), "a Z-suffixed date parses")
+
+# --- and no fixture date goes back to being a calendar date -----------------
+#
+# The guard on the bug this file went off with. Every fromdate and todate in
+# here feeds a decision about whether GDACS has touched something in the last
+# seven days, so one written as a literal is a test that passes for a week and
+# then fails forever with no commit in between — which is what happened, and
+# what stopped the scheduled refresh on 6 October 2026.
+#
+# The file reads itself. Literal dates elsewhere are fine and there are some:
+# as_timestamp above takes one as input and is asked what it makes of it,
+# which involves no clock at all. It is specifically a date assigned to a
+# fixture's from/to that cannot be absolute.
+import re  # noqa: E402
+
+source = Path(__file__).read_text()
+frozen = [m.group(0) for m in
+          re.finditer(r'"?(?:fromdate|todate)"?\s*[:=]\s*"20\d\d-\d\d-\d\d[^"]*"', source)]
+check(not frozen,
+      f"no fixture pins a from/to date to the calendar ({', '.join(frozen) or 'none do'})")
 check(fd.countries_of({"affectedcountries": "[]"}) == [], "no countries is not a crash")
 check(fd.countries_of({}) == [], "a missing country list is not a crash")
 check(fd.countries_of({"affectedcountries": "{broken"}) == [], "unparseable countries is not a crash")

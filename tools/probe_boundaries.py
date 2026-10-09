@@ -38,15 +38,25 @@ STYLES = {
     "dark-matter": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
 }
 
-# Srinagar, and the three stretches that are drawn differently by different
-# countries: the Line of Control, the Gilgit-Baltistan side, and Aksai Chin.
+# The whole perimeter of the territory in question, not a handful of points in
+# the middle of it. The first run put Srinagar, Gilgit and Muzaffarabad in ONE
+# z6 tile, so the northern edge of Gilgit-Baltistan — where India's claim line
+# would run if the tiles carried it — was never actually read.
 PLACES = [
-    ("Srinagar",        34.08, 74.80),
-    ("Gilgit",          35.92, 74.31),
-    ("Muzaffarabad",    34.37, 73.47),
-    ("Aksai Chin",      35.10, 79.00),
+    ("Srinagar",            34.08, 74.80),
+    ("Jammu",               32.73, 74.86),
+    ("Muzaffarabad",        34.37, 73.47),
+    ("Gilgit",              35.92, 74.31),
+    ("Skardu",              35.30, 75.63),
+    ("N Gilgit-Baltistan",  36.90, 74.80),   # the Afghan/Chinese corner
+    ("Wakhan corner",       37.05, 74.90),
+    ("Siachen",             35.42, 77.11),
+    ("Aksai Chin",          35.10, 79.00),
+    ("Leh",                 34.16, 77.58),
+    ("Demchok",             32.70, 79.45),
+    ("Lahore border",       31.60, 74.55),   # the undisputed India-Pakistan line
 ]
-ZOOMS = [4, 6]
+ZOOMS = [4, 6, 7]
 
 UA = "StreetScamRadar/1.0 (+https://streetscamradar.vercel.app)"
 BOUNDARY_WORDS = ("boundar", "admin", "border", "disput", "country")
@@ -227,59 +237,89 @@ def report_tiles(style):
     claimed = collections.Counter()
     samples = []
 
+    wanted = {}
     for place, lat, lng in PLACES:
         for z in ZOOMS:
             x, y = tile_of(lat, lng, z)
-            url = (template.replace("{z}", str(z)).replace("{x}", str(x))
-                           .replace("{y}", str(y)).replace("{ratio}", "")
-                           .replace("@2x", ""))
-            try:
-                raw, kind = get(url, as_json=False)
-            except Exception as problem:            # noqa: BLE001 - a probe reports, never raises
-                print(f"  {place} z{z}: {type(problem).__name__}: {problem}")
-                continue
+            wanted.setdefault((z, x, y), []).append(place)
+    print(f"  {len(PLACES)} places x {len(ZOOMS)} zooms -> {len(wanted)} distinct tiles")
 
-            try:
-                layers = layers_of(raw)
-            except Exception as problem:            # noqa: BLE001 - same reason
-                print(f"  {place} z{z} -> {z}/{x}/{y}: not readable as a tile")
-                print(f"      {type(problem).__name__}: {problem}")
-                print(f"      content-type: {kind}   {len(raw)} bytes")
-                print(f"      first bytes : {raw[:120]!r}")
-                continue
-            boundary_layers = {k: v for k, v in layers.items()
-                               if any(word in k.lower() for word in BOUNDARY_WORDS)}
-            print(f"\n  {place} z{z} -> {z}/{x}/{y}  ({len(raw)} bytes, {kind})")
-            print(f"      layers: {', '.join(sorted(layers)) or 'none'}")
+    for (z, x, y), places in sorted(wanted.items()):
+        url = (template.replace("{z}", str(z)).replace("{x}", str(x))
+                       .replace("{y}", str(y)).replace("{ratio}", "")
+                       .replace("@2x", ""))
+        try:
+            raw, kind = get(url, as_json=False)
+        except Exception as problem:                # noqa: BLE001 - a probe reports, never raises
+            print(f"\n  {z}/{x}/{y}: {type(problem).__name__}: {problem}")
+            continue
+        try:
+            layers = layers_of(raw)
+        except Exception as problem:                # noqa: BLE001 - same reason
+            print(f"\n  {z}/{x}/{y}: not readable as a tile")
+            print(f"      {type(problem).__name__}: {problem}")
+            print(f"      content-type: {kind}   {len(raw)} bytes")
+            print(f"      first bytes : {raw[:120]!r}")
+            continue
 
-            for layer_name, rows in sorted(boundary_layers.items()):
-                print(f"      {layer_name}: {len(rows)} feature(s)")
-                for row in rows:
-                    for key in row:
-                        seen_keys[key] += 1
-                    if "claimed_by" in row:
-                        claimed[str(row.get("claimed_by"))] += 1
-                    if row.get("disputed") or row.get("claimed_by"):
-                        if len(samples) < 25:
-                            samples.append((place, z, layer_name, row))
-                shown = rows[:4]
-                for row in shown:
-                    print(f"          {json.dumps(row, default=str, sort_keys=True)}")
+        rows = []
+        for layer_name, layer_rows in layers.items():
+            if any(word in layer_name.lower() for word in BOUNDARY_WORDS):
+                rows.extend(layer_rows)
+
+        print(f"\n  {z}/{x}/{y}  {', '.join(places)}  ({len(rows)} boundary features)")
+        shape = collections.Counter()
+        for row in rows:
+            for key in row:
+                seen_keys[key] += 1
+            if "claimed_by" in row:
+                claimed[str(row.get("claimed_by"))] += 1
+                if len(samples) < 60:
+                    samples.append((f"{z}/{x}/{y}", ",".join(places), row))
+            shape[(row.get("admin_level"), row.get("disputed"), row.get("claimed_by"))] += 1
+        for (level, disputed, by), count in sorted(shape.items(), key=lambda kv: str(kv[0])):
+            flag = "disputed" if disputed else "settled "
+            print(f"      admin_level {level}  {flag}  claimed_by {by!s:4}  x{count}")
+        names = sorted({str(r.get("disputed_name")) for r in rows
+                        if r.get("disputed") and r.get("disputed_name")})
+        if names:
+            print(f"      named: {'; '.join(names[:12])}")
 
     print("\n-- every property seen on a boundary feature --")
     for key, count in seen_keys.most_common():
         print(f"  {count:5d}  {key}")
 
     print("\n-- the field that decides the approach --")
-    if "claimed_by" in seen_keys or "disputed" in seen_keys:
-        print("  PRESENT. A viewer in India can be served India's claim line by")
-        print("  restyling layers we already load. No provider change, no API key.")
-        print(f"  claimed_by values: {dict(claimed) or 'none set on these tiles'}")
-        for place, z, layer_name, row in samples:
-            print(f"    {place} z{z} {layer_name}: {json.dumps(row, default=str, sort_keys=True)}")
+    print("  Two separate questions, and the answers differ.\n")
+    print(f"  disputed      : on {seen_keys['disputed']} feature(s)")
+    print(f"  disputed_name : on {seen_keys['disputed_name']} feature(s)")
+    print(f"  claimed_by    : on {seen_keys['claimed_by']} feature(s) -> {dict(claimed)}")
+    print()
+    print("  Can we HIDE the line that splits Jammu & Kashmir?")
+    print("    " + ("YES - every boundary feature carries `disputed`, so the"
+                    " admin_level 2\n    lines through the territory can be"
+                    " filtered out or softened."
+                    if seen_keys["disputed"] else
+                    "NO - no `disputed` field to filter on."))
+    print()
+    print("  Can we DRAW India's claim line from these tiles?")
+    pk = [row for _t, _p, row in samples if str(row.get("claimed_by")) == "PK"]
+    india_vs_pk = [row for _t, _p, row in samples
+                   if str(row.get("claimed_by")) == "IN"
+                   and "pakistan" in str(row.get("disputed_name", "")).lower()]
+    if india_vs_pk:
+        print("    YES - there are claimed_by=IN features on the Pakistan side:")
+        for row in india_vs_pk[:10]:
+            print(f"      {json.dumps(row, default=str, sort_keys=True)}")
     else:
-        print("  ABSENT. These tiles carry no disputed/claimed_by field, so the only")
-        print("  route is drawing our own line over the top — one depiction for all.")
+        print("    NO - claimed_by is only on China-India lines. Nothing in these")
+        print("    tiles traces India's claim around Gilgit-Baltistan or Azad")
+        print("    Kashmir, so that geometry cannot come from the basemap.")
+    print(f"    (claimed_by=PK features seen: {len(pk)})")
+
+    print("\n-- every claimed_by feature, in full --")
+    for tile, places, row in samples:
+        print(f"  {tile} {places}: {json.dumps(row, default=str, sort_keys=True)}")
 
 
 def main():

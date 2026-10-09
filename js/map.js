@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
 import { paintHazardSign, hazardColor } from './hazard-signs.js';
+import { currentTheme } from './theme.js';
 import { mapStyleFor, WORLD_VIEW, PIN_COLOR, CLUSTER_COLOR,
          SAFETY_MIN_ZOOM, WHEEL_ZOOM_RATE, PINCH_ZOOM_RATE,
          DISPUTED_BORDER_COLOR, DISPUTED_BORDER_DASH, BASEMAP_SOURCE,
@@ -174,6 +175,9 @@ export function setMapTheme(map, theme, rebuild) {
  * by a map that says "not agreed" wherever that is true than by one that
  * picks a winner or quietly drops the line.
  *
+ * Blue, not red: a disputed frontier is not a dangerous place. See
+ * DISPUTED_BORDER_COLOR.
+ *
  * Country level only. Disputed state and district lines stay in the basemap's
  * own grey; inside Kashmir there are several, and reddening them all would
  * paint the region rather than mark its frontier.
@@ -208,7 +212,9 @@ export function markDisputedBorders(map) {
     'source-layer': BASEMAP_BOUNDARY_LAYER,
     filter: ['all', ['==', 'admin_level', 2], ['==', 'disputed', 1], ['==', 'maritime', 0]],
     paint: {
-      'line-color': DISPUTED_BORDER_COLOR,
+      // Re-read per style load, so a theme switch gets the right blue:
+      // addLayers runs again after setStyle.
+      'line-color': DISPUTED_BORDER_COLOR[currentTheme()] ?? DISPUTED_BORDER_COLOR.light,
       'line-dasharray': DISPUTED_BORDER_DASH,
       // Thin at a world view, where these are hairlines among many, and clear
       // by the time a country fills the screen.

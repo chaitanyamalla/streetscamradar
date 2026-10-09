@@ -127,17 +127,20 @@ export const CLUSTER_COLOR = '#0f5f5a';
 // the map quietly asserted that the territory beyond it is Pakistan. It is
 // disputed, and India, Pakistan and China each map it differently.
 //
-// Drawn red and dashed instead. Dashes are the cartographic convention for a
-// boundary that is not agreed, and they also keep this from reading as one of
-// our own red warnings — a disputed frontier is a fact about the map, not a
-// hazard at that spot.
-export const DISPUTED_BORDER_COLOR = '#d4213d';
+// Blue and dashed. Blue rather than red because a disputed frontier is not a
+// dangerous place: India and China have a conflict, not a front line, and a
+// traveller reading red near a border would reasonably think the border was
+// the hazard. Blue says "not agreed" and nothing more. Dashes are the
+// cartographic convention for exactly that, and they also keep the line from
+// being read as a river, which is the obvious risk in drawing a border blue.
+//
+// One blue per theme, because one value cannot serve both: measured against
+// each basemap's own land and water, light #2563c9 sits at 5.4 and 4.0, dark
+// #5b9ced at 5.2 and 5.8. A single mid-blue fell to 3.0 against the dark
+// basemap, which is where a hairline stops being legible.
+export const DISPUTED_BORDER_COLOR = { light: '#2563c9', dark: '#5b9ced' };
 export const DISPUTED_BORDER_DASH = [3, 2];
 
-// The basemap's vector source and the layers that draw its country lines, as
-// measured from the live style rather than assumed — see
-// tools/probe_boundaries.py. If CARTO renames these, the dispute styling stops
-// applying, which the tests catch.
 export const BASEMAP_SOURCE = 'carto';
 export const BASEMAP_BOUNDARY_LAYER = 'boundary';
 export const BASEMAP_COUNTRY_LAYERS = ['boundary_country_inner', 'boundary_country_outline'];

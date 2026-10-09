@@ -51,10 +51,25 @@ BOUNDARY_WORDS = ("boundar", "admin", "border", "disput", "country")
 
 
 def get(url, as_json=True):
-    request = urllib.request.Request(url, headers={"User-Agent": UA})
+    """Fetch, and say what came back. A tile is gzipped more often than not."""
+    request = urllib.request.Request(
+        url, headers={"User-Agent": UA, "Accept-Encoding": "gzip, deflate"})
     with urllib.request.urlopen(request, timeout=45) as response:
         raw = response.read()
-    return json.loads(raw.decode("utf-8")) if as_json else raw
+        encoding = (response.headers.get("Content-Encoding") or "").lower()
+        kind = (response.headers.get("Content-Type") or "?").split(";")[0]
+
+    # A .mvt is served gzipped by most CDNs, and urllib hands back the bytes as
+    # they arrived. Sniff as well as trust the header: a tile that is really
+    # gzip but unlabelled would otherwise read as a corrupt protobuf.
+    if "gzip" in encoding or raw[:2] == b"\x1f\x8b":
+        raw = gzip.decompress(raw)
+    elif "deflate" in encoding:
+        raw = zlib.decompress(raw, -zlib.MAX_WBITS)
+
+    if as_json:
+        return json.loads(raw.decode("utf-8"))
+    return raw, kind
 
 
 def tile_of(lat, lng, z):
@@ -217,15 +232,22 @@ def report_tiles(style):
                            .replace("{y}", str(y)).replace("{ratio}", "")
                            .replace("@2x", ""))
             try:
-                raw = get(url, as_json=False)
+                raw, kind = get(url, as_json=False)
             except Exception as problem:            # noqa: BLE001 - a probe reports, never raises
                 print(f"  {place} z{z}: {type(problem).__name__}: {problem}")
                 continue
 
-            layers = layers_of(raw)
+            try:
+                layers = layers_of(raw)
+            except Exception as problem:            # noqa: BLE001 - same reason
+                print(f"  {place} z{z} -> {z}/{x}/{y}: not readable as a tile")
+                print(f"      {type(problem).__name__}: {problem}")
+                print(f"      content-type: {kind}   {len(raw)} bytes")
+                print(f"      first bytes : {raw[:120]!r}")
+                continue
             boundary_layers = {k: v for k, v in layers.items()
                                if any(word in k.lower() for word in BOUNDARY_WORDS)}
-            print(f"\n  {place} z{z} -> {z}/{x}/{y}  ({len(raw)} bytes)")
+            print(f"\n  {place} z{z} -> {z}/{x}/{y}  ({len(raw)} bytes, {kind})")
             print(f"      layers: {', '.join(sorted(layers)) or 'none'}")
 
             for layer_name, rows in sorted(boundary_layers.items()):

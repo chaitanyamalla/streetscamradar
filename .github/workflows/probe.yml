@@ -26,6 +26,7 @@ on:
           - probe_dropped.py
           - probe_endpoints.py
           - probe_forecast.py
+          - probe_boundaries.py
 
 concurrency:
   group: probe

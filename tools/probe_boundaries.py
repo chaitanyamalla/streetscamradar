@@ -236,6 +236,7 @@ def report_tiles(style):
     seen_keys = collections.Counter()
     claimed = collections.Counter()
     samples = []
+    every_disputed = []
 
     wanted = {}
     for place, lat, lng in PLACES:
@@ -277,6 +278,9 @@ def report_tiles(style):
                 if len(samples) < 60:
                     samples.append((f"{z}/{x}/{y}", ",".join(places), row))
             shape[(row.get("admin_level"), row.get("disputed"), row.get("claimed_by"))] += 1
+            if row.get("disputed") and row.get("admin_level") == 2:
+                if row not in every_disputed:
+                    every_disputed.append(row)
         for (level, disputed, by), count in sorted(shape.items(), key=lambda kv: str(kv[0])):
             flag = "disputed" if disputed else "settled "
             print(f"      admin_level {level}  {flag}  claimed_by {by!s:4}  x{count}")
@@ -321,12 +325,31 @@ def report_tiles(style):
     for tile, places, row in samples:
         print(f"  {tile} {places}: {json.dumps(row, default=str, sort_keys=True)}")
 
+    # A MapLibre filter can only test attributes, never geography. So to soften
+    # the line through Kashmir WITHOUT touching Western Sahara, Crimea or any
+    # other dispute, the filter has to name these lines by their own fields.
+    # This is the list it has to be written against.
+    print("\n-- every disputed country line in these tiles, in full --")
+    print("   (what an attribute-only filter has to key on)")
+    pairs = collections.Counter()
+    for row in every_disputed:
+        pairs[(str(row.get("adm0_l")), str(row.get("adm0_r")))] += 1
+        print(f"  {json.dumps(row, default=str, sort_keys=True)}")
+    print("\n-- adm0_l / adm0_r pairs on disputed country lines --")
+    for (left, right), count in pairs.most_common():
+        print(f"  {count:4d}  adm0_l={left:6} adm0_r={right}")
+
 
 def main():
     print("Reading our basemap's own bytes. Nothing is written.")
+    tiles_done = False
     for label, url in STYLES.items():
         style = report_style(label, url)
+        if tiles_done:
+            print("\n-- vector source --\n  same `carto` tiles as above, already read")
+            continue
         report_tiles(style)
+        tiles_done = True
 
 
 if __name__ == "__main__":

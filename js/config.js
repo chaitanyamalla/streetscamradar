@@ -119,6 +119,29 @@ export const REPORT_MOVE_WINDOW_HOURS = 24;
 export const PIN_COLOR = '#e0713c';
 export const CLUSTER_COLOR = '#0f5f5a';
 
+// --- Disputed borders ------------------------------------------------------
+//
+// The basemap draws a disputed boundary in the same grey as a settled one.
+// Jammu & Kashmir is the case that showed it up: CARTO's tiles come from
+// OpenStreetMap, which uses the Line of Control as the working boundary, so
+// the map quietly asserted that the territory beyond it is Pakistan. It is
+// disputed, and India, Pakistan and China each map it differently.
+//
+// Drawn red and dashed instead. Dashes are the cartographic convention for a
+// boundary that is not agreed, and they also keep this from reading as one of
+// our own red warnings — a disputed frontier is a fact about the map, not a
+// hazard at that spot.
+export const DISPUTED_BORDER_COLOR = '#d4213d';
+export const DISPUTED_BORDER_DASH = [3, 2];
+
+// The basemap's vector source and the layers that draw its country lines, as
+// measured from the live style rather than assumed — see
+// tools/probe_boundaries.py. If CARTO renames these, the dispute styling stops
+// applying, which the tests catch.
+export const BASEMAP_SOURCE = 'carto';
+export const BASEMAP_BOUNDARY_LAYER = 'boundary';
+export const BASEMAP_COUNTRY_LAYERS = ['boundary_country_inner', 'boundary_country_outline'];
+
 export const SEVERITY = {
   high:   { label: 'High',   color: '#c8322b', blurb: 'Money lost, force, or impersonated officials' },
   medium: { label: 'Medium', color: '#dd8018', blurb: 'Clear attempt, some loss or pressure' },

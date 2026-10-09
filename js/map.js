@@ -9,9 +9,16 @@
 import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
 import { paintHazardSign, hazardColor } from './hazard-signs.js';
 import { mapStyleFor, WORLD_VIEW, PIN_COLOR, CLUSTER_COLOR,
-         SAFETY_MIN_ZOOM, WHEEL_ZOOM_RATE, PINCH_ZOOM_RATE } from './config.js';
+         SAFETY_MIN_ZOOM, WHEEL_ZOOM_RATE, PINCH_ZOOM_RATE,
+         DISPUTED_BORDER_COLOR, DISPUTED_BORDER_DASH, BASEMAP_SOURCE,
+         BASEMAP_BOUNDARY_LAYER, BASEMAP_COUNTRY_LAYERS } from './config.js';
 
 const EMPTY = { type: 'FeatureCollection', features: [] };
+
+// Our one added basemap layer, and the clause that keeps the agreed-border
+// grey from drawing under its dashes. See markDisputedBorders.
+const DISPUTED_LAYER = 'disputed-border';
+const NOT_DISPUTED = ['!=', 'disputed', 1];
 
 // How much bigger a confirmed report is drawn. Confirmations are the only
 // signal the site has that more than one person met the same thing in the same
@@ -142,7 +149,79 @@ export function setMapTheme(map, theme, rebuild) {
   map.once('styledata', () => rebuild?.());
 }
 
+/**
+ * Draw the basemap's disputed country borders as disputed: red and dashed.
+ *
+ * Why this exists. CARTO's tiles are built from OpenStreetMap, which draws a
+ * disputed boundary in the same grey as an agreed one. Around Jammu & Kashmir
+ * that means the Line of Control reads as a settled frontier, so the map
+ * appeared to say the territory beyond it is Pakistan. It is disputed — India,
+ * Pakistan and China each map it differently, and no single depiction is
+ * correct everywhere.
+ *
+ * Why marking rather than redrawing. We cannot draw any country's claim line
+ * from this basemap: across twelve points around the territory at three zooms,
+ * `claimed_by` appeared on thirteen boundary features, every one of them a
+ * China-India line, and `adm0_l`/`adm0_r` were empty throughout. Nothing
+ * traces India's claim around Gilgit-Baltistan, so that geometry simply is not
+ * in the data (tools/probe_boundaries.py reads this live and prints it). What
+ * every boundary feature does carry is `disputed`. Hiding the line instead was
+ * the other candidate and was rejected: there is no field saying which dispute
+ * a line belongs to, so hiding would have erased Western Sahara, Crimea and
+ * the Gaza and West Bank lines along with it.
+ *
+ * So this is worldwide and takes nobody's side. A traveller is better served
+ * by a map that says "not agreed" wherever that is true than by one that
+ * picks a winner or quietly drops the line.
+ *
+ * Country level only. Disputed state and district lines stay in the basemap's
+ * own grey; inside Kashmir there are several, and reddening them all would
+ * paint the region rather than mark its frontier.
+ */
+export function markDisputedBorders(map) {
+  // Absent when the basemap has not loaded, or if CARTO renames its source.
+  // Nothing to restyle then, and a thrown error here would take the whole map
+  // down over cosmetics.
+  if (!map.getSource?.(BASEMAP_SOURCE)) return false;
+  if (map.getLayer?.(DISPUTED_LAYER)) return true;   // a rebuild, already done
+
+  // Stop the agreed-border grey drawing underneath, so the dash reads as a
+  // dash rather than as a dotted line on a solid one. Their own filters are
+  // read back rather than restated: CARTO owns them, and a copy here would go
+  // stale silently.
+  for (const id of BASEMAP_COUNTRY_LAYERS) {
+    if (!map.getLayer?.(id)) continue;
+    const existing = map.getFilter?.(id);
+    map.setFilter(id, existing ? ['all', existing, NOT_DISPUTED] : NOT_DISPUTED);
+  }
+
+  // Placed in the basemap's own boundary band, below its labels, which is
+  // where CARTO draws its borders. Appending instead would put the dashes on
+  // top of every street name on the map. Our data layers are added after this
+  // one and so still sit above it.
+  const labels = map.getStyle?.()?.layers?.find(layer => layer.type === 'symbol');
+
+  map.addLayer({
+    id: DISPUTED_LAYER,
+    type: 'line',
+    source: BASEMAP_SOURCE,
+    'source-layer': BASEMAP_BOUNDARY_LAYER,
+    filter: ['all', ['==', 'admin_level', 2], ['==', 'disputed', 1], ['==', 'maritime', 0]],
+    paint: {
+      'line-color': DISPUTED_BORDER_COLOR,
+      'line-dasharray': DISPUTED_BORDER_DASH,
+      // Thin at a world view, where these are hairlines among many, and clear
+      // by the time a country fills the screen.
+      'line-width': ['interpolate', ['linear'], ['zoom'], 2, 0.8, 6, 1.4, 10, 2.2],
+      'line-opacity': 0.9,
+    },
+  }, labels?.id);
+  return true;
+}
+
 export function addLayers(map) {
+  markDisputedBorders(map);
+
   // Clustering stops at 13 rather than 15, and groups a little less eagerly.
   //
   // A cluster sits at the mean of its members, so every time one splits the

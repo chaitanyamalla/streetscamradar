@@ -26,10 +26,12 @@
 # Reads only. No key, no database, nothing written. Run from the Probe workflow.
 # ---------------------------------------------------------------------------
 import collections
+import gzip
 import json
 import math
 import struct
 import urllib.request
+import zlib
 
 STYLES = {
     "positron":    "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",

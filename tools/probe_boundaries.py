@@ -342,14 +342,15 @@ def report_tiles(style):
 
 def main():
     print("Reading our basemap's own bytes. Nothing is written.")
-    tiles_done = False
+
+    # Styles first, tiles last. Both styles share the same `carto` source, so
+    # the tiles are read once — and putting them at the end means the answer is
+    # at the end of the log, which is the part a reader gets cheaply.
+    styles = {}
     for label, url in STYLES.items():
-        style = report_style(label, url)
-        if tiles_done:
-            print("\n-- vector source --\n  same `carto` tiles as above, already read")
-            continue
-        report_tiles(style)
-        tiles_done = True
+        styles[label] = report_style(label, url)
+
+    report_tiles(next(iter(styles.values())))
 
 
 if __name__ == "__main__":

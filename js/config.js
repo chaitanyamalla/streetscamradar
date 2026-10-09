@@ -119,32 +119,6 @@ export const REPORT_MOVE_WINDOW_HOURS = 24;
 export const PIN_COLOR = '#e0713c';
 export const CLUSTER_COLOR = '#0f5f5a';
 
-// --- Disputed borders ------------------------------------------------------
-//
-// The basemap draws a disputed boundary in the same grey as a settled one.
-// Jammu & Kashmir is the case that showed it up: CARTO's tiles come from
-// OpenStreetMap, which uses the Line of Control as the working boundary, so
-// the map quietly asserted that the territory beyond it is Pakistan. It is
-// disputed, and India, Pakistan and China each map it differently.
-//
-// Blue and dashed. Blue rather than red because a disputed frontier is not a
-// dangerous place: India and China have a conflict, not a front line, and a
-// traveller reading red near a border would reasonably think the border was
-// the hazard. Blue says "not agreed" and nothing more. Dashes are the
-// cartographic convention for exactly that, and they also keep the line from
-// being read as a river, which is the obvious risk in drawing a border blue.
-//
-// One blue per theme, because one value cannot serve both: measured against
-// each basemap's own land and water, light #2563c9 sits at 5.4 and 4.0, dark
-// #5b9ced at 5.2 and 5.8. A single mid-blue fell to 3.0 against the dark
-// basemap, which is where a hairline stops being legible.
-export const DISPUTED_BORDER_COLOR = { light: '#2563c9', dark: '#5b9ced' };
-export const DISPUTED_BORDER_DASH = [3, 2];
-
-export const BASEMAP_SOURCE = 'carto';
-export const BASEMAP_BOUNDARY_LAYER = 'boundary';
-export const BASEMAP_COUNTRY_LAYERS = ['boundary_country_inner', 'boundary_country_outline'];
-
 export const SEVERITY = {
   high:   { label: 'High',   color: '#c8322b', blurb: 'Money lost, force, or impersonated officials' },
   medium: { label: 'Medium', color: '#dd8018', blurb: 'Clear attempt, some loss or pressure' },

@@ -164,6 +164,8 @@ export default {
   'profile.edit.cancel': 'Annuler',
   'profile.settings': 'Paramètres du compte',
   'profile.changePassword': 'Changer le mot de passe',
+  'profile.setPassword': 'Définir un mot de passe',
+  'profile.googlePassword': 'Vous vous connectez avec Google, un mot de passe n\'est donc pas nécessaire. En définir un vous donne un second moyen d\'accès si vous perdez l\'accès à votre compte Google.',
   'profile.newPassword': 'Nouveau mot de passe',
   'profile.repeatPassword': 'Répétez-le',
   'profile.repeatPlaceholder': 'Le même à nouveau',

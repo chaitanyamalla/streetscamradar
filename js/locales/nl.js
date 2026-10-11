@@ -178,6 +178,8 @@ export default {
   'profile.edit.cancel': 'Annuleren',
   'profile.settings': 'Accountinstellingen',
   'profile.changePassword': 'Wachtwoord wijzigen',
+  'profile.setPassword': 'Wachtwoord instellen',
+  'profile.googlePassword': 'Je meldt je aan met Google, dus een wachtwoord is niet nodig. Een wachtwoord instellen geeft je een tweede manier om binnen te komen als je ooit de toegang tot je Google-account verliest.',
   'profile.newPassword': 'Nieuw wachtwoord',
   'profile.repeatPassword': 'Herhaal het',
   'profile.repeatPlaceholder': 'Nog een keer hetzelfde',

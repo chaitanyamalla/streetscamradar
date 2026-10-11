@@ -625,7 +625,8 @@
           </div>
 
           <form id="profile-password-form" method="dialog">
-            <p class="settings-label" data-i18n="profile.changePassword">Change password</p>
+            <p class="settings-label" id="password-label" data-i18n="profile.changePassword">Change password</p>
+            <p class="field-hint" id="password-hint" hidden></p>
             <label for="new-password" data-i18n="profile.newPassword">New password</label>
             <input id="new-password" type="password" required minlength="6" autocomplete="new-password"
                    data-i18n-placeholder="auth.passwordPlaceholder" placeholder="At least 6 characters" />
@@ -633,6 +634,9 @@
             <input id="new-password-again" type="password" required minlength="6" autocomplete="new-password"
                    data-i18n-placeholder="profile.repeatPlaceholder" placeholder="The same again" />
             <button class="primary-button wide" type="submit" id="save-password" data-i18n="profile.changePassword">Change password</button>
+            <!-- The label, the hint and the button above are rewritten by
+                 paintPasswordWording() for a Google account, after
+                 applyTranslations has put these defaults back. -->
           </form>
 
           <div class="settings-danger">

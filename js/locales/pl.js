@@ -171,6 +171,8 @@ export default {
   'profile.edit.cancel': 'Anuluj',
   'profile.settings': 'Ustawienia konta',
   'profile.changePassword': 'Zmień hasło',
+  'profile.setPassword': 'Ustaw hasło',
+  'profile.googlePassword': 'Logujesz się przez Google, więc hasło nie jest wymagane. Ustawienie hasła daje drugi sposób wejścia, jeśli kiedyś stracisz dostęp do swojego konta Google.',
   'profile.newPassword': 'Nowe hasło',
   'profile.repeatPassword': 'Powtórz je',
   'profile.repeatPlaceholder': 'To samo jeszcze raz',

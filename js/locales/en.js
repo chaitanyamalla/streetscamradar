@@ -178,6 +178,8 @@ export default {
   'profile.edit.cancel': 'Cancel',
   'profile.settings': 'Account settings',
   'profile.changePassword': 'Change password',
+  'profile.setPassword': 'Set a password',
+  'profile.googlePassword': 'You sign in with Google, so a password is not required. Setting one gives you a second way in if you ever lose access to your Google account.',
   'profile.newPassword': 'New password',
   'profile.repeatPassword': 'Repeat it',
   'profile.repeatPlaceholder': 'The same again',

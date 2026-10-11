@@ -164,6 +164,8 @@ export default {
   'profile.edit.cancel': 'Annulla',
   'profile.settings': 'Impostazioni account',
   'profile.changePassword': 'Cambia password',
+  'profile.setPassword': 'Imposta una password',
+  'profile.googlePassword': 'Accedi con Google, quindi una password non è necessaria. Impostarne una ti dà un secondo modo per entrare se un giorno perdessi l\'accesso al tuo account Google.',
   'profile.newPassword': 'Nuova password',
   'profile.repeatPassword': 'Ripetila',
   'profile.repeatPlaceholder': 'La stessa di nuovo',

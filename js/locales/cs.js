@@ -171,6 +171,8 @@ export default {
   'profile.edit.cancel': 'Zrušit',
   'profile.settings': 'Nastavení účtu',
   'profile.changePassword': 'Změnit heslo',
+  'profile.setPassword': 'Nastavit heslo',
+  'profile.googlePassword': 'Přihlašujete se přes Google, takže heslo není potřeba. Nastavení hesla vám dá druhou cestu dovnitř, pokud byste někdy přišli o přístup ke svému účtu Google.',
   'profile.newPassword': 'Nové heslo',
   'profile.repeatPassword': 'Zopakujte je',
   'profile.repeatPlaceholder': 'Znovu totéž',

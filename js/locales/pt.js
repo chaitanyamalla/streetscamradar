@@ -179,6 +179,8 @@ export default {
   'profile.edit.cancel': 'Cancelar',
   'profile.settings': 'Definições da conta',
   'profile.changePassword': 'Alterar a palavra-passe',
+  'profile.setPassword': 'Definir uma palavra-passe',
+  'profile.googlePassword': 'Inicia sessão com o Google, pelo que não é necessária uma palavra-passe. Definir uma dá-lhe uma segunda forma de entrar se algum dia perder o acesso à sua conta Google.',
   'profile.newPassword': 'Nova palavra-passe',
   'profile.repeatPassword': 'Repita-a',
   'profile.repeatPlaceholder': 'A mesma outra vez',

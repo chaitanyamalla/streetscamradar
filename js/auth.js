@@ -116,6 +116,32 @@ export async function sendMagicLink(email) {
   if (error) throw friendly(error);
 }
 
+/**
+ * Does this account have only Google behind it, and no password of its own?
+ *
+ * Supabase records one identity per way in. A member who arrived through
+ * Google has a `google` identity and no `email` one, which means the account
+ * page offering to "change password" is offering to change something that
+ * does not exist — so the wording has to say "set" instead, and explain why
+ * anyone would want to.
+ *
+ * Read from app_metadata.providers where it exists and the identities list
+ * otherwise, because the two are populated at different times in the session
+ * lifecycle and neither is guaranteed alone.
+ *
+ * Known limit: once a password IS set this still reports true, because
+ * Supabase adds no identity for it and the client has no way to ask. The
+ * wording it selects is written to stay true either way.
+ */
+export function usesGoogleOnly(user) {
+  if (!user) return false;
+  const providers = new Set([
+    ...(Array.isArray(user.app_metadata?.providers) ? user.app_metadata.providers : []),
+    ...(Array.isArray(user.identities) ? user.identities.map(i => i?.provider) : []),
+  ].filter(Boolean));
+  return providers.has('google') && !providers.has('email');
+}
+
 export async function signInWithGoogle() {
   if (!supabase) throw notConfigured();
   const { error } = await supabase.auth.signInWithOAuth({

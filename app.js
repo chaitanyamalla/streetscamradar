@@ -19,7 +19,8 @@ import { getCategories, fetchForBounds, submitReport, withdrawReport,
          fetchDisasters, fetchWeatherWarnings, fetchBlockedCountries,
          supabase } from './js/data.js';
 import { initAuth, onAuthChange, sendMagicLink, signInWithPassword, signUpWithPassword,
-         signInWithGoogle, signOut, enabledProviders, changePassword } from './js/auth.js';
+         signInWithGoogle, signOut, enabledProviders, changePassword,
+         usesGoogleOnly } from './js/auth.js';
 import { searchPlaces, suggestPlaces, describePoint, locateMe } from './js/geo.js';
 import { emergencyFor } from './js/emergency.js';
 import { preferredTheme, currentTheme, applyTheme, toggleTheme, chooseTheme,
@@ -307,6 +308,32 @@ async function paintProviders() {
   $('#google-signin').hidden = !google;
 }
 
+/**
+ * A Google member has no password, so do not offer to change one.
+ *
+ * They can still set one — it is a second way in if they ever lose the Google
+ * account — but "Change password" with no password behind it reads as though
+ * something has gone missing. So the label, the button and a line of
+ * explanation switch over.
+ *
+ * Called from paintAuthState, which onLanguageChanged also calls: these three
+ * elements carry data-i18n defaults, so applyTranslations writes "Change
+ * password" back into them on every language switch and this has to go on top
+ * again afterwards.
+ */
+function paintPasswordWording() {
+  const label = $('#password-label');
+  const hint = $('#password-hint');
+  const button = $('#save-password');
+  if (!label || !hint || !button) return;
+
+  const google = usesGoogleOnly(state.user);
+  label.textContent = t(google ? 'profile.setPassword' : 'profile.changePassword');
+  button.textContent = label.textContent;
+  hint.textContent = google ? t('profile.googlePassword') : '';
+  hint.hidden = !google;
+}
+
 function paintAuthState() {
   const btn = $('#auth-button');
   btn.textContent = t(signedIn() ? 'header.signOut' : 'header.signIn');
@@ -314,6 +341,7 @@ function paintAuthState() {
     ? state.user.email ?? t('header.signedIn')
     : t('header.signIn.title'));
   paintAvatar();
+  paintPasswordWording();
 }
 
 /**

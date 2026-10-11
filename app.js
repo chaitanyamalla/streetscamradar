@@ -10,7 +10,7 @@ import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DA
          ZOOM_STEP_TOUCH, ZOOM_STEP_POINTER, ZOOM_STEP_MS,
          REPORT_MOVE_WINDOW_HOURS, SAFETY_MIN_ZOOM, EMERGENCY_MIN_ZOOM,
          SUGGEST_MIN_CHARS, SUGGEST_DEBOUNCE_MS, REPORT_BOUNDS,
-         WEATHER_COUNTRIES } from './js/config.js';
+         WEATHER_COUNTRIES, MAGIC_LINK_ENABLED } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, myConfirmedReports, editMyReport,
@@ -302,10 +302,21 @@ function onLanguageChanged() {
   openPopup = null;
 }
 
-/** Only show the Google button if the provider is actually switched on. */
+/**
+ * Which ways in to offer.
+ *
+ * Google is asked about live, because the dashboard switch can move without
+ * a deploy. The sign-in link is a decision of ours rather than a setting of
+ * Supabase's — see MAGIC_LINK_ENABLED.
+ */
 async function paintProviders() {
   const { google } = await enabledProviders();
   $('#google-signin').hidden = !google;
+  $('#magic-link').hidden = !MAGIC_LINK_ENABLED;
+  // The "or" divides the password form from the alternatives. With no
+  // alternative left it would sit under the form pointing at nothing.
+  const rule = document.querySelector('.or-rule');
+  if (rule) rule.hidden = !(google || MAGIC_LINK_ENABLED);
 }
 
 /**

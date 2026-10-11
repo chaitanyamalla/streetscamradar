@@ -131,6 +131,23 @@ export const SEVERITY = {
 // request per second and forbids per-keystroke autocomplete, so we only ever
 // search when someone presses Enter or the button. If this site gets busy,
 // swap in a paid geocoder here — that is the only place it is referenced.
+// --- Email sign-in links ---------------------------------------------------
+//
+// "Email me a sign-in link" is hidden, not removed.
+//
+// It is the only way in that goes through Supabase's own mailer, and a free
+// project allows two messages an hour FOR THE WHOLE PROJECT — not per person.
+// So two strangers trying it at nine in the morning means the second one
+// cannot get in however many times they ask, and the button was offered to
+// everybody regardless. Better to show nothing than a door that is usually
+// locked.
+//
+// Nothing behind it was deleted: sendMagicLink(), the rate-limit message and
+// the strings in all nine locales are all still there. Attach custom SMTP,
+// which needs a domain of our own, then set this to true. That is the whole
+// change.
+export const MAGIC_LINK_ENABLED = false;
+
 export const GEOCODER = {
   search:  'https://nominatim.openstreetmap.org/search',
   reverse: 'https://nominatim.openstreetmap.org/reverse',

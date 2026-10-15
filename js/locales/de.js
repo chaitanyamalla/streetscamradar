@@ -447,6 +447,8 @@ export default {
   'guide.levels.ladder': 'Die zehn Stufen',
   'guide.levels.col.level': 'Stufe',
   'guide.levels.col.points': 'Nötige Punkte',
+  'guide.levels.col.quota': 'Meldungen pro Tag',
+  'guide.levels.quotaNote': 'Ein Level bestimmt auch, wie viele Meldungen du pro Tag einreichen kannst — das hält die Karte brauchbar, wenn jemand sie überfluten will. Du steigst auf, wenn andere Mitglieder deine Meldungen bestätigen; das Kontingent wächst also damit, dass man dir glaubt, nicht damit, dass du mehr meldest.',
   'guide.points.title': 'Wie Punkte entstehen',
   'guide.points.report': 'Eine Meldung abgeben',
   'guide.points.received': 'Eine Bestätigung für deine Meldung',

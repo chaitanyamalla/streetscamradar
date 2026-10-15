@@ -447,6 +447,8 @@ export default {
   'guide.levels.ladder': 'Los diez niveles',
   'guide.levels.col.level': 'Nivel',
   'guide.levels.col.points': 'Puntos necesarios',
+  'guide.levels.col.quota': 'Informes al día',
+  'guide.levels.quotaNote': 'Un nivel también fija cuántos informes puedes publicar al día, lo que mantiene el mapa utilizable si alguien intenta inundarlo. Se sube cuando otros miembros confirman lo que informaste, así que el límite crece con que te crean, no con publicar más.',
   'guide.points.title': 'Cómo se ganan los puntos',
   'guide.points.report': 'Presentar una denuncia',
   'guide.points.received': 'Una confirmación que recibe tu denuncia',

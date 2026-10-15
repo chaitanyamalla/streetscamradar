@@ -447,6 +447,8 @@ export default {
   'guide.levels.ladder': 'I dieci livelli',
   'guide.levels.col.level': 'Livello',
   'guide.levels.col.points': 'Punti necessari',
+  'guide.levels.col.quota': 'Segnalazioni al giorno',
+  'guide.levels.quotaNote': 'Un livello stabilisce anche quante segnalazioni puoi inviare in un giorno, il che tiene la mappa utilizzabile se qualcuno prova a inondarla. Si sale quando altri membri confermano quello che hai segnalato, quindi il limite cresce perché ti si crede, non perché segnali di più.',
   'guide.points.title': 'Come si guadagnano i punti',
   'guide.points.report': 'Inviare una segnalazione',
   'guide.points.received': 'Una conferma ricevuta dalla tua segnalazione',

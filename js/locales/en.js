@@ -465,6 +465,8 @@ export default {
   'guide.levels.ladder': 'The ten levels',
   'guide.levels.col.level': 'Level',
   'guide.levels.col.points': 'Points needed',
+  'guide.levels.col.quota': 'Reports a day',
+  'guide.levels.quotaNote': 'A level also sets how many reports you may file in a day, which keeps the map usable when somebody tries to flood it. Climbing happens when other members confirm what you reported, so the allowance grows with being believed rather than with filing more.',
   'guide.points.title': 'How points are earned',
   'guide.points.report': 'Filing a report',
   'guide.points.received': 'A confirmation your report receives',

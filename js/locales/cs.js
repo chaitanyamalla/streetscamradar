@@ -458,6 +458,8 @@ export default {
   'guide.levels.ladder': 'Deset úrovní',
   'guide.levels.col.level': 'Úroveň',
   'guide.levels.col.points': 'Potřebné body',
+  'guide.levels.col.quota': 'Hlášení za den',
+  'guide.levels.quotaNote': 'Úroveň také určuje, kolik hlášení můžete za den podat, což udrží mapu použitelnou, když se ji někdo pokusí zaplavit. Stoupáte, když ostatní členové vaše hlášení potvrdí — limit tedy roste tím, že vám lidé věří, ne tím, že hlásíte víc.',
   'guide.points.title': 'Jak se získávají body',
   'guide.points.report': 'Podat hlášení',
   'guide.points.received': 'Potvrzení, které vaše hlášení dostane',

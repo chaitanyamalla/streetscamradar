@@ -467,6 +467,8 @@ export default {
   'guide.levels.ladder': 'De tien niveaus',
   'guide.levels.col.level': 'Niveau',
   'guide.levels.col.points': 'Benodigde punten',
+  'guide.levels.col.quota': 'Meldingen per dag',
+  'guide.levels.quotaNote': 'Een niveau bepaalt ook hoeveel meldingen je per dag kunt plaatsen, waardoor de kaart bruikbaar blijft als iemand haar probeert te overspoelen. Je klimt wanneer andere leden je meldingen bevestigen, dus de ruimte groeit doordat je geloofd wordt, niet doordat je meer meldt.',
   'guide.points.title': 'Hoe punten verdiend worden',
   'guide.points.report': 'Een melding doen',
   'guide.points.received': 'Een bevestiging op jouw melding',

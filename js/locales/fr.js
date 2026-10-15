@@ -447,6 +447,8 @@ export default {
   'guide.levels.ladder': 'Les dix niveaux',
   'guide.levels.col.level': 'Niveau',
   'guide.levels.col.points': 'Points requis',
+  'guide.levels.col.quota': 'Signalements par jour',
+  'guide.levels.quotaNote': 'Un niveau fixe aussi le nombre de signalements que vous pouvez publier par jour, ce qui garde la carte utilisable si quelqu\'un cherche à la noyer. On progresse quand d\'autres membres confirment vos signalements : le quota grandit donc parce qu\'on vous croit, pas parce que vous publiez davantage.',
   'guide.points.title': 'Comment se gagnent les points',
   'guide.points.report': 'Déposer un signalement',
   'guide.points.received': 'Une confirmation reçue par votre signalement',

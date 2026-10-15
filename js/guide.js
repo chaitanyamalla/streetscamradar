@@ -53,12 +53,14 @@ function paintLadder() {
     <thead><tr>
       <th scope="col">${esc(t('guide.levels.col.level'))}</th>
       <th scope="col">${esc(t('guide.levels.col.points'))}</th>
+      <th scope="col">${esc(t('guide.levels.col.quota'))}</th>
     </tr></thead>
-    <tbody>${ladder.map(([level, points]) => `
+    <tbody>${ladder.map(([level, points, quota]) => `
       <tr>
         <th scope="row"><span class="lv-n">${esc(t('profile.level.n', { n: level }))}</span>
           ${tOr(`level.${level}`, '') ? `<span class="lv-name">${esc(tOr(`level.${level}`, ''))}</span>` : ''}</th>
         <td>${points}</td>
+        <td>${quota ?? ''}</td>
       </tr>`).join('')}</tbody>`;
 }
 

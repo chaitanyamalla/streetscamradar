@@ -468,6 +468,8 @@ export default {
   'guide.levels.ladder': 'Os dez níveis',
   'guide.levels.col.level': 'Nível',
   'guide.levels.col.points': 'Pontos necessários',
+  'guide.levels.col.quota': 'Relatos por dia',
+  'guide.levels.quotaNote': 'Um nível também define quantos relatos pode publicar por dia, o que mantém o mapa utilizável se alguém tentar inundá-lo. Sobe-se quando outros membros confirmam o que relatou, pelo que o limite cresce por acreditarem em si, não por publicar mais.',
   'guide.points.title': 'Como se ganham pontos',
   'guide.points.report': 'Enviar um relato',
   'guide.points.received': 'Uma confirmação que o teu relato recebe',

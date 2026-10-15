@@ -458,6 +458,8 @@ export default {
   'guide.levels.ladder': 'Dziesięć poziomów',
   'guide.levels.col.level': 'Poziom',
   'guide.levels.col.points': 'Potrzebne punkty',
+  'guide.levels.col.quota': 'Zgłoszenia na dzień',
+  'guide.levels.quotaNote': 'Poziom określa też, ile zgłoszeń możesz wysłać w ciągu dnia, co utrzymuje mapę w używalnym stanie, gdy ktoś próbuje ją zalać. Awansujesz, gdy inni potwierdzają twoje zgłoszenia — limit rośnie więc dzięki temu, że ci wierzą, a nie dzięki większej liczbie zgłoszeń.',
   'guide.points.title': 'Jak zdobywa się punkty',
   'guide.points.report': 'Wysłanie zgłoszenia',
   'guide.points.received': 'Potwierdzenie, które dostaje twoje zgłoszenie',

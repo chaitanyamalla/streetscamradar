@@ -65,23 +65,28 @@ select pg_temp.check(
   'and an email sign-up still falls back to the local part');
 
 -- --- Points ----------------------------------------------------------------
--- Ana: 4 reports x 5 = 20, 2 confirmations received x 4 = 8, 1 given x 1 = 1.
-select pg_temp.check(public.contribution_points('11111111-1111-1111-1111-111111111111') = 29,
-  'four reports, two confirmations on them and one given is 29 (got '
+-- Ana: 4 reports x 2 = 8, 2 confirmations received x 6 = 12, 1 given x 1 = 1.
+--
+-- Filing used to be worth more than being believed — five a report against
+-- four a confirmation — and these numbers changed when a level started
+-- deciding a daily allowance. Pinned rather than computed from the settings on
+-- purpose: an accidental reweight should fail here, loudly, with the old
+-- number and the new one side by side.
+select pg_temp.check(public.contribution_points('11111111-1111-1111-1111-111111111111') = 21,
+  'four reports, two confirmations on them and one given is 21 (got '
   || public.contribution_points('11111111-1111-1111-1111-111111111111') || ')');
--- Bo: 1 report x 5 = 5, 0 received, 2 given x 1 = 2.
--- Bo: 1 report x 5 = 5, 1 confirmation received from Ana x 4 = 4, 2 given x 1 = 2.
-select pg_temp.check(public.contribution_points('22222222-2222-2222-2222-222222222222') = 11,
-  'one report, one confirmation on it and two given is 11 (got '
+-- Bo: 1 report x 2 = 2, 1 confirmation received from Ana x 6 = 6, 2 given x 1 = 2.
+select pg_temp.check(public.contribution_points('22222222-2222-2222-2222-222222222222') = 10,
+  'one report, one confirmation on it and two given is 10 (got '
   || public.contribution_points('22222222-2222-2222-2222-222222222222') || ')');
 
 -- --- The ladder ------------------------------------------------------------
 select pg_temp.check((select count(*) from public.contributor_levels) = 10, 'the ladder has ten rungs');
 select pg_temp.check(public.level_for(0) = 1,   'nothing filed is level 1, never level 0');
 select pg_temp.check(public.level_for(-5) = 1,  'and so is a negative, which should be impossible anyway');
-select pg_temp.check(public.level_for(9) = 1 and public.level_for(10) = 2,
+select pg_temp.check(public.level_for(19) = 1 and public.level_for(20) = 2,
   'the first rung is crossed at exactly its own threshold');
-select pg_temp.check(public.level_for(29) = 3,  'Ana is on level 3');
+select pg_temp.check(public.level_for(21) = 2,  'Ana is on level 2');
 select pg_temp.check(public.level_for(99999) = 10, 'and the top of the ladder is the top');
 
 -- --- Confirming your own report earns nothing ------------------------------
@@ -91,22 +96,22 @@ begin
   select id into own from public.reports where reporter_id = bo limit 1;
   insert into public.report_supports (report_id, user_id) values (own, bo);
 end $$;
-select pg_temp.check(public.contribution_points('22222222-2222-2222-2222-222222222222') = 11,
+select pg_temp.check(public.contribution_points('22222222-2222-2222-2222-222222222222') = 10,
   'a confirmation by the report''s own author is worth nothing on either side (got '
   || public.contribution_points('22222222-2222-2222-2222-222222222222') || ')');
 
 -- --- Retuning the weights recomputes everyone ------------------------------
 update public.app_settings set value = '10' where key = 'points_per_report';
-select pg_temp.check(public.contribution_points('11111111-1111-1111-1111-111111111111') = 49,
+select pg_temp.check(public.contribution_points('11111111-1111-1111-1111-111111111111') = 53,
   'changing a weight in app_settings moves every level at once (got '
   || public.contribution_points('11111111-1111-1111-1111-111111111111') || ')');
-update public.app_settings set value = '5' where key = 'points_per_report';
+update public.app_settings set value = '2' where key = 'points_per_report';
 
 -- --- my_standing, as the member themselves ---------------------------------
 set role authenticated;
 set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
 select pg_temp.check(
-  (select points = 29 and level = 3 and level_floor = 25 and next_level = 4
+  (select points = 21 and level = 2 and level_floor = 20 and next_level = 3
           and next_points = 50 and reports = 4 and received = 2 and given = 1
      from public.my_standing()),
   'my_standing agrees with the parts it is made of');

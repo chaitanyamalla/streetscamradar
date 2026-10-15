@@ -839,9 +839,42 @@ create table if not exists public.contributor_levels (
 );
 
 insert into public.contributor_levels (level, min_points) values
-  (1, 0), (2, 10), (3, 25), (4, 50), (5, 90),
-  (6, 150), (7, 230), (8, 330), (9, 450), (10, 600)
+  (1, 0), (2, 20), (3, 50), (4, 100), (5, 180),
+  (6, 300), (7, 460), (8, 660), (9, 900), (10, 1200)
 on conflict (level) do nothing;
+
+-- Retuned upward, and the weights below with it. The old rungs plus the old
+-- weights meant a hundred reports nobody confirmed was worth five hundred
+-- points and level nine — and from this release a level also decides how many
+-- reports a day somebody may file, so that combination rewarded spamming with
+-- permission to spam harder. Climbing now wants other people to recognise what
+-- you filed, which is the one thing a script cannot arrange for itself.
+--
+-- `on conflict do nothing` above leaves an existing project on the old
+-- numbers, so they are written again here. Levels will move, mostly downward;
+-- nobody loses a badge over it, because badges are counted from confirmed
+-- reports rather than from points.
+update public.contributor_levels l set min_points = v.pts
+  from (values (1,0), (2,20), (3,50), (4,100), (5,180),
+               (6,300), (7,460), (8,660), (9,900), (10,1200)) as v(lv, pts)
+ where l.level = v.lv and l.min_points <> v.pts;
+
+-- How many reports a day each rung allows. Five at the bottom, twenty-five at
+-- the top. A column on the ladder rather than its own table: a rung and its
+-- allowance are one fact about one level, and the admin page edits them in the
+-- same grid for the same reason.
+alter table public.contributor_levels
+  add column if not exists daily_quota int;
+update public.contributor_levels l set daily_quota = v.q
+  from (values (1,5), (2,7), (3,9), (4,11), (5,13),
+               (6,15), (7,18), (8,20), (9,22), (10,25)) as v(lv, q)
+ where l.level = v.lv and l.daily_quota is distinct from v.q;
+update public.contributor_levels set daily_quota = 5 where daily_quota is null;
+alter table public.contributor_levels alter column daily_quota set not null;
+alter table public.contributor_levels alter column daily_quota set default 5;
+alter table public.contributor_levels drop constraint if exists contributor_levels_quota_sane;
+alter table public.contributor_levels add constraint contributor_levels_quota_sane
+  check (daily_quota between 1 and 500);
 
 alter table public.contributor_levels enable row level security;
 drop policy if exists "the ladder is public" on public.contributor_levels;
@@ -850,9 +883,32 @@ create policy "the ladder is public" on public.contributor_levels
 
 -- The weights. Tunable for the same reason the thresholds are.
 insert into public.app_settings (key, value, note) values
-  ('points_per_report',       '5', 'Points for filing a report that is still published.'),
-  ('points_per_confirmation', '4', 'Points for each confirmation one of your reports receives.'),
+  ('points_per_report',       '2', 'Points for filing a report that is still published.'),
+  ('points_per_confirmation', '6', 'Points for each confirmation one of your reports receives.'),
   ('points_per_given',        '1', 'Points for confirming somebody else''s report.')
+on conflict (key) do nothing;
+
+-- Filing used to be worth more than being believed: five points for writing a
+-- report, four for somebody recognising it. That is backwards for a site whose
+-- whole value is that the reports are true, and it became actively dangerous
+-- once a level started deciding a daily allowance. Two for filing, six for
+-- each confirmation received. Written as an update because the insert above
+-- leaves an existing project on whatever it already had.
+update public.app_settings set value = '2' where key = 'points_per_report'       and value <> '2';
+update public.app_settings set value = '6' where key = 'points_per_confirmation' and value <> '6';
+
+-- The four rules that decide whether one more report may go in. See
+-- report_gate(). Every one of them is a number here rather than in code, so a
+-- rule that turns out to be too tight can be loosened from the admin page in
+-- the time it takes to type it, with no deploy.
+insert into public.app_settings (key, value, note) values
+  ('report_gap_seconds',  '90',  'Seconds one reporter must leave between their own reports.'),
+  ('reports_per_hour',    '3',   'Most reports one person may file in an hour.'),
+  ('duplicate_metres',    '100', 'Same reporter, same category, this close counts as a repeat.'),
+  ('duplicate_hours',     '24',  'How long a repeat stays a repeat.'),
+  ('travel_kmh_limit',    '900', 'Faster than this between two of your own reports is nobody.'),
+  ('travel_min_metres',   '1000','Below this the travel rule says nothing — in a town there is no travelling.'),
+  ('partner_daily_quota', '20',  'Daily allowance the partner badge carries on its own.')
 on conflict (key) do nothing;
 
 -- Just the three point weights, for the page that explains them.
@@ -957,6 +1013,16 @@ alter table public.profiles add constraint profiles_role_known
 -- is the normal case; a number here wins over it. For the people whose
 -- contribution the points cannot see — the same reason badges exist.
 alter table public.profiles add column if not exists level_override int;
+
+-- A daily allowance set on one person, for the handful we work with directly.
+-- Null means "whatever their rung and badge say"; a number raises them above
+-- it and never below, because report_quota() takes the highest answer. Beside
+-- level_override because it is the same kind of fact: a decision about one
+-- member that no amount of contributing would produce on its own.
+alter table public.profiles add column if not exists daily_report_limit int;
+alter table public.profiles drop constraint if exists profiles_daily_report_limit_range;
+alter table public.profiles add constraint profiles_daily_report_limit_range
+  check (daily_report_limit is null or daily_report_limit between 1 and 500);
 alter table public.profiles drop constraint if exists profiles_level_override_range;
 alter table public.profiles add constraint profiles_level_override_range
   check (level_override is null or level_override between 1 and 100);
@@ -1226,6 +1292,231 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 grant execute on function public.badge_rungs() to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- How much one person may file, and how fast.
+--
+-- Until now there was no limit of any kind. Signing in with Google raises the
+-- price of an account but does not make one expensive: ten throwaway Gmail
+-- accounts are an afternoon's work, so a cap per account is necessary and is
+-- nowhere near sufficient on its own. What actually stops a script is the
+-- shape of what it produces — bursts, repeats, and places no single person
+-- could have stood in — so four rules are checked rather than one.
+--
+-- ALL OF IT IS IN THE DATABASE, not the page. A limit enforced in JavaScript
+-- is a suggestion: the report form is one fetch call, and anybody who can read
+-- our source can skip it. These run in a BEFORE INSERT trigger, so they hold
+-- whether the insert came from our form, from curl, or from a script with a
+-- stolen session.
+--
+-- Why a trigger and not the RLS policy, which already guards this table: a
+-- policy that refuses says "new row violates row-level security policy", and
+-- that is the same sentence for every possible reason. A reporter who has hit
+-- today's limit, one who is filing too fast, and one repeating themselves need
+-- three different answers, and a trigger can raise three different errors.
+--
+-- Rows with no reporter at all skip every check: those are the sample pins in
+-- supabase/ops/seed_test_reports.sql, inserted by us past RLS, and they are
+-- not somebody's daily allowance.
+-- ---------------------------------------------------------------------------
+
+-- Metres between two points, for the repeat and travel checks.
+--
+-- Haversine on a sphere. PostGIS would be the right tool and is not installed,
+-- and for distances of a few hundred metres to a few thousand kilometres the
+-- error against the real ellipsoid is a fraction of a percent — far below
+-- anything these rules turn on.
+create or replace function public.metres_between(
+  lat1 double precision, lng1 double precision,
+  lat2 double precision, lng2 double precision)
+returns double precision language sql immutable as $$
+  select 2 * 6371000 * asin(sqrt(
+           sin(radians(lat2 - lat1) / 2) ^ 2
+           + cos(radians(lat1)) * cos(radians(lat2))
+           * sin(radians(lng2 - lng1) / 2) ^ 2));
+$$;
+
+-- How many reports this person may file in a day.
+--
+-- The highest of three answers, so a generous one always wins:
+--   the rung they have reached, from contributor_levels.daily_quota
+--   the floor their badge carries  — a partner gets partner_daily_quota
+--   the number an admin set on them, in profiles.daily_report_limit
+--
+-- The badge floor and the personal number are the two ways somebody we work
+-- with gets 20 or 50 a day without having to climb a ladder first.
+create or replace function public.report_quota(p_user uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select greatest(
+    coalesce((select l.daily_quota from public.contributor_levels l
+               where l.level = public.member_level(p_user)), 5),
+    case when 'partner' = any(public.badges_of(p_user))
+         then public.setting_int('partner_daily_quota', 20) else 0 end,
+    coalesce((select p.daily_report_limit from public.profiles p
+               where p.id = p_user), 0));
+$$;
+
+-- What stands between this person and filing one more report.
+--
+-- Returns null when nothing does, and otherwise a short machine-readable
+-- reason. The page turns these into a sentence in the reader's own language —
+-- the words cannot live here, because this site is read in nine of them.
+--
+-- The order matters. "You have used today's five" is a more useful answer than
+-- "wait ninety seconds" to somebody who has no reports left either way, so the
+-- cheapest and most final check comes first.
+create or replace function public.report_gate(
+  p_user uuid, p_lat double precision, p_lng double precision, p_category text)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare
+  quota     int := public.report_quota(p_user);
+  used      int;
+  last_at   timestamptz;
+  last_lat  double precision;
+  last_lng  double precision;
+  gap_secs  int := public.setting_int('report_gap_seconds', 90);
+  per_hour  int := public.setting_int('reports_per_hour', 3);
+  near_m    int := public.setting_int('duplicate_metres', 100);
+  near_hrs  int := public.setting_int('duplicate_hours', 24);
+  max_kmh   int := public.setting_int('travel_kmh_limit', 900);
+  seconds   double precision;
+  km        double precision;
+begin
+  if p_user is null then return null; end if;
+
+  -- A day means the last 24 hours, not since midnight. Midnight is a
+  -- different moment for every reader of a worldwide map, and a cap that
+  -- resets at midnight UTC hands somebody in Sydney two allowances in one
+  -- working day and somebody in Lima none.
+  select count(*) into used
+    from public.reports r
+   where r.reporter_id = p_user
+     and r.created_at > now() - interval '24 hours';
+  if used >= quota then return 'quota'; end if;
+
+  select count(*) into used
+    from public.reports r
+   where r.reporter_id = p_user
+     and r.created_at > now() - interval '1 hour';
+  if used >= per_hour then return 'hourly'; end if;
+
+  select r.created_at, r.lat, r.lng into last_at, last_lat, last_lng
+    from public.reports r
+   where r.reporter_id = p_user
+   order by r.created_at desc
+   limit 1;
+
+  if last_at is not null then
+    seconds := extract(epoch from (now() - last_at));
+    if seconds < gap_secs then return 'tooFast'; end if;
+
+    -- Somewhere no one could have got to in the time. A person who reports in
+    -- Paris and then in Tokyo eleven minutes later is not a person.
+    --
+    -- Two floors, both of which this needs and neither of which is obvious:
+    --
+    -- A DISTANCE floor, because within a town there is no travelling to speak
+    -- of and plenty of noise — a geocoder rounding a square to its centre
+    -- moves a pin further than a walk to the next street does.
+    --
+    -- A TIME floor, because speed divides by the elapsed time and two reports
+    -- a hundredth of a second apart make any distance at all look infinite.
+    -- Found by quota_test with the gap set to zero: thirty-eight metres in
+    -- five hundredths of a second is 2,700 km/h, and the rule called an
+    -- ordinary pair of reports in the same street impossible.
+    km := public.metres_between(last_lat, last_lng, p_lat, p_lng) / 1000.0;
+    if km * 1000 >= public.setting_int('travel_min_metres', 1000)
+       and (km / (greatest(seconds, 10) / 3600.0)) > max_kmh then
+      return 'impossible';
+    end if;
+  end if;
+
+  -- The same thing, in the same place, again. Filing one incident repeatedly
+  -- is the cheapest way to farm points, and it is also what an honest person
+  -- does by accident after a failed submit, so this is a refusal with a clear
+  -- reason rather than a silent drop.
+  if exists (
+    select 1 from public.reports r
+     where r.reporter_id = p_user
+       and r.category = p_category
+       and r.created_at > now() - make_interval(hours => near_hrs)
+       and public.metres_between(r.lat, r.lng, p_lat, p_lng) <= near_m
+  ) then
+    return 'duplicate';
+  end if;
+
+  return null;
+end;
+$$;
+
+-- The gate, on the way in.
+create or replace function public.check_report_allowed()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare reason text;
+begin
+  if new.reporter_id is null then return new; end if;
+
+  -- Only traffic from the site is gated.
+  --
+  -- PostgREST switches to `authenticated` for a signed-in request, so the role
+  -- setting names a browser whenever one is filing. A seed, a migration or a
+  -- test runs as the owner with no role set, and must not be held to ninety
+  -- seconds between fixture rows — supabase/test/levels_test.sql builds twenty
+  -- reports for one member in a single statement, and it is right to.
+  --
+  -- current_user is no use here: inside a SECURITY DEFINER function it is the
+  -- function's owner, not the caller. The role SETTING survives, which is
+  -- checked rather than assumed — see quota_test.sql.
+  --
+  -- This gives nothing away. An insert with no JWT behind it has no
+  -- auth.uid(), and the policy on this table already demands
+  -- reporter_id = auth.uid(), so a browser cannot reach this branch.
+  if coalesce(current_setting('role', true), 'none') not in ('authenticated', 'anon') then
+    return new;
+  end if;
+
+  reason := public.report_gate(new.reporter_id, new.lat, new.lng, new.category);
+  if reason is not null then
+    -- The message is the reason and nothing else. The page matches on it and
+    -- prints its own sentence; anything conversational here would be a tenth
+    -- language nobody asked for.
+    raise exception 'report_refused:%', reason using errcode = 'check_violation';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists reports_gate on public.reports;
+create trigger reports_gate
+  before insert on public.reports
+  for each row execute function public.check_report_allowed();
+
+-- What the form shows before anybody types: how many are left, and when the
+-- next one may go in. Its own function so the page never has to guess at the
+-- rules, and never has to be told them twice.
+create or replace function public.my_reporting_allowance()
+returns table (quota int, used int, remaining int, next_allowed_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  with mine as (
+    select public.report_quota(auth.uid()) as quota,
+           (select count(*)::int from public.reports r
+             where r.reporter_id = auth.uid()
+               and r.created_at > now() - interval '24 hours') as used,
+           (select max(r.created_at) from public.reports r
+             where r.reporter_id = auth.uid()) as last_at
+  )
+  select m.quota, m.used, greatest(m.quota - m.used, 0),
+         case when m.last_at is null then null
+              else m.last_at + make_interval(
+                     secs => public.setting_int('report_gap_seconds', 90)) end
+    from mine m;
+$$;
+
+revoke all on function public.metres_between(double precision, double precision, double precision, double precision) from public;
+revoke all on function public.report_quota(uuid) from public, anon;
+revoke all on function public.report_gate(uuid, double precision, double precision, text) from public, anon;
+revoke all on function public.my_reporting_allowance() from public, anon;
+grant execute on function public.my_reporting_allowance() to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Your own standing: points, level, and how far to the next one.
@@ -1737,8 +2028,9 @@ $$;
 -- set — ascending, starting at level 1, no two rungs at the same height — and
 -- editing it one row at a time means passing through states that are none of
 -- those. The page sends the table it wants; this takes it or refuses it.
+drop function if exists public.admin_set_levels(jsonb);
 create or replace function public.admin_set_levels(p_rows jsonb)
-returns table (level int, min_points int)
+returns table (level int, min_points int, daily_quota int)
 language plpgsql security definer set search_path = public as $$
 declare
   wanted record;
@@ -1752,7 +2044,11 @@ begin
   end if;
 
   for wanted in
-    select (row ->> 'level')::int as lv, (row ->> 'min_points')::int as pts
+    select (row ->> 'level')::int as lv,
+           (row ->> 'min_points')::int as pts,
+           -- Absent means "leave it alone", so an older page that only knows
+           -- about points cannot silently reset every allowance to five.
+           nullif(row ->> 'daily_quota', '')::int as quota
       from jsonb_array_elements(p_rows) as row
      order by (row ->> 'level')::int
   loop
@@ -1770,12 +2066,29 @@ begin
       raise exception 'level % asks for % points, which is not more than the rung below it',
         wanted.lv, wanted.pts;
     end if;
+    if wanted.quota is not null and (wanted.quota < 1 or wanted.quota > 500) then
+      raise exception 'level % asks for % reports a day, which is outside 1..500',
+        wanted.lv, wanted.quota;
+    end if;
     seen := wanted.pts;
   end loop;
 
+  -- Carried across the rebuild below, which deletes every rung: a row that
+  -- arrived without a quota keeps the one it had rather than the default.
+  create temporary table if not exists kept_quota (level int primary key, quota int)
+    on commit drop;
+  delete from kept_quota;
+  insert into kept_quota (level, quota)
+  select l.level, l.daily_quota from public.contributor_levels l;
+
   delete from public.contributor_levels;
-  insert into public.contributor_levels (level, min_points)
-  select (row ->> 'level')::int, (row ->> 'min_points')::int
+  insert into public.contributor_levels (level, min_points, daily_quota)
+  select (row ->> 'level')::int,
+         (row ->> 'min_points')::int,
+         coalesce(nullif(row ->> 'daily_quota', '')::int,
+                  (select k.quota from kept_quota k
+                    where k.level = (row ->> 'level')::int),
+                  5)
     from jsonb_array_elements(p_rows) as row;
 
   -- A rung that no longer exists cannot be somebody's given level.
@@ -1784,10 +2097,32 @@ begin
      and not exists (select 1 from public.contributor_levels l
                       where l.level = p.level_override);
 
-  return query select l.level, l.min_points
+  return query select l.level, l.min_points, l.daily_quota
                  from public.contributor_levels l order by l.level;
 end;
 $$;
+
+-- A daily allowance on one person, for somebody we work with directly.
+--
+-- Null clears it and hands them back to their rung and badge. The number is
+-- a floor, never a ceiling: report_quota() takes the highest of rung, badge
+-- and this, so setting 20 on a member whose rung already allows 25 changes
+-- nothing rather than demoting them.
+create or replace function public.admin_set_report_limit(p_id uuid, p_limit int)
+returns int language plpgsql security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  if p_limit is not null and (p_limit < 1 or p_limit > 500) then
+    raise exception 'a daily allowance of % is outside 1..500', p_limit;
+  end if;
+  update public.profiles set daily_report_limit = p_limit where id = p_id;
+  if not found then raise exception 'no such member'; end if;
+  return public.report_quota(p_id);
+end;
+$$;
+
+revoke all on function public.admin_set_report_limit(uuid, int) from public, anon;
+grant execute on function public.admin_set_report_limit(uuid, int) to authenticated;
 
 -- --- Regions ---------------------------------------------------------------
 --
@@ -1860,7 +2195,11 @@ begin
   return query
     select s.key, s.value #>> '{}', s.note
       from public.app_settings s
-     where s.key in ('report_window_days', 'public_sample_limit',
+     where s.key in ('report_gap_seconds', 'reports_per_hour',
+                     'duplicate_metres', 'duplicate_hours',
+                     'travel_kmh_limit', 'travel_min_metres',
+                     'partner_daily_quota',
+                     'report_window_days', 'public_sample_limit',
                      'public_detail_max_span', 'auto_hide_flag_threshold',
                      'points_per_report', 'points_per_confirmation',
                      'points_per_given', 'report_move_window_hours')
@@ -1876,7 +2215,14 @@ begin
   if p_key not in ('report_window_days', 'public_sample_limit',
                    'public_detail_max_span', 'auto_hide_flag_threshold',
                    'points_per_report', 'points_per_confirmation',
-                   'points_per_given', 'report_move_window_hours') then
+                   'points_per_given', 'report_move_window_hours',
+                   -- The anti-spam rules. Editable here precisely because a
+                   -- rule set too tight turns honest people away, and that
+                   -- should be fixable in a minute rather than a release.
+                   'report_gap_seconds', 'reports_per_hour',
+                   'duplicate_metres', 'duplicate_hours',
+                   'travel_kmh_limit', 'travel_min_metres',
+                   'partner_daily_quota') then
     raise exception 'that setting is not editable from here: %', p_key;
   end if;
   -- Every one of these is a number, and every one of them is read with ::int

@@ -28,6 +28,8 @@ $PSQL -v ON_ERROR_STOP=1 -q -f "$HERE/../schema.sql" || { echo "schema.sql would
 $PSQL -f "$HERE/levels_test.sql" 2>&1 | grep -E '  ok  |FAIL|^ERROR|passed' | sed 's/^psql:[^ ]*//;s/NOTICE: *//'
 echo
 $PSQL -f "$HERE/badges_test.sql" 2>&1 | grep -E '  ok  |FAIL|^ERROR|passed' | sed 's/^psql:[^ ]*//;s/NOTICE: *//'
+echo
+$PSQL -f "$HERE/quota_test.sql" 2>&1 | grep -E '  ok  |FAIL|^ERROR|passed' | sed 's/^psql:[^ ]*//;s/NOTICE: *//'
 
 # ---------------------------------------------------------------------------
 # And again, as an UPGRADE rather than an install.

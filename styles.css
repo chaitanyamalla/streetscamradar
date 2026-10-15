@@ -968,6 +968,12 @@ dialog::backdrop { background:rgba(8,22,30,.62); backdrop-filter:blur(3px); }
    below sets display:block — so the magic-link button needs naming here or
    it stays on screen with the attribute set. */
 .or-rule[hidden], .google-button[hidden], .ghost-button.wide[hidden] { display:none; }
+/* The allowance line on the report form. Its own rule because `hidden` has to
+   beat .form-note, and because it should read as a quiet fact rather than a
+   warning until there is nothing left. */
+.form-note.is-allowance[hidden] { display:none; }
+.form-note.is-allowance { font-weight:600; color:var(--ink-soft); }
+.form-note.is-allowance.is-spent { color:var(--hospital, #c5382c); }
 .or-rule { display:flex; align-items:center; gap:12px; margin:18px 0;
   color:var(--muted); font-size:11px; }
 .or-rule::before, .or-rule::after { content:""; flex:1; height:1px; background:var(--line); }

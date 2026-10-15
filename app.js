@@ -11,7 +11,7 @@ import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DA
          REPORT_MOVE_WINDOW_HOURS, SAFETY_MIN_ZOOM, EMERGENCY_MIN_ZOOM,
          SUGGEST_MIN_CHARS, SUGGEST_DEBOUNCE_MS, REPORT_BOUNDS,
          WEATHER_COUNTRIES, MAGIC_LINK_ENABLED } from './js/config.js';
-import { getCategories, fetchForBounds, submitReport, withdrawReport,
+import { getCategories, fetchForBounds, submitReport, withdrawReport, reportingAllowance,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, myConfirmedReports, editMyReport,
          deleteMyAccount, getProfile, saveDisplayName, saveLocale, fetchAdvisories,
@@ -269,6 +269,49 @@ function paintAgeEnds() {
   $('#age-end-far').textContent = ageLabel(REPORT_WINDOW_DAYS, REPORT_WINDOW_DAYS);
 }
 
+/**
+ * How many reports are left today, on the form itself.
+ *
+ * Shown before anybody types, because finding out you are over the limit
+ * after writing three paragraphs is the worst possible moment to find out.
+ * Asked of the database every time the form opens rather than cached: the
+ * allowance can change under you — an admin raising it, a confirmation
+ * arriving and lifting your level — and a stale number here would be a
+ * promise the insert then refuses to keep.
+ *
+ * Silent on failure. A reader who cannot see their allowance can still file a
+ * report; one who is shown a red error about a line they did not ask for
+ * reasonably concludes the form is broken.
+ */
+async function paintAllowance() {
+  const line = $('#report-allowance');
+  if (!line) return;
+  if (!signedIn() || !isConfigured()) { line.hidden = true; return; }
+  try {
+    const left = await reportingAllowance();
+    if (!left) { line.hidden = true; return; }
+    const spent = left.remaining <= 0;
+    line.textContent = spent
+      ? t('report.allowanceNone')
+      : t('report.allowance', { remaining: left.remaining, quota: left.quota });
+    line.classList.toggle('is-spent', spent);
+    line.hidden = false;
+  } catch {
+    line.hidden = true;
+  }
+}
+
+/**
+ * Open the report form. One way in, because there are three doors to it — the
+ * button, a click on the map while picking, and Escape out of picking — and
+ * all three have to prime the same fields and show the same allowance.
+ */
+function openReportDialog() {
+  primeWhenFields();
+  openDialog('#report-dialog');
+  paintAllowance();
+}
+
 function onLanguageChanged() {
   for (const select of [$('#lang-select'), $('#profile-lang')]) {
     if (select) select.value = currentLanguage();
@@ -295,6 +338,7 @@ function onLanguageChanged() {
     refreshEmergency(); refreshAdvisory();
   }
   if ($('#profile-dialog').open) paintProfileList();
+  if ($('#report-dialog').open) paintAllowance();
   // An open popup holds text built in the old language, and there is no way to
   // rebuild it without knowing which feature it came from. Closing it is
   // honest; the pin is still there to tap again.
@@ -1520,8 +1564,7 @@ function onMapClick(e) {
   if (state.picking) {
     setPin({ lat: e.lngLat.lat, lng: e.lngLat.lng });
     stopPicking();
-    primeWhenFields();
-    openDialog('#report-dialog');
+    openReportDialog();
     return;
   }
 
@@ -2447,8 +2490,7 @@ function wireUI() {
       openDialog('#auth-dialog');
       return;
     }
-    primeWhenFields();
-    openDialog('#report-dialog');
+    openReportDialog();
   });
 
   $('#pick-on-map').addEventListener('click', () => { $('#report-dialog').close(); startPicking(); });
@@ -2516,6 +2558,8 @@ function wireUI() {
       $('#pin-status').classList.remove('is-set');
       toast(t('toast.posted'));
       await refresh();
+      // The number they just spent, spent.
+      paintAllowance();
     } catch (err) {
       toast(err.message, { error: true });
     } finally {
@@ -2525,7 +2569,7 @@ function wireUI() {
 
   // Escape cancels map-picking mode.
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && state.picking) { stopPicking(); openDialog('#report-dialog'); }
+    if (e.key === 'Escape' && state.picking) { stopPicking(); openReportDialog(); }
   });
 }
 

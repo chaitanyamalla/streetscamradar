@@ -674,6 +674,10 @@
           Reports drop off the map after 7 days.
         </p>
 
+        <!-- How many are left today. Filled by paintAllowance(), hidden until
+             the database has answered, so nobody is shown a guess. -->
+        <p class="form-note is-allowance" id="report-allowance" hidden></p>
+
         <label for="scam-category" data-i18n="report.category">What kind of scam?</label>
         <select id="scam-category" required></select>
 

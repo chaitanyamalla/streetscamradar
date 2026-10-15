@@ -116,6 +116,54 @@ export async function fetchForBounds(bounds, { signedIn, ageDays = null }) {
 }
 
 // --- Writing ---------------------------------------------------------------
+// The five ways the database refuses a report, and the string for each.
+//
+// The trigger raises 'report_refused:quota' and nothing else — see
+// check_report_allowed() in schema.sql. The words cannot live down there: this
+// site is read in nine languages and a sentence in a Postgres exception is
+// written in one. So the database names the reason and the page says it.
+const REPORT_REFUSALS = {
+  quota:      'reportLimit.quota',
+  hourly:     'reportLimit.hourly',
+  tooFast:    'reportLimit.tooFast',
+  duplicate:  'reportLimit.duplicate',
+  impossible: 'reportLimit.impossible',
+};
+
+/**
+ * Turn a refusal into a sentence, and leave everything else alone.
+ *
+ * An unrecognised error keeps its own wording rather than becoming "something
+ * went wrong": a reason we have not seen is exactly the one worth reading.
+ */
+function reportProblem(error) {
+  const found = /report_refused:([A-Za-z]+)/.exec(String(error?.message ?? ''));
+  const key = found && REPORT_REFUSALS[found[1]];
+  return key ? new Error(t(key)) : error;
+}
+
+/**
+ * How many reports are left today, and when the next one may go in.
+ *
+ * Asked of the database rather than worked out here, because the rules are
+ * the database's: a level's allowance, a badge's floor and a number an admin
+ * set on one person, whichever is highest. A page that recomputed that would
+ * be a second opinion waiting to disagree.
+ */
+export async function reportingAllowance() {
+  need();
+  const { data, error } = await supabase.rpc('my_reporting_allowance');
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+  return {
+    quota: Number(row.quota ?? 0),
+    used: Number(row.used ?? 0),
+    remaining: Number(row.remaining ?? 0),
+    nextAllowedAt: row.next_allowed_at ?? null,
+  };
+}
+
 export async function submitReport(report) {
   need();
   const { data: { user } } = await supabase.auth.getUser();
@@ -134,7 +182,7 @@ export async function submitReport(report) {
     country_code: report.countryCode || null,
     happened_at: report.happenedAt,
   });
-  if (error) throw error;
+  if (error) throw reportProblem(error);
 }
 
 export async function withdrawReport(id) {

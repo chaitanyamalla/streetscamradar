@@ -331,6 +331,159 @@ select pg_temp.check(
 select pg_temp.check(public.metres_between(48.86, 2.33, 48.86, 2.33) = 0,
   'and a point is no distance from itself');
 
+-- ---------------------------------------------------------------------------
+-- Which reports a visitor sees first.
+-- ---------------------------------------------------------------------------
+reset role; reset request.jwt.claim.sub;
+
+-- --- standing is worth something, and not much ---------------------------
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('bbbb0000-0000-4000-8000-000000000001', 'plain@example.com', '{"full_name":"Plain"}'),
+  ('bbbb0000-0000-4000-8000-000000000002', 'star@example.com',  '{"full_name":"Star"}')
+on conflict (id) do nothing;
+
+select pg_temp.check(public.member_weight('bbbb0000-0000-4000-8000-000000000001') = 1,
+  'a new member is worth 1 — their level, and nothing else (got '
+  || public.member_weight('bbbb0000-0000-4000-8000-000000000001') || ')');
+
+-- An awareness creator who is also gold, and a partner.
+insert into public.contributor_badges (profile_id, badge, note, granted) values
+  ('bbbb0000-0000-4000-8000-000000000002', 'creator', 'makes videos', true),
+  ('bbbb0000-0000-4000-8000-000000000002', 'gold',    'thirty confirmed', true),
+  ('bbbb0000-0000-4000-8000-000000000002', 'partner', 'works with us', true)
+on conflict do nothing;
+-- level 1 + creator 5 + partner 3 + gold 4 = 13
+select pg_temp.check(public.member_weight('bbbb0000-0000-4000-8000-000000000002') = 13,
+  'a decorated member is worth 13 (got '
+  || public.member_weight('bbbb0000-0000-4000-8000-000000000002') || ')');
+
+-- The ratio that is the whole design: standing breaks ties, evidence wins.
+-- The bound the whole design rests on, and the one the first version of this
+-- got wrong: ONE confirmation must beat the highest standing there is.
+select pg_temp.check(
+  public.report_rank(1, 0, 0) > public.report_rank(0, 0, 22),
+  'one stranger confirming a report beats the best standing on the site');
+select pg_temp.check(
+  public.member_weight('bbbb0000-0000-4000-8000-000000000002') < 25,
+  'because no member can be worth more than a confirmation');
+select pg_temp.check(
+  public.report_rank(0, 0, 13) > public.report_rank(0, 0, 1),
+  'but among reports nobody has confirmed, standing decides');
+select pg_temp.check(
+  public.report_rank(1, 1, 0) < public.report_rank(0, 0, 0),
+  'and one flag costs more than one confirmation is worth');
+
+-- --- the weight is stamped on the way in ---------------------------------
+set role authenticated;
+set request.jwt.claim.sub = 'bbbb0000-0000-4000-8000-000000000002';
+select pg_temp.check(
+  pg_temp.try_report('bbbb0000-0000-4000-8000-000000000002', 45.4642, 9.1900) is null,
+  'a decorated member files a report');
+reset role;
+select pg_temp.check(
+  (select reporter_weight from public.reports
+    where reporter_id = 'bbbb0000-0000-4000-8000-000000000002') = 13,
+  'and their standing is stamped on it (got '
+  || (select reporter_weight from public.reports
+       where reporter_id = 'bbbb0000-0000-4000-8000-000000000002') || ')');
+select pg_temp.check(
+  (select reporter_weight from public.reports where reporter_id is null limit 1) = 0,
+  'while a sample pin stands for nobody');
+
+-- --- the sample puts the better report first -----------------------------
+-- Two reports in one square: one from a new member with no confirmations,
+-- one from the decorated member, also with none. Standing is all there is to
+-- separate them, which is exactly the case the old rule could not answer.
+delete from public.reports where lat between 45.0 and 46.0 and lng between 9.0 and 10.0;
+insert into public.reports
+  (reporter_id, category, headline, description, lat, lng, country_code,
+   happened_at, created_at, reporter_weight)
+values
+  ('bbbb0000-0000-4000-8000-000000000001', 'pickpocket', 'From a new member',
+   'detail with enough words in it', 45.4642, 9.1900, 'IT',
+   now() - interval '30 minutes', now() - interval '30 minutes', 1),
+  ('bbbb0000-0000-4000-8000-000000000002', 'taxi', 'From a known contributor',
+   'detail with enough words in it', 45.4645, 9.1905, 'IT',
+   now() - interval '2 hours', now() - interval '2 hours', 13);
+
+select pg_temp.check(
+  (select headline from public.public_sample_reports(45.46, 9.18, 45.47, 9.20, null)
+    limit 1) = 'From a known contributor',
+  'the known contributor is shown first, though theirs is the older report (got '
+  || coalesce((select headline from public.public_sample_reports(45.46, 9.18, 45.47, 9.20, null)
+                limit 1), 'nothing') || ')');
+select pg_temp.check(
+  (select count(*) from public.public_sample_reports(45.46, 9.18, 45.47, 9.20, null)) = 2,
+  'and the new member''s report is still there — ranked, never hidden');
+
+-- One confirmation on the new member's report turns it right back around.
+do $$
+declare target uuid;
+begin
+  select id into target from public.reports where headline = 'From a new member';
+  insert into public.report_supports (report_id, user_id)
+  values (target, 'aaaa0000-0000-4000-8000-000000000003');
+end $$;
+select pg_temp.check(
+  (select headline from public.public_sample_reports(45.46, 9.18, 45.47, 9.20, null)
+    limit 1) = 'From a new member',
+  'and one stranger confirming it beats all that standing (got '
+  || coalesce((select headline from public.public_sample_reports(45.46, 9.18, 45.47, 9.20, null)
+                limit 1), 'nothing') || ')');
+
+-- --- and the rank never leaves the database ------------------------------
+-- Given a rank, anybody could subtract the confirmations and flags they can
+-- already see and recover the author's standing. Reports here are anonymous,
+-- so neither number may be readable.
+select pg_temp.check(
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'reports_feed'
+      and column_name in ('reporter_weight', 'rank', 'reporter_id')) = 0,
+  'reports_feed exposes neither the weight, nor a rank, nor the reporter');
+-- Asked of pg_proc, not information_schema.columns. A FUNCTION is not in
+-- information_schema.columns at all, so the first version of this counted
+-- zero because it was looking in the wrong place, and would have passed with
+-- the weight returned in plain sight.
+select pg_temp.check(
+  (select count(*)
+     from (select unnest(p.proargnames) as name, unnest(p.proargmodes)::text as mode
+             from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname = 'public' and p.proname = 'public_sample_reports') a
+    where a.mode = 't' and a.name in ('reporter_weight', 'rank', 'reporter_id')) = 0,
+  'and the public sample returns no weight, rank or reporter column');
+-- Names are not enough on their own: a leak can wear an innocent name. The
+-- value under support_count has to BE the confirmation count — swapping the
+-- weight into that column is a mutation a name check cannot see.
+select pg_temp.check(
+  (select support_count from public.public_sample_reports(45.46, 9.18, 45.47, 9.20, null)
+    where headline = 'From a new member') = 1,
+  'and support_count really is the confirmation count, not something wearing its name (got '
+  || coalesce((select support_count::text from public.public_sample_reports(45.46, 9.18, 45.47, 9.20, null)
+                where headline = 'From a new member'), 'nothing') || ')');
+-- The new member's weight is 1 and their confirmations are also 1, so that
+-- row cannot tell the two apart — the first version of this checked only
+-- there and the swap went straight through it. The decorated member is the
+-- row that distinguishes them: weight 13, confirmations 0.
+select pg_temp.check(
+  (select support_count from public.public_sample_reports(45.46, 9.18, 45.47, 9.20, null)
+    where headline = 'From a known contributor') = 0,
+  'proved on the row where the two numbers differ: 13 of standing, 0 confirmations (got '
+  || coalesce((select support_count::text from public.public_sample_reports(45.46, 9.18, 45.47, 9.20, null)
+                where headline = 'From a known contributor'), 'nothing') || ')');
+
+set role authenticated;
+set request.jwt.claim.sub = 'bbbb0000-0000-4000-8000-000000000001';
+select pg_temp.check(
+  (select count(*) from public.reports_feed) >= 0,
+  'a member can read the feed');
+select pg_temp.check(
+  not exists (
+    select 1 from information_schema.column_privileges
+     where table_schema = 'public' and table_name = 'reports'
+       and grantee in ('authenticated', 'anon') and privilege_type = 'SELECT'),
+  'and still cannot select the reports table itself, where the weight lives');
+reset role; reset request.jwt.claim.sub;
+
 -- --- Results --------------------------------------------------------------
 select case when count(*) = 0
             then (select 'quota_test  ' || count(*) || '/' || count(*) || ' passed' from pg_temp.ran)
@@ -338,3 +491,4 @@ select case when count(*) = 0
                  || (select count(*) from pg_temp.ran) || string_agg(E'\n  - ' || label, '')
        end
   from pg_temp.failures;
+

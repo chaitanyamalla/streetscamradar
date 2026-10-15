@@ -1294,6 +1294,106 @@ $$;
 grant execute on function public.badge_rungs() to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
+-- Which reports a visitor sees first.
+--
+-- A signed-out visitor zoomed into a neighbourhood gets public_sample_limit
+-- reports out of however many are there — five, by default. Until now that
+-- choice was confirmations then recency, which is a good rule and stays the
+-- backbone of this one: a report three strangers recognised is better evidence
+-- than one from a decorated member, and no amount of standing should change
+-- that.
+--
+-- What is added is a tiebreaker. Among reports nobody has confirmed yet — which
+-- is most of them, most of the time — the one from somebody who has been
+-- right before is the better guess, and that is exactly where the old rule had
+-- nothing to say and fell back to whichever was newer.
+--
+-- RANK, NEVER FILTER. Nothing is hidden by this. A first-time visitor
+-- reporting a real scam at the Colosseum is level 1 by definition and is
+-- precisely the signal this site exists to carry; suppressing it to make room
+-- for a gold member would be the opposite of a safety map.
+--
+-- AND IT NEVER LEAVES THE DATABASE. The rank is computed inside a SECURITY
+-- DEFINER function and is not a column of reports_feed, deliberately: given a
+-- rank, anybody could work back through the confirmations and flags they can
+-- already see and recover the author's standing. Reports here are anonymous —
+-- reports_feed drops reporter_id, and badges never say which town somebody
+-- contributed in — and a number that identifies the contributor behind a pin
+-- would undo both in one step.
+-- ---------------------------------------------------------------------------
+
+-- What one member's standing is worth, as a small number.
+--
+-- Deliberately small, and smaller than one confirmation. The ceiling here is
+-- 22 — level 10, plus creator, partner and gold — and rank_per_confirmation is
+-- 25, so ONE stranger confirming a report beats the best standing on the site.
+--
+-- That bound is the whole design, and the first version of this got it wrong:
+-- with a confirmation worth 10, a decorated member's unconfirmed report beat a
+-- new member's confirmed one, which is backwards. A confirmation is somebody
+-- else's independent evidence; standing is only a guess about whether evidence
+-- would arrive. The guess must never beat the thing it is guessing at.
+--
+-- So the rule is sayable in two lines: confirmed reports come first,
+-- most-confirmed first; among reports nobody has confirmed yet, the ones from
+-- people who have been right before come first.
+--
+-- Not in app_settings, unlike the two weights below. These are five numbers
+-- whose RELATIVE sizes are the point, and five sliders that can be moved
+-- independently is a way to accidentally make a bronze badge worth more than
+-- a gold one. Changing them is a schema edit, on purpose.
+create or replace function public.member_weight(p_user uuid)
+returns int language sql stable security definer set search_path = public as $$
+  with badges as (select public.badges_of(p_user) as held)
+  select public.member_level(p_user)
+       + coalesce((select
+             case when 'creator' = any(held) or 'top' = any(held) then 5 else 0 end
+           + case when 'partner'  = any(held) then 3 else 0 end
+           + case when 'gold'     = any(held) then 4
+                  when 'silver'   = any(held) then 2
+                  when 'bronze'   = any(held) then 1 else 0 end
+           from badges), 0);
+$$;
+
+-- The author's standing AT THE TIME THEY FILED, kept on the report.
+--
+-- A snapshot rather than a join, for three reasons. It is cheap — ordering a
+-- few hundred rows by a function that counts reports and confirmations for
+-- each author is not. It cannot be retro-boosted: climbing to level 10 does
+-- not quietly lift every report somebody filed as a beginner. And it keeps
+-- the ordering free of a join to profiles, which is the join that would make
+-- an accidental leak of authorship easy to write.
+--
+-- supabase/ops/refresh_report_weights.sql recomputes the column for rows that
+-- predate it, or after the weights change.
+alter table public.reports add column if not exists reporter_weight smallint not null default 0;
+
+insert into public.app_settings (key, value, note) values
+  ('rank_per_confirmation', '25', 'What one confirmation is worth when ordering what a visitor sees first.'),
+  ('rank_per_flag',         '30', 'What one flag costs it. More than a confirmation is worth, on purpose.')
+on conflict (key) do nothing;
+
+-- 25 and 30, not 10 and 15. One confirmation has to beat the highest possible
+-- standing (22), or a decorated member's unconfirmed report outranks a new
+-- member's confirmed one — which is the opposite of what confirmations are
+-- for. Written as updates because the insert above leaves an existing project
+-- on whatever it already had.
+update public.app_settings set value = '25' where key = 'rank_per_confirmation' and value <> '25';
+update public.app_settings set value = '30' where key = 'rank_per_flag'         and value <> '30';
+
+-- Confirmations first, standing as a tiebreaker, flags as a penalty.
+create or replace function public.report_rank(
+  p_supports int, p_flags int, p_weight int)
+returns int language sql immutable as $$
+  select coalesce(p_supports, 0) * public.setting_int('rank_per_confirmation', 25)
+       + coalesce(p_weight, 0)
+       - coalesce(p_flags, 0) * public.setting_int('rank_per_flag', 30);
+$$;
+
+revoke all on function public.member_weight(uuid) from public, anon;
+revoke all on function public.report_rank(int, int, int) from public;
+
+-- ---------------------------------------------------------------------------
 -- How much one person may file, and how fast.
 --
 -- Until now there was no limit of any kind. Signing in with Google raises the
@@ -1454,7 +1554,10 @@ create or replace function public.check_report_allowed()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare reason text;
 begin
-  if new.reporter_id is null then return new; end if;
+  if new.reporter_id is null then
+    new.reporter_weight := 0;      -- a sample pin stands for nobody
+    return new;
+  end if;
 
   -- Only traffic from the site is gated.
   --
@@ -1474,6 +1577,11 @@ begin
   if coalesce(current_setting('role', true), 'none') not in ('authenticated', 'anon') then
     return new;
   end if;
+
+  -- Their standing as it is now, kept with the report. See member_weight().
+  -- Done here rather than in a default, because a default cannot see
+  -- new.reporter_id.
+  new.reporter_weight := public.member_weight(new.reporter_id);
 
   reason := public.report_gate(new.reporter_id, new.lat, new.lng, new.category);
   if reason is not null then
@@ -2517,9 +2625,13 @@ language sql stable security definer set search_path = public as $$
            least(min_lng, max_lng) as x0, greatest(min_lng, max_lng) as x1
   ),
   visible as (
+    -- flag_count and reporter_weight are carried for the ORDER BY only. They
+    -- are not in the returned column list below, and that list is written out
+    -- rather than left as v.* precisely so that neither can start being
+    -- returned by somebody adding a column to this CTE.
     select r.id, r.category, r.impacts, r.headline, r.description,
            r.lat, r.lng, r.address, r.city, r.country_code,
-           r.happened_at, r.support_count
+           r.happened_at, r.support_count, r.flag_count, r.reporter_weight
       from public.reports r, bounds b
      where r.status = 'published'
        and r.happened_at > now() - public.report_age_limit(max_age_days)
@@ -2530,12 +2642,24 @@ language sql stable security definer set search_path = public as $$
        and (b.y1 - b.y0) <= public.setting_num('public_detail_max_span', 0.35)
        and (b.x1 - b.x0) <= public.setting_num('public_detail_max_span', 0.35)
   )
-  -- Confirmations decide the order. A report several people recognised is a
-  -- better warning than one somebody rated "high" about themselves, and it is
-  -- the number the map now draws with.
-  select v.*, (select count(*) from visible) as total_in_view
+  -- Confirmations still decide the order. A report several people recognised
+  -- is a better warning than one somebody rated "high" about themselves, and
+  -- it is the number the map draws with.
+  --
+  -- The author's standing is a tiebreaker underneath it, which is where the
+  -- old rule had nothing to say: most reports have no confirmations yet, and
+  -- among those the one from somebody who has been right before is the better
+  -- guess. It cannot outrank evidence — see report_rank() and member_weight()
+  -- for why the numbers are the sizes they are — and it is not returned to
+  -- anybody, because a rank plus the confirmations a reader can already see
+  -- would give away who filed the report.
+  select v.id, v.category, v.impacts, v.headline, v.description,
+         v.lat, v.lng, v.address, v.city, v.country_code,
+         v.happened_at, v.support_count,
+         (select count(*) from visible) as total_in_view
     from visible v
-   order by v.support_count desc, v.happened_at desc
+   order by public.report_rank(v.support_count, v.flag_count, v.reporter_weight) desc,
+            v.happened_at desc
    limit public.setting_int('public_sample_limit', 5);
 $$;
 

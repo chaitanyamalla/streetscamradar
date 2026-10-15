@@ -1672,7 +1672,14 @@ returns table (
   id uuid, display_name text, email text, role text,
   level int, level_override int, points int,
   reports int, badges text[], overrides jsonb, countries text[],
-  listed boolean, created_at timestamptz
+  listed boolean, created_at timestamptz,
+  -- The allowance set on this person, and the number actually in force once
+  -- their rung and any badge floor are taken into account. Both, because they
+  -- answer different questions: the first is "what did we decide about them",
+  -- the second is "what will the database let them do tonight", and a console
+  -- showing only one of those invites setting 3 on a partner and wondering why
+  -- nothing changed.
+  daily_report_limit int, daily_quota int
 )
 language plpgsql stable security definer set search_path = public as $$
 begin
@@ -1710,7 +1717,9 @@ begin
                        from public.reports r
                       where r.reporter_id = p.id and r.country_code is not null), '{}'),
            p.listed,
-           p.created_at
+           p.created_at,
+           p.daily_report_limit,
+           public.report_quota(p.id)
       from public.profiles p
       left join auth.users u on u.id = p.id
      where (p_search is null or btrim(p_search) = ''

@@ -475,6 +475,19 @@ export const adminSetReportStatus = (id, status) =>
 export const adminDeleteReport = (id) => rpc('admin_delete_report', { p_id: id });
 
 /** The whole ladder at once — it is only valid as a set. */
+/**
+ * A daily allowance on one person. Null hands them back to their rung and
+ * badge. Returns the number actually in force afterwards, which is not always
+ * the number asked for: it can only raise, never lower.
+ */
+export async function adminSetReportLimit(id, limit) {
+  need();
+  const { data, error } = await supabase.rpc('admin_set_report_limit',
+    { p_id: id, p_limit: limit });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
 export const adminSetLevels = (rows) =>
   rpc('admin_set_levels', { p_rows: rows }).then(out => out ?? []);
 
@@ -503,9 +516,12 @@ export const adminSetSetting = (key, value) =>
 export async function contributorLadder() {
   if (!supabase) return [];
   const { data, error } = await supabase
-    .from('contributor_levels').select('level,min_points').order('level');
+    .from('contributor_levels').select('level,min_points,daily_quota').order('level');
   if (error) return [];
-  return (data ?? []).map(r => [Number(r.level), Number(r.min_points)]);
+  // [level, points, reports-a-day]. The first two indexes keep their meaning,
+  // so anything that only wanted the ladder still reads the same thing.
+  return (data ?? []).map(r =>
+    [Number(r.level), Number(r.min_points), Number(r.daily_quota ?? 5)]);
 }
 
 /**

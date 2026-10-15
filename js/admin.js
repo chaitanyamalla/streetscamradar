@@ -14,7 +14,8 @@ import { bootPage } from './page.js';
 import { initAuth, onAuthChange } from './auth.js';
 import { esc, toast, badgeChip, EARNED_BADGES, BADGES } from './ui.js';
 import { formatDate } from './i18n.js';
-import { amAdmin, adminMembers, adminSetRole, adminSetLevel, adminSetBadge, adminClearBadge,
+import { amAdmin, adminMembers, adminSetRole, adminSetLevel, adminSetReportLimit,
+         adminSetBadge, adminClearBadge,
          adminSetListed, adminRemoveMember, adminReports, adminSetReportStatus,
          adminDeleteReport, contributorLadder, adminSetLevels, adminRegionCatalog,
          adminBlockedRegions, adminSetBlockedRegions, adminSettings,
@@ -192,6 +193,14 @@ function memberRow(m) {
           </select>
         </label>
 
+        <label class="ar-field">
+          <span>Reports a day${m.daily_report_limit ? ' (given)' : ''}</span>
+          <input type="number" min="1" max="500" step="1" data-act="allowance"
+                 placeholder="${m.daily_quota ?? ''}"
+                 value="${m.daily_report_limit ?? ''}"
+                 title="Empty means whatever their level and badge allow — ${m.daily_quota ?? '?'} a day right now. A number here can only raise that, never lower it." />
+        </label>
+
         <label class="ar-check">
           <input type="checkbox" data-act="listed"${m.listed ? ' checked' : ''} />
           <span>On the contributors list</span>
@@ -290,6 +299,21 @@ $('#admin-list').addEventListener('change', async (e) => {
       refreshRow(id, { level_override: wanted, level: now });
       toast(wanted ? `Level ${wanted}, given.` : 'Back to the level they have earned.');
     }, { onFail: () => { e.target.value = member.level_override ?? ''; } });
+  }
+
+  if (act === 'allowance') {
+    const raw = e.target.value.trim();
+    const wanted = raw === '' ? null : Number(raw);
+    await attempt(async () => {
+      const now = await adminSetReportLimit(id, wanted);
+      refreshRow(id, { daily_report_limit: wanted, daily_quota: now });
+      // The number in force, not the number typed: setting 3 on a partner
+      // leaves them on 20, and saying "3 a day" there would be a lie the
+      // console told about its own database.
+      toast(wanted
+        ? `${member.display_name || 'They'} may file ${now} a day.`
+        : `Back to what their level and badge allow — ${now} a day.`);
+    }, { onFail: () => { e.target.value = member.daily_report_limit ?? ''; } });
   }
 
   if (act === 'listed') {
@@ -499,12 +523,15 @@ $('#report-admin-list').addEventListener('click', async (e) => {
 // --- the ladder -------------------------------------------------------------
 function paintLevels() {
   $('#levels-admin').innerHTML = `
-    <thead><tr><th scope="col">Level</th><th scope="col">Points needed</th></tr></thead>
-    <tbody>${state.levels.map(([level, points], i) => `
+    <thead><tr><th scope="col">Level</th><th scope="col">Points needed</th>
+      <th scope="col">Reports a day</th></tr></thead>
+    <tbody>${state.levels.map(([level, points, quota], i) => `
       <tr>
         <th scope="row">Level ${level}</th>
-        <td><input type="number" min="0" step="1" value="${points}"
+        <td><input type="number" min="0" step="1" value="${points}" data-field="points"
                    data-row="${i}" ${i === 0 ? 'disabled title="Level 1 is where everybody starts"' : ''} /></td>
+        <td><input type="number" min="1" max="500" step="1" value="${quota}"
+                   data-field="quota" data-row="${i}" /></td>
       </tr>`).join('')}</tbody>`;
   $('#level-drop').disabled = state.levels.length <= 1;
 }
@@ -516,12 +543,17 @@ async function loadLevels() {
 
 $('#levels-admin').addEventListener('input', (e) => {
   const row = Number(e.target.dataset.row);
-  if (Number.isInteger(row)) state.levels[row][1] = Number(e.target.value);
+  if (!Number.isInteger(row)) return;
+  // Which column was typed in. Before the allowance existed there was only
+  // one number per rung and this wrote blindly to index 1, which with two
+  // columns would have quietly saved the allowance as the points threshold.
+  const at = e.target.dataset.field === 'quota' ? 2 : 1;
+  state.levels[row][at] = Number(e.target.value);
 });
 
 $('#level-add').addEventListener('click', () => {
-  const [lastLevel, lastPoints] = state.levels[state.levels.length - 1] ?? [0, 0];
-  state.levels.push([lastLevel + 1, lastPoints + 100]);
+  const [lastLevel, lastPoints, lastQuota] = state.levels[state.levels.length - 1] ?? [0, 0, 5];
+  state.levels.push([lastLevel + 1, lastPoints + 100, lastQuota]);
   paintLevels();
 });
 
@@ -533,8 +565,10 @@ $('#level-drop').addEventListener('click', () => {
 $('#levels-save').addEventListener('click', async () => {
   await attempt(async () => {
     const saved = await adminSetLevels(
-      state.levels.map(([level, min_points]) => ({ level, min_points })));
-    state.levels = saved.map(r => [Number(r.level), Number(r.min_points)]);
+      state.levels.map(([level, min_points, daily_quota]) =>
+        ({ level, min_points, daily_quota })));
+    state.levels = saved.map(r =>
+      [Number(r.level), Number(r.min_points), Number(r.daily_quota ?? 5)]);
     paintLevels();
     toast('The ladder is saved, and every level recomputed with it.');
   }, { onFail: loadLevels });     // a refused ladder must not stay on screen

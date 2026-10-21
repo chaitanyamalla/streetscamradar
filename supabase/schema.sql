@@ -275,6 +275,174 @@ revoke all on table public.country_groups from anon, authenticated;
 -- country at all is refused, because "I could not tell you where this is" is
 -- exactly what a bypass would say. With nothing blocked, nothing changes.
 -- ---------------------------------------------------------------------------
+-- Locking a country, one layer at a time.
+--
+-- There was already one switch for this: blocked_regions, which closes whole
+-- groups — a continent, a UN sub-region, the EU — to NEW reports. It stays,
+-- because closing all of western Africa with one click is a real need and a
+-- per-country table is the wrong shape for it.
+--
+-- What it cannot do is any of the rest. A country where the ministry's advisory
+-- has gone stale needs its advisory hidden and nothing else. A country in the
+-- middle of something needs every layer off and a sentence saying so. And both
+-- of those are usually temporary, which a boolean cannot express at all.
+--
+-- So: one row per locked country, a list of what is switched off, and an
+-- optional expiry. An expired row is simply not in force — there is no job to
+-- run and nothing to remember, because every reader of this asks "what is in
+-- force NOW".
+--
+-- WHY HIDING READS IS DIFFERENT FROM REFUSING WRITES, and worth thinking about
+-- before using it. Refusing new reports in a country costs a would-be reporter
+-- the chance to warn somebody. Hiding the reports already there costs every
+-- traveller in that country the warnings other people left them, which is the
+-- whole purpose of this site. The scopes are separate for exactly that reason,
+-- and 'reports' — hide what is already filed — should be the rarest thing we
+-- ever switch on. A notice saying why is almost always the better answer, and
+-- country_notices below is how that is said.
+-- ---------------------------------------------------------------------------
+
+-- What can be switched off. One place, so the admin page, the enforcement and
+-- the tests cannot drift apart on the spelling of a scope.
+create or replace function public.lock_scopes()
+returns text[] language sql immutable as $$
+  select array['reports_new', 'reports', 'advisories', 'disasters', 'weather', 'safety'];
+$$;
+
+grant execute on function public.lock_scopes() to anon, authenticated;
+
+create table if not exists public.country_locks (
+  country_code char(2) primary key,
+  -- Which layers are off. Never empty: a row with nothing switched off is a
+  -- lock that locks nothing, and the admin page deletes the row instead.
+  scopes       text[] not null,
+  -- Why, for us. NOT shown to anybody — a note like "ministry data is wrong"
+  -- is an internal judgement, and the public version of it is a notice.
+  note         text,
+  -- null means until somebody lifts it by hand. A time means it stops being
+  -- in force then, with nothing to run and nothing to remember.
+  until        timestamptz,
+  created_at   timestamptz not null default now(),
+  constraint country_locks_scopes_known check (
+    array_length(scopes, 1) >= 1
+    and scopes <@ public.lock_scopes()
+  )
+);
+
+alter table public.country_locks enable row level security;
+
+-- Closed to both browser roles, with no policy at all.
+--
+-- The first version of this had a "locks are public" policy AND a revoke of
+-- the table privilege, which is a policy granting what the grant denies —
+-- dead weight that reads like access. The real door is active_locks() below:
+-- it is SECURITY DEFINER, so it sees the table, and it returns what the public
+-- may know (which country, what is paused, until when) and not the note.
+--
+-- A map that quietly omits a country's disasters without being able to say it
+-- is doing so is worse than one that says "paused, here is why", which is why
+-- there is a public door at all.
+revoke all on table public.country_locks from anon, authenticated;
+
+-- Which countries have this layer switched off right now.
+--
+-- An array rather than a per-row test, because the per-row version is what
+-- goes in a policy and gets called once per row of travel_advisories; this is
+-- one small scan whichever way Postgres decides to evaluate it.
+create or replace function public.locked_countries(p_scope text)
+returns text[] language sql stable security definer set search_path = public as $$
+  select coalesce(array_agg(l.country_code::text), '{}'::text[])
+    from public.country_locks l
+   where (l.until is null or l.until > now())
+     and p_scope = any(l.scopes);
+$$;
+
+grant execute on function public.locked_countries(text) to anon, authenticated;
+
+-- Is this one layer off in this one country?
+create or replace function public.layer_locked(p_country text, p_scope text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select p_country is not null
+     and upper(btrim(p_country)) = any (public.locked_countries(p_scope));
+$$;
+
+grant execute on function public.layer_locked(text, text) to anon, authenticated;
+
+-- Every lock in force, for the page: what is off, and until when.
+--
+-- The note is NOT here. It is our reasoning, often about a third party's data
+-- being wrong, and publishing it would be publishing an accusation. What the
+-- public gets is the list of what is paused — which they can see anyway by
+-- noticing the layer is empty — and a notice, if we wrote one.
+create or replace function public.active_locks()
+returns table (country_code char(2), scopes text[], until timestamptz)
+language sql stable security definer set search_path = public as $$
+  select l.country_code, l.scopes, l.until
+    from public.country_locks l
+   where l.until is null or l.until > now()
+   order by l.country_code;
+$$;
+
+grant execute on function public.active_locks() to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- A notice on a country.
+--
+-- Something happening that none of the feeds carry: a protest, a strike, a
+-- border closure, a festival that has turned the old town into a pickpocket
+-- fair. Written by us, shown over the country it is about, taken down when it
+-- stops being true.
+--
+-- WRITTEN IN ONE LANGUAGE, which this site is not. A notice is typed by a
+-- person in a hurry about something happening now, and waiting for nine
+-- translations would mean the notice arrives after the protest ends. So it
+-- carries the language it was written in and the page marks it as such, which
+-- at least lets a browser offer to translate it and a screen reader pronounce
+-- it correctly. That is a compromise and it is the right way round: late and
+-- perfect is worse than now and in one language.
+-- ---------------------------------------------------------------------------
+create table if not exists public.country_notices (
+  id           uuid primary key default gen_random_uuid(),
+  country_code char(2) not null,
+  -- How loudly to say it. Three, because a protest, a strike and a border
+  -- closure are not the same thing to somebody deciding whether to travel.
+  kind         text not null check (kind in ('info', 'warning', 'danger')),
+  headline     text not null check (char_length(btrim(headline)) between 4 and 90),
+  body         text check (body is null or char_length(btrim(body)) <= 600),
+  -- The language the words above are in, not the reader's.
+  lang         text not null default 'en'
+                 check (lang in ('en','de','es','fr','it','pt','nl','cs','pl')),
+  until        timestamptz,
+  created_at   timestamptz not null default now()
+);
+
+create index if not exists country_notices_live
+  on public.country_notices (country_code, until);
+
+alter table public.country_notices enable row level security;
+
+drop policy if exists "notices are public" on public.country_notices;
+create policy "notices are public" on public.country_notices
+  for select to anon, authenticated using (until is null or until > now());
+revoke all on table public.country_notices from anon, authenticated;
+grant select on table public.country_notices to anon, authenticated;
+
+-- What to show over a country right now. Loudest first, then newest, so a
+-- border closure is never under a festival warning.
+create or replace function public.notices_for(p_country text)
+returns table (id uuid, kind text, headline text, body text, lang text, until timestamptz)
+language sql stable security definer set search_path = public as $$
+  select n.id, n.kind, n.headline, n.body, n.lang, n.until
+    from public.country_notices n
+   where upper(btrim(p_country)) = n.country_code
+     and (n.until is null or n.until > now())
+   order by case n.kind when 'danger' then 0 when 'warning' then 1 else 2 end,
+            n.created_at desc;
+$$;
+
+grant execute on function public.notices_for(text) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 create or replace function public.blocked_countries()
 returns text[] language sql stable security definer set search_path = public as $$
   with setting as (
@@ -295,12 +463,25 @@ $$;
 
 grant execute on function public.blocked_countries() to anon, authenticated;
 
+-- Two switches can close a country to new reports, and this is the one place
+-- that knows about both: blocked_regions, which closes whole groups, and a
+-- per-country lock carrying 'reports_new' or 'reports'. Either refusing is
+-- enough. Keeping them separate is deliberate — see country_locks — and
+-- keeping the test for them in ONE function is what stops the two drifting
+-- into disagreement about whether a country is open.
 create or replace function public.reporting_allowed(p_country text)
 returns boolean language sql stable security definer set search_path = public as $$
   select case
-    when coalesce(array_length(public.blocked_countries(), 1), 0) = 0 then true
-    when p_country is null or btrim(p_country) = '' then false
+    when p_country is null or btrim(p_country) = '' then
+      -- Nothing to check against. Only refused when something is closed at
+      -- all, which keeps a project with nothing blocked working as before.
+      coalesce(array_length(public.blocked_countries(), 1), 0) = 0
+      and not exists (select 1 from public.country_locks
+                       where until is null or until > now())
     else upper(btrim(p_country)) <> all (public.blocked_countries())
+     and not public.layer_locked(p_country, 'reports_new')
+     -- Hiding what is already filed implies not taking more.
+     and not public.layer_locked(p_country, 'reports')
   end;
 $$;
 
@@ -529,8 +710,17 @@ with (security_invoker = false) as
          r.support_count, r.flag_count,
          (r.reporter_id = auth.uid()) as is_mine
     from public.reports r
-   where (r.status = 'published' and r.happened_at > now() - public.report_window())
-      or r.reporter_id = auth.uid();
+   where ((r.status = 'published' and r.happened_at > now() - public.report_window())
+      or r.reporter_id = auth.uid())
+     -- A country locked with 'reports' hides what is already filed. This view
+     -- is security_invoker = false, so no policy applies to it and the test
+     -- has to be here; the same is true of the two sample functions below,
+     -- which are SECURITY DEFINER for the same reason.
+     --
+     -- Your own reports are not an exception. If they were, a member could
+     -- tell a country was locked by watching their own pins survive while
+     -- everyone else's vanished.
+     and not public.layer_locked(r.country_code, 'reports');
 
 revoke all on public.reports_feed from anon;
 grant select on public.reports_feed to authenticated;
@@ -2241,6 +2431,185 @@ $$;
 revoke all on function public.admin_set_report_limit(uuid, int) from public, anon;
 grant execute on function public.admin_set_report_limit(uuid, int) to authenticated;
 
+-- --- Locks and notices, from the console -----------------------------------
+--
+-- Everything here checks admin_required() first and is granted only to
+-- authenticated, which is the same shape as the rest of the admin surface: the
+-- page is not trusted to decide who may call these, the database is.
+
+-- Every lock, in force or not, with the note. Admin-only — active_locks() is
+-- the public version and withholds the note.
+create or replace function public.admin_locks()
+returns table (country_code char(2), scopes text[], note text,
+               until timestamptz, created_at timestamptz, in_force boolean)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  return query
+    select l.country_code, l.scopes, l.note, l.until, l.created_at,
+           (l.until is null or l.until > now()) as in_force
+      from public.country_locks l
+     -- In force first, then the ones that have run out, newest first. An
+     -- expired lock is kept on screen rather than deleted so that "we paused
+     -- this last month" is answerable.
+     order by (l.until is null or l.until > now()) desc, l.created_at desc;
+end;
+$$;
+
+-- Lock one country, or several at once.
+--
+-- Takes an ARRAY of countries so that locking a whole zone is one call: the
+-- page expands a group into its countries and sends them together, which
+-- means a half-applied lock is not a state the database can be left in.
+--
+-- An empty scope list removes the lock rather than storing a row that locks
+-- nothing. That is the obvious reading of clearing every checkbox.
+create or replace function public.admin_set_lock(
+  p_countries text[], p_scopes text[], p_note text default null,
+  p_until timestamptz default null)
+returns int language plpgsql security definer set search_path = public as $$
+declare
+  wanted text[];
+  codes  text[];
+  bad    text;
+begin
+  perform public.admin_required();
+
+  codes := coalesce(array(
+    select distinct upper(btrim(c))
+      from unnest(coalesce(p_countries, '{}'::text[])) c
+     where btrim(coalesce(c, '')) <> ''), '{}'::text[]);
+  if coalesce(array_length(codes, 1), 0) = 0 then
+    raise exception 'no country given';
+  end if;
+  -- Checked against the real list rather than against the SHAPE of a code.
+  -- 'ZZ' is two letters and is not a country; so is 'FP', which is what a
+  -- typed 'FR' looks like, and that is the mistake actually worth catching —
+  -- a lock on a country that does not exist does nothing except sit in the
+  -- list looking as though it were working.
+  select c into bad from unnest(codes) c
+   where not exists (select 1 from public.country_groups g where g.country_code = c)
+   limit 1;
+  if bad is not null then
+    raise exception '% is not a country code we know', bad;
+  end if;
+
+  wanted := coalesce(array(
+    select distinct btrim(sc)
+      from unnest(coalesce(p_scopes, '{}'::text[])) sc
+     where btrim(coalesce(sc, '')) <> ''), '{}'::text[]);
+
+  -- Clearing every scope means "stop locking this", not "lock nothing".
+  if coalesce(array_length(wanted, 1), 0) = 0 then
+    delete from public.country_locks where country_code = any (codes);
+    return 0;
+  end if;
+
+  select sc into bad from unnest(wanted) sc
+   where sc <> all (public.lock_scopes()) limit 1;
+  if bad is not null then
+    raise exception '% is not something that can be locked', bad;
+  end if;
+
+  if p_until is not null and p_until <= now() then
+    raise exception 'that lock would already have expired';
+  end if;
+
+  insert into public.country_locks as l (country_code, scopes, note, until)
+  select c, wanted, nullif(btrim(coalesce(p_note, '')), ''), p_until
+    from unnest(codes) c
+  on conflict (country_code) do update
+    set scopes = excluded.scopes,
+        note   = excluded.note,
+        until  = excluded.until,
+        -- Re-locking a country is a new decision, so it is newly made. The
+        -- list is ordered by this, and a lock changed today belongs at the top.
+        created_at = now();
+
+  return coalesce(array_length(codes, 1), 0);
+end;
+$$;
+
+create or replace function public.admin_clear_lock(p_country text)
+returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  delete from public.country_locks where country_code = upper(btrim(p_country));
+  return found;
+end;
+$$;
+
+-- Every notice, expired ones included, so they can be read back and reposted.
+create or replace function public.admin_notices()
+returns table (id uuid, country_code char(2), kind text, headline text,
+               body text, lang text, until timestamptz, created_at timestamptz,
+               in_force boolean)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  return query
+    select n.id, n.country_code, n.kind, n.headline, n.body, n.lang,
+           n.until, n.created_at, (n.until is null or n.until > now()) as in_force
+      from public.country_notices n
+     order by (n.until is null or n.until > now()) desc, n.created_at desc;
+end;
+$$;
+
+create or replace function public.admin_post_notice(
+  p_country text, p_kind text, p_headline text,
+  p_body text default null, p_lang text default 'en',
+  p_until timestamptz default null)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare new_id uuid;
+begin
+  perform public.admin_required();
+  -- Against the real list, for the same reason as admin_set_lock: a notice
+  -- pinned to a country that does not exist is a notice nobody will ever see,
+  -- and it will look posted.
+  if not exists (select 1 from public.country_groups g
+                  where g.country_code = upper(btrim(coalesce(p_country, '')))) then
+    raise exception '% is not a country code we know', coalesce(p_country, '(none)');
+  end if;
+  if p_until is not null and p_until <= now() then
+    raise exception 'that notice would already have come down';
+  end if;
+  -- kind, headline length and lang are checked by the table's own
+  -- constraints, which is the right place: they hold for anything that
+  -- reaches the table, including a migration or a seed.
+  insert into public.country_notices (country_code, kind, headline, body, lang, until)
+  values (upper(btrim(p_country)), btrim(p_kind), btrim(p_headline),
+          nullif(btrim(coalesce(p_body, '')), ''), coalesce(nullif(btrim(p_lang), ''), 'en'),
+          p_until)
+  returning id into new_id;
+  return new_id;
+end;
+$$;
+
+-- Take it down. Deleted rather than expired: a notice that is no longer true
+-- is not history worth keeping, and leaving it with until = now() would mean
+-- the list filled up with things we had already decided were wrong.
+create or replace function public.admin_drop_notice(p_id uuid)
+returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  perform public.admin_required();
+  delete from public.country_notices where id = p_id;
+  return found;
+end;
+$$;
+
+revoke all on function public.admin_locks() from public, anon;
+revoke all on function public.admin_set_lock(text[], text[], text, timestamptz) from public, anon;
+revoke all on function public.admin_clear_lock(text) from public, anon;
+revoke all on function public.admin_notices() from public, anon;
+revoke all on function public.admin_post_notice(text, text, text, text, text, timestamptz) from public, anon;
+revoke all on function public.admin_drop_notice(uuid) from public, anon;
+grant execute on function public.admin_locks() to authenticated;
+grant execute on function public.admin_set_lock(text[], text[], text, timestamptz) to authenticated;
+grant execute on function public.admin_clear_lock(text) to authenticated;
+grant execute on function public.admin_notices() to authenticated;
+grant execute on function public.admin_post_notice(text, text, text, text, text, timestamptz) to authenticated;
+grant execute on function public.admin_drop_notice(uuid) to authenticated;
+
 -- --- Regions ---------------------------------------------------------------
 --
 -- Which countries are closed to NEW reports. Reading is never affected:
@@ -2591,6 +2960,10 @@ language sql stable security definer set search_path = public as $$
          f.step
     from public.reports r, frame f
    where r.status = 'published'
+     -- Locked countries are not counted either. A circle saying "14 reports"
+     -- over a country whose reports are hidden would be worse than no circle:
+     -- it advertises exactly what it then refuses to show.
+     and not public.layer_locked(r.country_code, 'reports')
      and r.happened_at > now() - public.report_age_limit(max_age_days)
      and r.lat between f.qy0 and f.qy1
      and r.lng between f.qx0 and f.qx1
@@ -2634,6 +3007,7 @@ language sql stable security definer set search_path = public as $$
            r.happened_at, r.support_count, r.flag_count, r.reporter_weight
       from public.reports r, bounds b
      where r.status = 'published'
+       and not public.layer_locked(r.country_code, 'reports')
        and r.happened_at > now() - public.report_age_limit(max_age_days)
        and r.lat between b.y0 and b.y1
        and r.lng between b.x0 and b.x1
@@ -2805,7 +3179,11 @@ alter table public.disaster_alerts enable row level security;
 
 drop policy if exists "disasters are public" on public.disaster_alerts;
 create policy "disasters are public" on public.disaster_alerts
-  for select to anon, authenticated using (true);
+  -- A lock on this country with 'disasters' switched off hides these rows from
+  -- everybody, enforced here rather than in the page: the page is one fetch
+  -- call and anybody can make it themselves.
+  for select to anon, authenticated
+  using (not public.layer_locked(country_code, 'disasters'));
 
 grant select on table public.disaster_alerts to anon, authenticated;
 revoke insert, update, delete on table public.disaster_alerts from anon, authenticated;
@@ -2950,7 +3328,11 @@ alter table public.weather_warnings enable row level security;
 
 drop policy if exists "weather warnings are public" on public.weather_warnings;
 create policy "weather warnings are public" on public.weather_warnings
-  for select to anon, authenticated using (true);
+  -- A lock on this country with 'weather' switched off hides these rows from
+  -- everybody, enforced here rather than in the page: the page is one fetch
+  -- call and anybody can make it themselves.
+  for select to anon, authenticated
+  using (not public.layer_locked(country_code, 'weather'));
 
 grant select on table public.weather_warnings to anon, authenticated;
 revoke insert, update, delete on table public.weather_warnings from anon, authenticated;
@@ -3004,7 +3386,11 @@ alter table public.travel_advisories enable row level security;
 
 drop policy if exists "advisories are public" on public.travel_advisories;
 create policy "advisories are public" on public.travel_advisories
-  for select to anon, authenticated using (true);
+  -- A lock on this country with 'advisories' switched off hides these rows from
+  -- everybody, enforced here rather than in the page: the page is one fetch
+  -- call and anybody can make it themselves.
+  for select to anon, authenticated
+  using (not public.layer_locked(country_code, 'advisories'));
 
 -- Supabase grants new public tables to anon and authenticated by default, so
 -- in practice the revoke below is what makes this read-only. The grant is
@@ -3020,6 +3406,10 @@ alter table public.safety_places enable row level security;
 -- workflow connects as the database owner, which bypasses RLS.
 drop policy if exists "safety places are public" on public.safety_places;
 create policy "safety places are public" on public.safety_places
-  for select to anon, authenticated using (true);
+  -- A lock on this country with 'safety' switched off hides these rows from
+  -- everybody, enforced here rather than in the page: the page is one fetch
+  -- call and anybody can make it themselves.
+  for select to anon, authenticated
+  using (not public.layer_locked(country_code, 'safety'));
 
 revoke insert, update, delete on table public.safety_places from anon, authenticated;

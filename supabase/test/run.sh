@@ -30,6 +30,8 @@ echo
 $PSQL -f "$HERE/badges_test.sql" 2>&1 | grep -E '  ok  |FAIL|^ERROR|passed' | sed 's/^psql:[^ ]*//;s/NOTICE: *//'
 echo
 $PSQL -f "$HERE/quota_test.sql" 2>&1 | grep -E '  ok  |FAIL|^ERROR|passed' | sed 's/^psql:[^ ]*//;s/NOTICE: *//'
+echo
+$PSQL -f "$HERE/locks_test.sql" 2>&1 | grep -E '  ok  |FAIL|^ERROR|passed' | sed 's/^psql:[^ ]*//;s/NOTICE: *//'
 
 # ---------------------------------------------------------------------------
 # And again, as an UPGRADE rather than an install.

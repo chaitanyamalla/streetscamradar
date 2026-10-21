@@ -13,7 +13,7 @@
 import { bootPage } from './page.js';
 import { initAuth, onAuthChange } from './auth.js';
 import { esc, toast, badgeChip, EARNED_BADGES, BADGES } from './ui.js';
-import { formatDate } from './i18n.js';
+import { formatDate, countryName } from './i18n.js';
 import { adminLocks, adminSetLock, adminClearLock, lockScopes,
          adminNotices, adminPostNotice, adminDropNotice } from './data.js';
 import { amAdmin, adminMembers, adminSetRole, adminSetLevel, adminSetReportLimit,
@@ -589,6 +589,148 @@ $('#levels-save').addEventListener('click', async () => {
   }, { onFail: loadLevels });     // a refused ladder must not stay on screen
 });
 
+
+// --- typing a country -------------------------------------------------------
+//
+// Codes had to be typed from memory, which is a poor way to ask for one of two
+// hundred and fifty things: nobody knows that Switzerland is CH and Sweden is
+// SE rather than the other way round, and a wrong guess is a lock that looks
+// applied and does nothing.
+//
+// So: type a name, pick from the list. The list is every country the database
+// knows — derived from the region catalog the lock form already loads, because
+// country_groups itself is revoked from the browser — and the names come from
+// Intl.DisplayNames, so they arrive in the reader's own language for free.
+//
+// Typing a code by hand still works, and is still checked on the way in. This
+// is a convenience, not a gate.
+
+/** Every country the catalog mentions, with its name, sorted by name. */
+function countryChoices() {
+  const codes = new Set();
+  for (const g of state.groups ?? []) {
+    for (const code of String(g.members ?? '').split(/\s+/)) {
+      if (/^[A-Za-z]{2}$/.test(code)) codes.add(code.toUpperCase());
+    }
+  }
+  return [...codes]
+    .map(code => ({ code, name: countryName(code, code) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Attach a typeahead to one field.
+ *
+ * `multiple` is the whole reason this is not a <datalist>: the lock field
+ * holds several countries separated by commas, and a datalist would offer to
+ * replace the entire value rather than complete the token being typed.
+ */
+function wireCountrySuggest(inputId, listId, echoId, { multiple = false } = {}) {
+  const input = $(inputId);
+  const list = $(listId);
+  const echo = $(echoId);
+  if (!input || !list) return;
+  let active = -1;
+
+  // The piece being typed: everything after the last comma.
+  const tail = () => (multiple ? input.value.split(',').pop() : input.value).trim();
+
+  const put = (code) => {
+    if (multiple) {
+      const parts = input.value.split(',');
+      parts[parts.length - 1] = ` ${code}`;
+      // A trailing comma, so the next one can be typed straight away without
+      // reaching for the punctuation.
+      input.value = parts.join(',').replace(/^\s*,?\s*/, '') + ', ';
+    } else {
+      input.value = code;
+    }
+    close();
+    input.focus();
+    paintEcho();
+  };
+
+  const close = () => {
+    list.hidden = true;
+    list.innerHTML = '';
+    input.setAttribute('aria-expanded', 'false');
+    active = -1;
+  };
+
+  const open = (hits) => {
+    if (!hits.length) { close(); return; }
+    list.innerHTML = hits.map((c, i) => `
+      <button class="search-hit" type="button" role="option" data-code="${esc(c.code)}"
+              aria-selected="${i === 0 ? 'true' : 'false'}">
+        <span class="hit-code">${esc(c.code)}</span>
+        <b>${esc(c.name)}</b>
+      </button>`).join('');
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+    active = 0;
+    mark();
+  };
+
+  const mark = () => {
+    const hits = [...list.querySelectorAll('.search-hit')];
+    hits.forEach((h, i) => {
+      h.classList.toggle('is-active', i === active);
+      h.setAttribute('aria-selected', String(i === active));
+    });
+    hits[active]?.scrollIntoView({ block: 'nearest' });
+  };
+
+  /** Read the field back as names, so a typed code can be checked by eye. */
+  function paintEcho() {
+    if (!echo) return;
+    const all = countryChoices();
+    const codes = (multiple ? input.value.split(',') : [input.value])
+      .map(c => c.trim().toUpperCase()).filter(Boolean);
+    if (!codes.length) { echo.textContent = ''; echo.classList.remove('is-unknown'); return; }
+    const unknown = codes.filter(c => !all.some(a => a.code === c));
+    echo.textContent = codes
+      .map(c => all.find(a => a.code === c)?.name ?? `${c} (not a country)`)
+      .join(', ');
+    echo.classList.toggle('is-unknown', unknown.length > 0);
+  }
+
+  input.addEventListener('input', () => {
+    const q = tail().toLowerCase();
+    paintEcho();
+    if (q.length < 1) { close(); return; }
+    const all = countryChoices();
+    // A code match first — somebody who typed "FR" meant France, not Fiji —
+    // then names that start with what was typed, then names that contain it.
+    const byCode = all.filter(c => c.code.toLowerCase() === q);
+    const starts = all.filter(c => c.name.toLowerCase().startsWith(q) && !byCode.includes(c));
+    const holds = all.filter(c => c.name.toLowerCase().includes(q)
+                               && !byCode.includes(c) && !starts.includes(c));
+    open([...byCode, ...starts, ...holds].slice(0, 8));
+  });
+
+  input.addEventListener('keydown', (e) => {
+    const hits = [...list.querySelectorAll('.search-hit')];
+    if (list.hidden || !hits.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = (active + 1) % hits.length; mark(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = (active - 1 + hits.length) % hits.length; mark(); }
+    else if (e.key === 'Enter') { e.preventDefault(); put(hits[active].dataset.code); }
+    else if (e.key === 'Escape') { close(); }
+  });
+
+  list.addEventListener('click', (e) => {
+    const hit = e.target.closest('.search-hit');
+    if (hit) put(hit.dataset.code);
+  });
+
+  // Closed on a click elsewhere, but not on a click INSIDE the list — that
+  // click is the choice, and mousedown fires before it.
+  document.addEventListener('mousedown', (e) => {
+    if (!list.contains(e.target) && e.target !== input) close();
+  });
+
+  input.addEventListener('change', paintEcho);
+}
+
 // --- locks ------------------------------------------------------------------
 //
 // What each scope is called on screen, and what it actually does. The slugs
@@ -652,6 +794,12 @@ async function loadLocks() {
     state.groups = groups;
   }
   paintLockForm();
+  // After the catalog, which is where the country list comes from.
+  if (!state.suggestWired) {
+    wireCountrySuggest('#lock-countries', '#lock-suggest', '#lock-echo', { multiple: true });
+    wireCountrySuggest('#notice-country', '#notice-suggest', '#notice-echo');
+    state.suggestWired = true;
+  }
   state.locks = await adminLocks();
   paintLocks();
 }
@@ -743,6 +891,14 @@ function paintNotices() {
 }
 
 async function loadNotices() {
+  // The country typeahead is fed by the region catalog, which the locks screen
+  // loads. Somebody who opens Notices first should still get it.
+  if (!(state.groups ?? []).length) {
+    state.groups = await adminRegionCatalog();
+    wireCountrySuggest('#lock-countries', '#lock-suggest', '#lock-echo', { multiple: true });
+    wireCountrySuggest('#notice-country', '#notice-suggest', '#notice-echo');
+    state.suggestWired = true;
+  }
   if (!$('#notice-lang').options.length) {
     // The nine the site is read in, which is also what the table's own
     // constraint allows — anything else is refused on the way in.

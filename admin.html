@@ -220,11 +220,21 @@
           </p>
 
           <div class="lock-form">
-            <label class="ar-field">
+            <label class="ar-field has-suggest">
               <span>Countries</span>
-              <input id="lock-countries" type="text" placeholder="FR, ES"
-                     autocomplete="off"
-                     title="Two-letter codes, separated by commas. The database refuses anything that is not a real country." />
+              <!-- Type a name — "fra" finds France — or a code. The list is
+                   every country the database knows, so a typo cannot be
+                   chosen; what is typed by hand is still checked on the way
+                   in. role=listbox because that is what it is. -->
+              <input id="lock-countries" type="text" placeholder="Start typing a country"
+                     autocomplete="off" role="combobox" aria-expanded="false"
+                     aria-controls="lock-suggest" aria-autocomplete="list"
+                     title="Type a country name or a two-letter code. Several are separated by commas." />
+              <div class="search-results suggest-list" id="lock-suggest" hidden
+                   role="listbox" aria-label="Countries"></div>
+              <!-- What the codes in the field actually mean, so "FR, ES, PT"
+                   can be read back as names before it is applied. -->
+              <em class="suggest-echo" id="lock-echo"></em>
             </label>
             <label class="ar-field">
               <span>Or a whole group</span>
@@ -267,9 +277,14 @@
           </p>
 
           <div class="notice-form">
-            <label class="ar-field">
+            <label class="ar-field has-suggest">
               <span>Country</span>
-              <input id="notice-country" type="text" placeholder="FR" autocomplete="off" />
+              <input id="notice-country" type="text" placeholder="Start typing a country"
+                     autocomplete="off" role="combobox" aria-expanded="false"
+                     aria-controls="notice-suggest" aria-autocomplete="list" />
+              <div class="search-results suggest-list" id="notice-suggest" hidden
+                   role="listbox" aria-label="Countries"></div>
+              <em class="suggest-echo" id="notice-echo"></em>
             </label>
             <label class="ar-field">
               <span>How loudly</span>

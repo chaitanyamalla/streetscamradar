@@ -1523,3 +1523,17 @@ body.page { min-height:100vh; background:var(--paper); }
   .notice-band { top:8px; width:calc(100% - 16px); }
   .nb-item { font-size:12px; padding:8px 10px; }
 }
+
+/* --- Country typeahead, in the console ----------------------------------- */
+/* The list floats over whatever is under it rather than pushing the form
+   around as it opens and closes. */
+.ar-field.has-suggest { position:relative; }
+.suggest-list { position:absolute; top:100%; left:0; right:0; margin-top:4px;
+  max-height:240px; z-index:8; }
+.search-hit .hit-code { float:right; font-family:var(--mono, monospace);
+  font-size:11px; color:var(--muted); font-weight:600; }
+/* What the codes in the field mean, read back. Quiet, because it confirms
+   rather than instructs. */
+.suggest-echo { display:block; margin-top:5px; font-style:normal;
+  font-size:11.5px; color:var(--muted); min-height:1em; }
+.suggest-echo.is-unknown { color:var(--hospital, #c5382c); }

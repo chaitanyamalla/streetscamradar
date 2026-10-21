@@ -491,6 +491,50 @@ export async function adminSetReportLimit(id, limit) {
 export const adminSetLevels = (rows) =>
   rpc('admin_set_levels', { p_rows: rows }).then(out => out ?? []);
 
+// --- Locks and notices ------------------------------------------------------
+
+/** Every lock, in force or not, with the note. Admin only. */
+export const adminLocks = () => rpc('admin_locks').then(r => r ?? []);
+
+/**
+ * Lock, or unlock. An empty scope list clears the lock, which is what
+ * unticking every box means.
+ *
+ * Countries go together in one call so a half-applied lock across a zone is
+ * not a state the database can be left in.
+ */
+export const adminSetLock = (countries, scopes, note, until) =>
+  rpc('admin_set_lock', {
+    p_countries: countries, p_scopes: scopes,
+    p_note: note || null, p_until: until || null,
+  });
+
+export const adminClearLock = (country) =>
+  rpc('admin_clear_lock', { p_country: country });
+
+export const adminNotices = () => rpc('admin_notices').then(r => r ?? []);
+
+export const adminPostNotice = ({ country, kind, headline, body, lang, until }) =>
+  rpc('admin_post_notice', {
+    p_country: country, p_kind: kind, p_headline: headline,
+    p_body: body || null, p_lang: lang || 'en', p_until: until || null,
+  });
+
+export const adminDropNotice = (id) => rpc('admin_drop_notice', { p_id: id });
+
+/** What can be switched off, read from the database so the page cannot drift. */
+export const lockScopes = () => rpc('lock_scopes').then(r => r ?? []);
+
+/**
+ * Which countries have a layer paused, and until when. Public: the map needs
+ * it to say "paused" rather than just going quiet. The note is not in it.
+ */
+export const activeLocks = () => rpc('active_locks').then(r => r ?? []);
+
+/** What to show over one country right now. Loudest first. */
+export const noticesFor = (country) =>
+  rpc('notices_for', { p_country: country }).then(r => r ?? []);
+
 export const adminRegionCatalog = () => rpc('admin_region_catalog').then(r => r ?? []);
 
 export const adminBlockedRegions = () =>

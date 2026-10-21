@@ -14,6 +14,8 @@ import { bootPage } from './page.js';
 import { initAuth, onAuthChange } from './auth.js';
 import { esc, toast, badgeChip, EARNED_BADGES, BADGES } from './ui.js';
 import { formatDate } from './i18n.js';
+import { adminLocks, adminSetLock, adminClearLock, lockScopes,
+         adminNotices, adminPostNotice, adminDropNotice } from './data.js';
 import { amAdmin, adminMembers, adminSetRole, adminSetLevel, adminSetReportLimit,
          adminSetBadge, adminClearBadge,
          adminSetListed, adminRemoveMember, adminReports, adminSetReportStatus,
@@ -33,6 +35,7 @@ const state = {
   // valid as a set, not a row at a time, so a half-edited one must not reach
   // the database.
   levels: [],
+  locks: [], notices: [], scopes: [], groups: [],
   regions: [], blocked: { countries: [], groups: [], closed: 0 }, regionSearch: '',
   settings: [],
 };
@@ -64,7 +67,7 @@ async function decideAccess() {
 }
 
 // --- tabs -------------------------------------------------------------------
-const TABS = ['members', 'reports', 'levels', 'regions', 'settings'];
+const TABS = ['members', 'reports', 'levels', 'locks', 'notices', 'regions', 'settings'];
 
 // The heading follows the tab. Leaving it on "Members" while the Reports
 // screen is open reads as a page that did not notice it had changed.
@@ -78,6 +81,13 @@ const HEADINGS = {
   levels: ['Levels',
     'The ladder every member climbs, and how far apart its rungs are. '
     + 'Changing it recomputes everybody at once.'],
+  locks: ['Locks',
+    'Switch a layer off in one country, or every layer at once. Temporary or '
+    + 'until lifted. Hiding reports already filed takes warnings away from '
+    + 'travellers, so it is a separate switch from pausing new ones.'],
+  notices: ['Notices',
+    'Something the feeds do not carry — a protest, a strike, a border '
+    + 'closure — shown over the country it is about until you take it down.'],
   regions: ['Regions',
     'Where new reports are refused. Reading is never affected — everything '
     + 'already on the map stays visible everywhere, to everyone.'],
@@ -89,6 +99,8 @@ const LOADERS = {
   members: load,
   reports: loadReports,
   levels: loadLevels,
+  locks: loadLocks,
+  notices: loadNotices,
   regions: loadRegions,
   settings: loadSettings,
 };
@@ -265,7 +277,10 @@ function refreshRow(id, changes) {
 }
 
 /** Put a control back where it was when the database said no. */
-async function attempt(work, { onFail }) {
+// The second argument is optional. It was not, and a caller that passed only
+// the work crashed the page with "Cannot destructure property 'onFail' of
+// undefined" — which is a strange way for a form to tell you it refused.
+async function attempt(work, { onFail } = {}) {
   try {
     await work();
   } catch (err) {
@@ -572,6 +587,200 @@ $('#levels-save').addEventListener('click', async () => {
     paintLevels();
     toast('The ladder is saved, and every level recomputed with it.');
   }, { onFail: loadLevels });     // a refused ladder must not stay on screen
+});
+
+// --- locks ------------------------------------------------------------------
+//
+// What each scope is called on screen, and what it actually does. The slugs
+// come from the database — lock_scopes() — so a scope added there appears here
+// with a readable name rather than as a bare slug, and one removed there
+// disappears from the form instead of lingering as a box that does nothing.
+const SCOPE_WORDS = {
+  reports_new: ['Pause new reports',
+    'Nobody can file a report there. What is already on the map stays.'],
+  reports:     ['Hide reports already filed',
+    'Takes existing warnings away from travellers in that country. Rarely the right answer.'],
+  advisories:  ['Hide the travel advisory', 'For when the ministry feed is wrong or stale.'],
+  disasters:   ['Hide disaster alerts', 'For when GDACS is reporting nonsense there.'],
+  weather:     ['Hide weather warnings', 'For when MeteoAlarm is reporting nonsense there.'],
+  safety:      ['Hide police and hospitals', 'For when the OpenStreetMap data is badly wrong.'],
+};
+
+function paintLockForm() {
+  $('#lock-scopes').innerHTML = '<legend>What to switch off</legend>'
+    + state.scopes.map(slug => {
+        const [name, why] = SCOPE_WORDS[slug] ?? [slug, ''];
+        return `<label class="scope-pick${slug === 'reports' ? ' is-heavy' : ''}">
+          <input type="checkbox" value="${esc(slug)}" />
+          <span><strong>${esc(name)}</strong>${why ? `<em>${esc(why)}</em>` : ''}</span>
+        </label>`;
+      }).join('');
+}
+
+function lockRow(l) {
+  const words = (l.scopes ?? []).map(s => (SCOPE_WORDS[s] ?? [s])[0]).join(', ');
+  const whole = (l.scopes ?? []).length === state.scopes.length && state.scopes.length > 0;
+  return `<tr class="${l.in_force ? '' : 'is-done'}" data-country="${esc(l.country_code)}">
+    <th scope="row">${esc(l.country_code)}</th>
+    <td>${whole ? '<strong>Everything</strong>' : esc(words)}</td>
+    <td>${l.until
+          ? `until ${esc(new Date(l.until).toLocaleString())}`
+          : (l.in_force ? 'until lifted' : '—')}</td>
+    <td class="set-note">${esc(l.note ?? '')}</td>
+    <td>${l.in_force
+          ? '<button class="ghost-button small" data-act="unlock" type="button">Lift</button>'
+          : 'expired'}</td>
+  </tr>`;
+}
+
+function paintLocks() {
+  $('#locks-admin').innerHTML = state.locks.length
+    ? `<thead><tr><th scope="col">Country</th><th scope="col">Switched off</th>
+         <th scope="col">For how long</th><th scope="col">Why (ours)</th><th scope="col"></th>
+       </tr></thead><tbody>${state.locks.map(lockRow).join('')}</tbody>`
+    : '<tbody><tr><td class="set-note">Nothing is locked anywhere.</td></tr></tbody>';
+}
+
+async function loadLocks() {
+  // The scope list first: the form and the table both name scopes from it.
+  if (!state.scopes.length) state.scopes = await lockScopes();
+  if (!$('#lock-group').options.length || $('#lock-group').options.length === 1) {
+    const groups = await adminRegionCatalog();
+    $('#lock-group').innerHTML = '<option value="">—</option>'
+      + groups.map(g => `<option value="${esc(g.group_code)}">`
+          + `${esc(g.group_code)} — ${esc(g.kind)} (${g.countries})</option>`).join('');
+    state.groups = groups;
+  }
+  paintLockForm();
+  state.locks = await adminLocks();
+  paintLocks();
+}
+
+const ticked = () =>
+  [...document.querySelectorAll('#lock-scopes input:checked')].map(i => i.value);
+
+$('#lock-everything').addEventListener('click', () => {
+  for (const box of document.querySelectorAll('#lock-scopes input')) box.checked = true;
+});
+$('#lock-none').addEventListener('click', () => {
+  for (const box of document.querySelectorAll('#lock-scopes input')) box.checked = false;
+});
+
+// A group expands to its countries HERE rather than in the database, so the
+// admin can see what they are about to lock before they do it.
+$('#lock-group').addEventListener('change', (e) => {
+  const code = e.target.value;
+  if (!code) return;
+  const members = (state.groups.find(g => g.group_code === code)?.members ?? '')
+    .split(/\s+/).filter(Boolean);
+  $('#lock-countries').value = members.join(', ');
+  e.target.value = '';
+  toast(`${members.length} countries filled in. Check the list before applying.`);
+});
+
+$('#lock-save').addEventListener('click', async () => {
+  const countries = $('#lock-countries').value.split(/[\s,;]+/)
+    .map(c => c.trim().toUpperCase()).filter(Boolean);
+  if (!countries.length) { toast('Which country?', { error: true }); return; }
+  const scopes = ticked();
+  const until = $('#lock-until').value
+    ? new Date($('#lock-until').value).toISOString() : null;
+
+  // Hiding reports already filed is the one switch that takes information away
+  // from travellers, so it is confirmed rather than applied on a single click.
+  if (scopes.includes('reports') && !window.confirm(
+        `Hide every report already filed in ${countries.join(', ')}?\n\n`
+        + 'Travellers there lose the warnings other people left them. '
+        + 'Pausing NEW reports does not do this.')) return;
+
+  await attempt(async () => {
+    const touched = await adminSetLock(countries, scopes,
+      $('#lock-note').value.trim(), until);
+    toast(scopes.length
+      ? `${touched} ${touched === 1 ? 'country' : 'countries'} locked.`
+      : 'Lock lifted.');
+    await loadLocks();
+  }, { onFail: loadLocks });
+});
+
+$('#locks-admin').addEventListener('click', async (e) => {
+  if (e.target.dataset.act !== 'unlock') return;
+  const country = e.target.closest('tr')?.dataset.country;
+  if (!country) return;
+  await attempt(async () => {
+    await adminClearLock(country);
+    toast(`${country} is open again.`);
+    await loadLocks();
+  }, { onFail: loadLocks });
+});
+
+// --- notices ----------------------------------------------------------------
+const KIND_WORDS = { info: 'Information', warning: 'Warning', danger: 'Serious' };
+
+function noticeRow(n) {
+  return `<tr class="${n.in_force ? '' : 'is-done'}" data-id="${esc(n.id)}">
+    <th scope="row">${esc(n.country_code)}</th>
+    <td><span class="notice-kind is-${esc(n.kind)}">${esc(KIND_WORDS[n.kind] ?? n.kind)}</span></td>
+    <td lang="${esc(n.lang)}"><strong>${esc(n.headline)}</strong>
+      ${n.body ? `<em class="set-note">${esc(n.body)}</em>` : ''}</td>
+    <td>${esc(n.lang)}</td>
+    <td>${n.until
+          ? `until ${esc(new Date(n.until).toLocaleString())}`
+          : (n.in_force ? 'until taken down' : '—')}</td>
+    <td>${n.in_force
+          ? '<button class="ghost-button small" data-act="drop" type="button">Take down</button>'
+          : 'gone'}</td>
+  </tr>`;
+}
+
+function paintNotices() {
+  $('#notices-admin').innerHTML = state.notices.length
+    ? `<thead><tr><th scope="col">Country</th><th scope="col">Kind</th>
+         <th scope="col">What it says</th><th scope="col">Lang</th>
+         <th scope="col">For how long</th><th scope="col"></th>
+       </tr></thead><tbody>${state.notices.map(noticeRow).join('')}</tbody>`
+    : '<tbody><tr><td class="set-note">No notices anywhere.</td></tr></tbody>';
+}
+
+async function loadNotices() {
+  if (!$('#notice-lang').options.length) {
+    // The nine the site is read in, which is also what the table's own
+    // constraint allows — anything else is refused on the way in.
+    $('#notice-lang').innerHTML = ['en','de','es','fr','it','pt','nl','cs','pl']
+      .map(c => `<option value="${c}"${c === 'en' ? ' selected' : ''}>${c}</option>`).join('');
+  }
+  state.notices = await adminNotices();
+  paintNotices();
+}
+
+$('#notice-post').addEventListener('click', async () => {
+  const country = $('#notice-country').value.trim().toUpperCase();
+  const headline = $('#notice-headline').value.trim();
+  if (!country) { toast('Which country?', { error: true }); return; }
+  if (headline.length < 4) { toast('A headline needs more than that.', { error: true }); return; }
+  await attempt(async () => {
+    await adminPostNotice({
+      country, kind: $('#notice-kind').value, headline,
+      body: $('#notice-body').value.trim(), lang: $('#notice-lang').value,
+      until: $('#notice-until').value
+        ? new Date($('#notice-until').value).toISOString() : null,
+    });
+    toast(`Posted over ${country}.`);
+    $('#notice-headline').value = '';
+    $('#notice-body').value = '';
+    await loadNotices();
+  }, { onFail: loadNotices });
+});
+
+$('#notices-admin').addEventListener('click', async (e) => {
+  if (e.target.dataset.act !== 'drop') return;
+  const id = e.target.closest('tr')?.dataset.id;
+  if (!id) return;
+  await attempt(async () => {
+    await adminDropNotice(id);
+    toast('Taken down.');
+    await loadNotices();
+  }, { onFail: loadNotices });
 });
 
 // --- regions ----------------------------------------------------------------

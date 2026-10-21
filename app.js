@@ -12,6 +12,7 @@ import { isConfigured, missingConfig, PLACE_ZOOM, PRECISE_ZOOM, REPORT_WINDOW_DA
          SUGGEST_MIN_CHARS, SUGGEST_DEBOUNCE_MS, REPORT_BOUNDS,
          WEATHER_COUNTRIES, MAGIC_LINK_ENABLED } from './js/config.js';
 import { getCategories, fetchForBounds, submitReport, withdrawReport, reportingAllowance,
+         noticesFor, activeLocks,
          mySupports, addSupport, removeSupport, flagReport, fetchSafetyPlaces,
          myReports, myConfirmationCount, myConfirmedReports, editMyReport,
          deleteMyAccount, getProfile, saveDisplayName, saveLocale, fetchAdvisories,
@@ -335,7 +336,7 @@ function onLanguageChanged() {
     // Both of these hold a line in the reader's language — the chip's prompt,
     // the bar's country and service names — so they are repainted too. Neither
     // re-reads anything: the country and the advisory rows are already in hand.
-    refreshEmergency(); refreshAdvisory();
+    refreshEmergency(); refreshAdvisory(); refreshNotices();
   }
   if ($('#profile-dialog').open) paintProfileList();
   if ($('#report-dialog').open) paintAllowance();
@@ -1428,6 +1429,68 @@ function paintAdvisoryPrompt(chip) {
   if ($('#advisory-dialog').open) paintAdvisoryDialog();
 }
 
+// What we have said about the country in front of you, and what we have paused
+// there. Both come from the database and neither is translated: a notice is
+// typed by a person about something happening now, and the pause line is built
+// from scope slugs the page does translate.
+let noticeTicket = 0;
+const NOTICE_GLYPH = { info: 'ℹ', warning: '⚠', danger: '⛔' };
+
+async function refreshNotices() {
+  const band = $('#notice-band');
+  if (!band) return;
+  if (!isConfigured()) { band.hidden = true; return; }
+
+  const ticket = ++noticeTicket;
+  const code = viewIsOneCountry() ? await currentCountry() : null;
+  // Nothing is read until the view is one country, for the same reason the
+  // advisory chip waits: a visitor who never zooms in should not pay for it.
+  if (ticket !== noticeTicket) return;
+  if (!code) { band.hidden = true; band.innerHTML = ''; return; }
+
+  let notices = [];
+  let locks = [];
+  try {
+    [notices, locks] = await Promise.all([noticesFor(code), activeLocks()]);
+  } catch (err) {
+    // A band that cannot load is a band that is not shown. The map underneath
+    // is the thing people came for.
+    console.error(err);
+    band.hidden = true;
+    return;
+  }
+  if (ticket !== noticeTicket) return;
+
+  const parts = notices.map(n => `
+    <div class="nb-item is-${esc(n.kind)}">
+      <span class="nb-glyph" aria-hidden="true">${NOTICE_GLYPH[n.kind] ?? 'ℹ'}</span>
+      <span>
+        <b lang="${esc(n.lang)}">${esc(n.headline)}</b>
+        ${n.body ? `<em lang="${esc(n.lang)}">${esc(n.body)}</em>` : ''}
+      </span>
+    </div>`);
+
+  // What is paused here, said plainly. A map that quietly omits a country's
+  // disasters without being able to say so is worse than one that admits it:
+  // a reader who notices the layer is empty would otherwise conclude the
+  // country has no disasters, which is the opposite of true.
+  const here = locks.find(l => String(l.country_code).toUpperCase() === code.toUpperCase());
+  const paused = (here?.scopes ?? [])
+    .filter(slug => slug !== 'reports_new')      // nothing is missing from the map for that one
+    .map(slug => t(`paused.${slug}`))
+    .filter(Boolean);
+  if (paused.length) {
+    parts.push(`
+      <div class="nb-item is-paused">
+        <span class="nb-glyph" aria-hidden="true">⏸</span>
+        <span>${esc(t('paused.lede'))} ${esc(paused.join(', '))}</span>
+      </div>`);
+  }
+
+  band.innerHTML = parts.join('');
+  band.hidden = parts.length === 0;
+}
+
 async function refreshAdvisory() {
   const chip = $('#advisory-chip');
   if (!isConfigured()) { chip.hidden = true; return; }
@@ -1523,6 +1586,7 @@ function draw() {
   forgetCountry();
   refreshEmergency();
   refreshAdvisory();
+  refreshNotices();
   refreshHazards();
 }
 
@@ -1925,6 +1989,7 @@ function wireUI() {
         rememberSearchedCountry(place.countryCode);
         refreshEmergency();
         refreshAdvisory();
+        refreshNotices();
       }
       toast(t('toast.showingAround'));
     } catch (err) {

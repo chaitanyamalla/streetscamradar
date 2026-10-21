@@ -115,6 +115,10 @@
                   aria-selected="false" aria-controls="tab-levels" tabindex="-1">Levels</button>
           <button role="tab" class="admin-tab" data-tab="regions"
                   aria-selected="false" aria-controls="tab-regions" tabindex="-1">Regions</button>
+          <button role="tab" class="admin-tab" data-tab="locks"
+                  aria-selected="false" aria-controls="tab-locks" tabindex="-1">Locks</button>
+          <button role="tab" class="admin-tab" data-tab="notices"
+                  aria-selected="false" aria-controls="tab-notices" tabindex="-1">Notices</button>
           <button role="tab" class="admin-tab" data-tab="settings"
                   aria-selected="false" aria-controls="tab-settings" tabindex="-1">Settings</button>
         </div>
@@ -198,6 +202,107 @@
             <button class="ghost-button small" id="level-drop" type="button">Remove the top rung</button>
             <button class="primary-button" id="levels-save" type="button">Save the ladder</button>
           </div>
+        </div>
+
+        <!-- ---- Locks ---------------------------------------------------- -->
+        <div id="tab-locks" role="tabpanel" class="admin-panel" hidden>
+          <p class="prose-note">
+            Switch a layer off in one country, or every layer at once. A lock
+            with no end time stays until somebody lifts it; one with an end time
+            stops on its own, with nothing to remember.
+          </p>
+          <p class="prose-note is-warning">
+            <strong>Pausing new reports</strong> costs one would-be reporter the
+            chance to warn somebody. <strong>Hiding reports already filed</strong>
+            takes away the warnings other people left for every traveller in that
+            country, which is what this site is for. They are separate switches
+            for that reason — reach for the first, and post a notice saying why.
+          </p>
+
+          <div class="lock-form">
+            <label class="ar-field">
+              <span>Countries</span>
+              <input id="lock-countries" type="text" placeholder="FR, ES"
+                     autocomplete="off"
+                     title="Two-letter codes, separated by commas. The database refuses anything that is not a real country." />
+            </label>
+            <label class="ar-field">
+              <span>Or a whole group</span>
+              <select id="lock-group"><option value="">—</option></select>
+            </label>
+            <label class="ar-field">
+              <span>Until (leave empty to lock until lifted)</span>
+              <input id="lock-until" type="datetime-local" />
+            </label>
+            <label class="ar-field wide">
+              <span>Why, for us only — never shown to anybody</span>
+              <input id="lock-note" type="text" maxlength="200"
+                     placeholder="e.g. the ministry feed is wrong for this country" />
+            </label>
+            <fieldset class="lock-scopes" id="lock-scopes">
+              <legend>What to switch off</legend>
+            </fieldset>
+            <div class="admin-actions">
+              <button class="ghost-button small" id="lock-everything" type="button">Tick everything</button>
+              <button class="ghost-button small" id="lock-none" type="button">Untick everything</button>
+              <button class="primary-button" id="lock-save" type="button">Apply the lock</button>
+            </div>
+          </div>
+
+          <table class="admin-table" id="locks-admin"></table>
+        </div>
+
+        <!-- ---- Notices -------------------------------------------------- -->
+        <div id="tab-notices" role="tabpanel" class="admin-panel" hidden>
+          <p class="prose-note">
+            Something happening that none of the feeds carry — a protest, a
+            strike, a border closure. Shown over the country it is about until
+            you take it down, or until the time you give.
+          </p>
+          <p class="prose-note">
+            A notice is shown in the language you write it in, to every reader,
+            because waiting for nine translations would mean it arrives after
+            the thing it describes has ended. Say which language below and the
+            page marks it, so a browser can offer to translate it.
+          </p>
+
+          <div class="notice-form">
+            <label class="ar-field">
+              <span>Country</span>
+              <input id="notice-country" type="text" placeholder="FR" autocomplete="off" />
+            </label>
+            <label class="ar-field">
+              <span>How loudly</span>
+              <select id="notice-kind">
+                <option value="info">Information</option>
+                <option value="warning" selected>Warning</option>
+                <option value="danger">Serious</option>
+              </select>
+            </label>
+            <label class="ar-field">
+              <span>Written in</span>
+              <select id="notice-lang"></select>
+            </label>
+            <label class="ar-field">
+              <span>Until (empty = until taken down)</span>
+              <input id="notice-until" type="datetime-local" />
+            </label>
+            <label class="ar-field wide">
+              <span>Headline</span>
+              <input id="notice-headline" type="text" maxlength="90"
+                     placeholder="Ongoing protests in the centre" />
+            </label>
+            <label class="ar-field wide">
+              <span>More, if it helps (optional)</span>
+              <textarea id="notice-body" rows="3" maxlength="600"
+                        placeholder="Which districts, which days, what to avoid."></textarea>
+            </label>
+            <div class="admin-actions">
+              <button class="primary-button" id="notice-post" type="button">Post it</button>
+            </div>
+          </div>
+
+          <table class="admin-table" id="notices-admin"></table>
         </div>
 
         <!-- ---- Regions -------------------------------------------------- -->

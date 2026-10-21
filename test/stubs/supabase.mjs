@@ -81,6 +81,11 @@ class Query {
   order(col, o = {}) { this._order = { col, asc: o.ascending !== false }; return this; }
   limit(n) { this._limit = n; return this; }
   single() { this._one = true; return this; }
+  // maybeSingle() returns null rather than an error when there is no row,
+  // which is exactly why getProfile() uses it: a member who has not saved a
+  // profile yet is an ordinary state, not a failure. A stub without it threw,
+  // and the thrown error looked nothing like the missing method it was.
+  maybeSingle() { this._one = true; return this; }
   get result() {
     let out = this.rows.filter(r => this.filters.every(f => f(r)));
     if (this._order) {

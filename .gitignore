@@ -1,3 +1,14 @@
+__pycache__/
+*.pyc
+
+# Finder writes one of these into every folder it opens, to remember icon
+# positions. Nothing to do with the site, and it turns up in git status on
+# every Mac that touches the repo.
+.DS_Store
+
+# Playwright and its Chromium, installed per machine rather than committed.
 node_modules/
+
+# Screenshots a test took to look at something. Regenerable, and large.
 test/shots/
 *.png

@@ -21,6 +21,16 @@
 # 60-second cache, built to be read from a page, and an earthquake's position
 # matters — so those are fetched in the browser and drawn where they happened.
 #
+# Neither source can fail the other, and neither can fail the run on its own.
+# GDACS timing out used to stop the job before MeteoAlarm was even asked, so one
+# service having a bad afternoon took down the half that was working. Each half
+# now runs and loads independently, and whether the run is RED is decided at the
+# end from the only thing that matters to a reader: how old the newest row is.
+# A fetch that fails while the table was loaded an hour ago is a blip the next
+# run heals, and is reported and forgiven. A table that has gone STALE_MINUTES
+# without a successful load is a real outage and fails the run. A load step
+# failing is ours, not the source's, and always fails the run.
+#
 # Needs the same SUPABASE_DB_URL secret as the other database workflows.
 # ---------------------------------------------------------------------------
 name: Refresh hazards
@@ -122,14 +132,28 @@ jobs:
           python3 supabase/ops/fetch_weather_test.py
           python3 supabase/ops/resolve_weather_places_test.py
 
+      # continue-on-error, and the verdict step at the end decides. GDACS is the
+      # flakier of the two by a wide margin: six timed-out attempts across both
+      # its endpoints is a normal bad afternoon there, and it must not cost us
+      # Europe's weather warnings.
+      #
+      # timeout-minutes because the retries inside the script are patient and
+      # the job's own budget is fifteen minutes for both sources.
       - name: Fetch from GDACS
+        id: gdacs_fetch
         if: ${{ !inputs.probe }}
+        continue-on-error: true
+        timeout-minutes: 6
         run: |
           python3 supabase/ops/fetch_disasters.py > disasters.sql
           head -1 disasters.sql
 
+      # Only if there is something to load. A failed fetch leaves disasters.sql
+      # truncated, and psql would happily apply an empty file.
       - name: Load the disasters into Supabase
-        if: ${{ !inputs.probe }}
+        id: gdacs_load
+        if: ${{ !inputs.probe && steps.gdacs_fetch.outcome == 'success' }}
+        continue-on-error: true
         env:
           PGURL: ${{ env.PGURL_FINAL }}
         run: |
@@ -138,17 +162,21 @@ jobs:
       # Europe's national met services, through MeteoAlarm. One request per
       # country because that is how it publishes; it is the slow step here.
       #
-      # Deliberately after the disasters are already loaded: if MeteoAlarm is
-      # having a bad afternoon, the floods and cyclones still got in.
+      # After the disasters in running order and independent of them in every
+      # other sense: whichever of the two answered gets loaded.
       - name: Fetch from MeteoAlarm
+        id: weather_fetch
         if: ${{ !inputs.probe }}
+        continue-on-error: true
         timeout-minutes: 4
         run: |
           python3 supabase/ops/fetch_weather.py > weather.sql
           head -1 weather.sql
 
       - name: Load the weather warnings into Supabase
-        if: ${{ !inputs.probe }}
+        id: weather_load
+        if: ${{ !inputs.probe && steps.weather_fetch.outcome == 'success' }}
+        continue-on-error: true
         env:
           PGURL: ${{ env.PGURL_FINAL }}
         run: |
@@ -160,6 +188,7 @@ jobs:
       # the geocoder nothing at all on an ordinary run.
       - name: Find countries we have not placed yet
         if: ${{ !inputs.probe }}
+        continue-on-error: true
         env:
           PGURL: ${{ env.PGURL_FINAL }}
         run: |
@@ -190,3 +219,81 @@ jobs:
           PGURL: ${{ env.PGURL_FINAL }}
         run: |
           test -s places.sql && psql "$PGURL" -v ON_ERROR_STOP=1 -f places.sql
+
+      # ---------------------------------------------------------------------
+      # Is this run a failure?
+      #
+      # Everything above is forgiving, so this is the one step that can turn
+      # the run red, and it answers the reader's question rather than the
+      # runner's: is what the map is showing still current?
+      #
+      #   A load step failed      -> red. That is our SQL or our database, and
+      #                              no amount of waiting fixes it.
+      #   A fetch failed, table   -> green, with a note. GDACS times out, the
+      #   loaded recently            next run three hours later heals it, and
+      #                              an email about it teaches us to ignore
+      #                              emails about it.
+      #   A fetch failed, table   -> red. Four scheduled runs in a row have
+      #   stale or never loaded      failed to get through; that is an outage
+      #                              and the map is quietly going out of date.
+      #
+      # STALE_MINUTES is 720 — twelve hours, four misses of the three-hourly
+      # schedule. Tightening it to one miss would restore exactly the alert
+      # this step exists to stop sending.
+      # ---------------------------------------------------------------------
+      - name: Decide whether this run failed
+        if: ${{ always() && !inputs.probe && env.PGURL_FINAL != '' }}
+        env:
+          PGURL: ${{ env.PGURL_FINAL }}
+          STALE_MINUTES: '720'
+          GDACS_FETCH: ${{ steps.gdacs_fetch.outcome }}
+          GDACS_LOAD: ${{ steps.gdacs_load.outcome }}
+          WEATHER_FETCH: ${{ steps.weather_fetch.outcome }}
+          WEATHER_LOAD: ${{ steps.weather_load.outcome }}
+        run: |
+          set -u
+          red=0
+
+          # 999999 for an empty table: never loaded is the stalest there is.
+          age() {
+            psql "$PGURL" -tAc "select coalesce(
+              (extract(epoch from (now() - max(refreshed_at))) / 60)::bigint,
+              999999) from public.$1"
+          }
+
+          judge() {
+            name="$1"; table="$2"; fetch="$3"; load="$4"
+            if [ "$load" = failure ]; then
+              echo "::error::Loading $name into Supabase failed. That is ours, not theirs."
+              red=1
+              return
+            fi
+            minutes="$(age "$table")"
+            case "$minutes" in
+              ''|*[!0-9]*)
+                echo "::error::Could not read how old public.$table is."
+                red=1
+                return
+                ;;
+            esac
+            if [ "$minutes" -ge 999999 ]; then
+              when="never"
+            else
+              when="$(( minutes / 60 ))h ago"
+            fi
+            if [ "$fetch" = success ]; then
+              echo "$name: loaded, newest row ${minutes}m old."
+            elif [ "$minutes" -gt "$STALE_MINUTES" ]; then
+              echo "::error::$name could not be fetched and public.$table was loaded"
+              echo "::error::${when}. The map is going out of date."
+              red=1
+            else
+              echo "::warning::$name could not be fetched this run. public.$table was"
+              echo "::warning::loaded ${when} and still stands; the next run will heal it."
+            fi
+          }
+
+          judge GDACS      disaster_alerts  "$GDACS_FETCH"   "$GDACS_LOAD"
+          judge MeteoAlarm weather_warnings "$WEATHER_FETCH" "$WEATHER_LOAD"
+
+          exit "$red"
